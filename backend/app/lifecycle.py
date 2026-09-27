@@ -19,6 +19,7 @@ ALLOWED_TRANSITIONS: dict[DocumentStatus, frozenset[DocumentStatus]] = {
     ),
     DocumentStatus.SCANNING: frozenset(
         {
+            DocumentStatus.DRAFT,
             DocumentStatus.NEEDS_REVIEW,
             DocumentStatus.FAILED,
             DocumentStatus.EXPIRED,
@@ -27,6 +28,7 @@ ALLOWED_TRANSITIONS: dict[DocumentStatus, frozenset[DocumentStatus]] = {
     ),
     DocumentStatus.NEEDS_REVIEW: frozenset(
         {
+            DocumentStatus.DRAFT,
             DocumentStatus.SCANNING,
             DocumentStatus.READY,
             DocumentStatus.FAILED,
@@ -36,6 +38,7 @@ ALLOWED_TRANSITIONS: dict[DocumentStatus, frozenset[DocumentStatus]] = {
     ),
     DocumentStatus.READY: frozenset(
         {
+            DocumentStatus.DRAFT,
             DocumentStatus.NEEDS_REVIEW,
             DocumentStatus.SCANNING,
             DocumentStatus.EXPORTED,
@@ -45,6 +48,7 @@ ALLOWED_TRANSITIONS: dict[DocumentStatus, frozenset[DocumentStatus]] = {
     ),
     DocumentStatus.EXPORTED: frozenset(
         {
+            DocumentStatus.DRAFT,
             DocumentStatus.NEEDS_REVIEW,
             DocumentStatus.SCANNING,
             DocumentStatus.EXPIRED,
@@ -53,6 +57,7 @@ ALLOWED_TRANSITIONS: dict[DocumentStatus, frozenset[DocumentStatus]] = {
     ),
     DocumentStatus.FAILED: frozenset(
         {
+            DocumentStatus.DRAFT,
             DocumentStatus.SCANNING,
             DocumentStatus.NEEDS_REVIEW,
             DocumentStatus.EXPIRED,

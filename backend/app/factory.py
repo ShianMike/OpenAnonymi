@@ -20,6 +20,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     engine = engine or create_engine(
         settings.database_url,
         pool_pre_ping=True,
+        hide_parameters=True,
         connect_args={"connect_timeout": 2},
     )
 

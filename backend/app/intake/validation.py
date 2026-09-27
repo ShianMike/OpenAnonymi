@@ -1,0 +1,41 @@
+"""Server-side source validation shared by paste and UTF-8 TXT intake."""
+
+from dataclasses import dataclass
+
+from app.contracts import MAX_CODE_POINTS, MAX_UTF8_BYTES
+
+
+class SourceValidationError(ValueError):
+    """Safe input error that never embeds submitted text."""
+
+
+@dataclass(frozen=True)
+class ValidatedSource:
+    text: str
+    utf8_bytes: int
+    code_points: int
+    initial_bom_removed: bool
+
+
+def validate_source(source: str) -> ValidatedSource:
+    """Remove one initial BOM after checking raw limits; preserve all other characters."""
+    try:
+        raw = source.encode("utf-8", errors="strict")
+    except UnicodeEncodeError:
+        raise SourceValidationError("Input must be valid UTF-8 text.") from None
+    if len(raw) > MAX_UTF8_BYTES:
+        raise SourceValidationError("Input exceeds the 1 MiB UTF-8 limit.")
+    if len(source) > MAX_CODE_POINTS:
+        raise SourceValidationError("Input exceeds the 100,000-character limit.")
+    bom_removed = source.startswith("\ufeff")
+    text = source[1:] if bom_removed else source
+    if not text.strip():
+        raise SourceValidationError("Enter text that contains visible content.")
+    if "\x00" in text:
+        raise SourceValidationError("Input contains an unsupported control character.")
+    return ValidatedSource(
+        text=text,
+        utf8_bytes=len(text.encode("utf-8")),
+        code_points=len(text),
+        initial_bom_removed=bom_removed,
+    )

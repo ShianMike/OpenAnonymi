@@ -4,11 +4,11 @@ Run one worker. Each batch commits atomically and a failed run can be retried.
 This command prints only record counts, never source text or ciphertext.
 """
 
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.config import ConfigurationError, load_settings
+from app.config import ConfigurationError, Settings, load_settings
 from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedContentError, ProtectedValue
 from app.db.models import Document, SourceRevision
 
@@ -47,26 +47,34 @@ def rotate_sources(session: Session, keys: KeyRing) -> int:
     return len(rows)
 
 
+def rotate_database(settings: Settings, keys: KeyRing) -> dict[str, int]:
+    engine = create_engine(settings.database_url, pool_pre_ping=True, hide_parameters=True)
+    totals = {"titles": 0, "source revisions": 0}
+    try:
+        for label, rotate_batch in (
+            ("titles", rotate_documents),
+            ("source revisions", rotate_sources),
+        ):
+            while True:
+                with Session(engine) as session:
+                    if label == "source revisions":
+                        session.info["allow_source_key_rotation"] = True
+                        session.execute(text("SET LOCAL openanonymi.key_rotation = 'on'"))
+                    count = rotate_batch(session, keys)
+                    session.commit()
+                totals[label] += count
+                if count < BATCH_SIZE:
+                    break
+    finally:
+        engine.dispose()
+    return totals
+
+
 def main() -> None:
     try:
         settings = load_settings()
         keys = KeyRing.from_settings(settings)
-        engine = create_engine(settings.database_url, pool_pre_ping=True)
-        totals = {"titles": 0, "source revisions": 0}
-        try:
-            for label, rotate_batch in (
-                ("titles", rotate_documents),
-                ("source revisions", rotate_sources),
-            ):
-                while True:
-                    with Session(engine) as session:
-                        count = rotate_batch(session, keys)
-                        session.commit()
-                    totals[label] += count
-                    if count < BATCH_SIZE:
-                        break
-        finally:
-            engine.dispose()
+        totals = rotate_database(settings, keys)
     except (ConfigurationError, ContentKeyUnavailable, ProtectedContentError, SQLAlchemyError):
         raise SystemExit(
             "Key rotation failed. Check database access and configured content keys."

@@ -13,10 +13,13 @@ from sqlalchemy import (
     LargeBinary,
     String,
     UniqueConstraint,
+    event,
     func,
+    inspect,
 )
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Session as OrmSession
 
 from app.db.base import Base
 
@@ -389,3 +392,29 @@ class AuditEvent(Base):
     occurred_at: Mapped[datetime] = timestamp_column()
 
     __table_args__ = (Index("ix_audit_events_workspace_time", "workspace_id", "occurred_at"),)
+
+
+class ImmutableSourceRevision(RuntimeError):
+    """Source revisions may only be inserted or re-encrypted by maintenance."""
+
+
+@event.listens_for(OrmSession, "before_flush")
+def prevent_source_revision_edits(session: OrmSession, _flush_context, _instances) -> None:
+    for object_ in session.dirty:
+        if not isinstance(object_, SourceRevision) or not session.is_modified(object_):
+            continue
+        if not session.info.get("allow_source_key_rotation"):
+            raise ImmutableSourceRevision("Source revisions are immutable.")
+        state = inspect(object_)
+        for field in (
+            "id",
+            "document_id",
+            "revision_number",
+            "utf8_bytes",
+            "code_points",
+            "created_at",
+        ):
+            if state.attrs[field].history.has_changes():
+                raise ImmutableSourceRevision(
+                    "Key rotation cannot change source revision metadata."
+                )
