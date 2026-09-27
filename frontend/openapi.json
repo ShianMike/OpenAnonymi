@@ -1281,6 +1281,203 @@
         }
       }
     },
+    "/api/v1/documents/{document_id}/scan": {
+      "get": {
+        "tags": [
+          "detection"
+        ],
+        "summary": "Scan State Route",
+        "operationId": "scan_state_route_api_v1_documents__document_id__scan_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanView"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "detection"
+        ],
+        "summary": "Scan Route",
+        "operationId": "scan_route_api_v1_documents__document_id__scan_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScanRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanView"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/scan-settings": {
+      "put": {
+        "tags": [
+          "detection"
+        ],
+        "summary": "Scan Settings Route",
+        "operationId": "scan_settings_route_api_v1_documents__document_id__scan_settings_put",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScanSettingsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanSettingsView"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
     "/api/v1/health/live": {
       "get": {
         "summary": "Live",
@@ -1822,6 +2019,117 @@
         ],
         "title": "SavedDraftView"
       },
+      "ScanRequest": {
+        "properties": {
+          "expected": {
+            "$ref": "#/components/schemas/VersionRef"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected"
+        ],
+        "title": "ScanRequest"
+      },
+      "ScanSettingsRequest": {
+        "properties": {
+          "expected": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/FindingCategory"
+            },
+            "type": "array",
+            "title": "Categories"
+          },
+          "phone_region": {
+            "type": "string",
+            "maxLength": 2,
+            "minLength": 2,
+            "title": "Phone Region"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected",
+          "phone_region"
+        ],
+        "title": "ScanSettingsRequest"
+      },
+      "ScanSettingsView": {
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/VersionRef"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "title": "ScanSettingsView"
+      },
+      "ScanView": {
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_started",
+              "scanning",
+              "completed",
+              "failed",
+              "superseded"
+            ],
+            "title": "Status"
+          },
+          "attempt_count": {
+            "type": "integer",
+            "title": "Attempt Count"
+          },
+          "match_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Match Count"
+          },
+          "failure_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Code"
+          },
+          "suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/SuggestionView"
+            },
+            "type": "array",
+            "title": "Suggestions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "status",
+          "attempt_count",
+          "match_count",
+          "failure_code",
+          "suggestions"
+        ],
+        "title": "ScanView"
+      },
       "ServiceMetadata": {
         "properties": {
           "name": {
@@ -1936,6 +2244,27 @@
         ],
         "title": "SignInRequest"
       },
+      "SourceSpan": {
+        "properties": {
+          "start": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Start"
+          },
+          "end": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "End"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "SourceSpan",
+        "description": "Half-open Unicode code point offsets into one immutable source revision."
+      },
       "SourceView": {
         "properties": {
           "version": {
@@ -1987,6 +2316,43 @@
           "phone_region"
         ],
         "title": "SourceView"
+      },
+      "SuggestionView": {
+        "properties": {
+          "finding_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Finding Id"
+          },
+          "span": {
+            "$ref": "#/components/schemas/SourceSpan"
+          },
+          "category": {
+            "$ref": "#/components/schemas/FindingCategory"
+          },
+          "rule_id": {
+            "type": "string",
+            "title": "Rule Id"
+          },
+          "rule_version": {
+            "type": "string",
+            "title": "Rule Version"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "finding_id",
+          "span",
+          "category",
+          "rule_id",
+          "rule_version",
+          "reason"
+        ],
+        "title": "SuggestionView"
       },
       "UpdateWorkspaceSettingsRequest": {
         "properties": {

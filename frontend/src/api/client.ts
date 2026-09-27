@@ -11,6 +11,8 @@ export type SavedDraftView = components['schemas']['SavedDraftView']
 export type SourceView = components['schemas']['SourceView']
 export type VersionRef = components['schemas']['VersionRef']
 export type CreateDraftRequest = components['schemas']['CreateDraftRequest']
+export type ScanView = components['schemas']['ScanView']
+export type ScanSettingsView = components['schemas']['ScanSettingsView']
 type ErrorResponse = components['schemas']['ErrorResponse']
 
 export class ApiRequestError extends Error {
@@ -255,5 +257,27 @@ export function saveDraftSource(
   return sendJson<SavedDraftView>(
     'PUT', `/documents/${encodeURIComponent(documentId)}/source`,
     { expected, source }, csrfToken,
+  )
+}
+
+export function getScan(documentId: string, signal?: AbortSignal): Promise<ScanView> {
+  return get<ScanView>(`/documents/${encodeURIComponent(documentId)}/scan`, signal)
+}
+
+export function startScan(
+  documentId: string, expected: VersionRef, csrfToken: string,
+): Promise<ScanView> {
+  return post<ScanView>(
+    `/documents/${encodeURIComponent(documentId)}/scan`, { expected }, csrfToken,
+  )
+}
+
+export function updateScanSettings(
+  documentId: string, expected: VersionRef, categories: Array<'email' | 'phone'>,
+  phoneRegion: string, csrfToken: string,
+): Promise<ScanSettingsView> {
+  return sendJson<ScanSettingsView>(
+    'PUT', `/documents/${encodeURIComponent(documentId)}/scan-settings`,
+    { expected, categories, phone_region: phoneRegion }, csrfToken,
   )
 }

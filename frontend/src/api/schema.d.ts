@@ -278,6 +278,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/{document_id}/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Scan State Route */
+        get: operations["scan_state_route_api_v1_documents__document_id__scan_get"];
+        put?: never;
+        /** Scan Route */
+        post: operations["scan_route_api_v1_documents__document_id__scan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/scan-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Scan Settings Route */
+        put: operations["scan_settings_route_api_v1_documents__document_id__scan_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health/live": {
         parameters: {
             query?: never;
@@ -522,6 +557,39 @@ export interface components {
             expires_at: string;
             status: components["schemas"]["DocumentStatus"];
         };
+        /** ScanRequest */
+        ScanRequest: {
+            expected: components["schemas"]["VersionRef"];
+        };
+        /** ScanSettingsRequest */
+        ScanSettingsRequest: {
+            expected: components["schemas"]["VersionRef"];
+            /** Categories */
+            categories?: components["schemas"]["FindingCategory"][];
+            /** Phone Region */
+            phone_region: string;
+        };
+        /** ScanSettingsView */
+        ScanSettingsView: {
+            version: components["schemas"]["VersionRef"];
+        };
+        /** ScanView */
+        ScanView: {
+            version: components["schemas"]["VersionRef"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "not_started" | "scanning" | "completed" | "failed" | "superseded";
+            /** Attempt Count */
+            attempt_count: number;
+            /** Match Count */
+            match_count: number | null;
+            /** Failure Code */
+            failure_code: string | null;
+            /** Suggestions */
+            suggestions: components["schemas"]["SuggestionView"][];
+        };
         /** ServiceMetadata */
         ServiceMetadata: {
             /** Name */
@@ -568,6 +636,16 @@ export interface components {
              */
             password: string;
         };
+        /**
+         * SourceSpan
+         * @description Half-open Unicode code point offsets into one immutable source revision.
+         */
+        SourceSpan: {
+            /** Start */
+            start: number;
+            /** End */
+            end: number;
+        };
         /** SourceView */
         SourceView: {
             version: components["schemas"]["VersionRef"];
@@ -585,6 +663,22 @@ export interface components {
             categories: components["schemas"]["FindingCategory"][];
             /** Phone Region */
             phone_region: string;
+        };
+        /** SuggestionView */
+        SuggestionView: {
+            /**
+             * Finding Id
+             * Format: uuid
+             */
+            finding_id: string;
+            span: components["schemas"]["SourceSpan"];
+            category: components["schemas"]["FindingCategory"];
+            /** Rule Id */
+            rule_id: string;
+            /** Rule Version */
+            rule_version: string;
+            /** Reason */
+            reason: string;
         };
         /** UpdateWorkspaceSettingsRequest */
         UpdateWorkspaceSettingsRequest: {
@@ -1649,6 +1743,152 @@ export interface operations {
             };
             /** @description Service Unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    scan_state_route_api_v1_documents__document_id__scan_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    scan_route_api_v1_documents__document_id__scan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanView"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    scan_settings_route_api_v1_documents__document_id__scan_settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScanSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanSettingsView"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

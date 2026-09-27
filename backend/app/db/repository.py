@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
+from phonenumbers import SUPPORTED_REGIONS
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -80,8 +81,8 @@ def create_document(
         raise StorageValidationError("A timezone-aware expiry is required.")
     if title is not None and len(title) > 200:
         raise StorageValidationError("Title must be 200 characters or fewer.")
-    if not phone_region.isascii() or len(phone_region) != 2 or not phone_region.isalpha():
-        raise StorageValidationError("Choose a two-letter phone region.")
+    if phone_region.upper() not in SUPPORTED_REGIONS:
+        raise StorageValidationError("Choose a supported phone region.")
     if not categories.issubset(set(FindingCategory)):
         raise StorageValidationError("Choose supported detection categories.")
 

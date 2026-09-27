@@ -232,6 +232,45 @@ class LabelCounter(Base):
     __table_args__ = (CheckConstraint("next_number > 0", name="positive_next_label_number"),)
 
 
+class ScanRun(Base):
+    __tablename__ = "scan_runs"
+
+    id: Mapped[UUID] = uuid_column(primary_key=True)
+    document_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    source_revision_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), nullable=False)
+    settings_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    detector_version: Mapped[str] = mapped_column(String(30), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    match_count: Mapped[int | None] = mapped_column(Integer)
+    failure_code: Mapped[str | None] = mapped_column(String(40))
+    started_at: Mapped[datetime] = timestamp_column()
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["document_id", "source_revision_id"],
+            ["source_revisions.document_id", "source_revisions.id"],
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint(
+            "document_id", "source_revision_id", "settings_version", name="uq_scan_runs_input"
+        ),
+        UniqueConstraint(
+            "document_id", "source_revision_id", "id", name="uq_scan_runs_revision_id"
+        ),
+        CheckConstraint("settings_version > 0", name="positive_scan_settings_version"),
+        CheckConstraint("attempt_count > 0", name="positive_scan_attempt_count"),
+        CheckConstraint(
+            "match_count IS NULL OR match_count >= 0", name="nonnegative_scan_match_count"
+        ),
+        CheckConstraint(
+            "status IN ('scanning', 'completed', 'failed', 'superseded')",
+            name="valid_scan_status",
+        ),
+    )
+
+
 class Finding(Base):
     __tablename__ = "findings"
 
@@ -243,6 +282,8 @@ class Finding(Base):
     origin: Mapped[str] = mapped_column(String(16), nullable=False)
     rule_id: Mapped[str | None] = mapped_column(String(80))
     rule_version: Mapped[str | None] = mapped_column(String(30))
+    reason: Mapped[str | None] = mapped_column(String(200))
+    scan_run_id: Mapped[UUID | None] = mapped_column(PostgreSQLUUID(as_uuid=True))
     start_offset: Mapped[int] = mapped_column(Integer, nullable=False)
     end_offset: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = timestamp_column()
@@ -260,9 +301,20 @@ class Finding(Base):
             deferrable=True,
             initially="DEFERRED",
         ),
+        ForeignKeyConstraint(
+            ["document_id", "source_revision_id", "scan_run_id"],
+            ["scan_runs.document_id", "scan_runs.source_revision_id", "scan_runs.id"],
+            ondelete="CASCADE",
+        ),
         UniqueConstraint("document_id", "id", name="uq_findings_document_id"),
         CheckConstraint("start_offset >= 0 AND end_offset > start_offset", name="valid_span"),
         CheckConstraint("origin IN ('manual', 'automatic')", name="valid_origin"),
+        CheckConstraint(
+            "(origin = 'manual' AND scan_run_id IS NULL) OR "
+            "(origin = 'automatic' AND scan_run_id IS NOT NULL AND rule_id IS NOT NULL "
+            "AND rule_version IS NOT NULL AND reason IS NOT NULL)",
+            name="automatic_finding_metadata",
+        ),
         CheckConstraint(
             "category IN ('person', 'organization', 'address', 'identifier', 'custom', 'email', 'phone')",
             name="valid_category",
