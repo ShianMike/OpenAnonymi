@@ -1,0 +1,127 @@
+"""One-time recovery codes delivered through configured SMTP."""
+
+import hashlib
+import secrets
+import smtplib
+import ssl
+from datetime import datetime, timedelta
+from email.message import EmailMessage
+from typing import Protocol
+from uuid import uuid4
+
+from sqlalchemy import select, update
+from sqlalchemy.orm import Session
+
+from app.accounts.security import hash_password, normalize_email
+from app.config import Settings
+from app.db.models import RecoveryToken, User
+from app.db.models import Session as StoredSession
+
+RECOVERY_TTL = timedelta(minutes=30)
+
+
+class RecoveryDeliveryError(RuntimeError):
+    pass
+
+
+class InvalidRecoveryCode(RuntimeError):
+    pass
+
+
+class RecoveryMailer(Protocol):
+    def send_recovery_code(self, recipient: str, code: str) -> None: ...
+
+
+class SmtpRecoveryMailer:
+    def __init__(self, settings: Settings) -> None:
+        if not all(
+            (
+                settings.smtp_host,
+                settings.smtp_username,
+                settings.smtp_password,
+                settings.smtp_from,
+            )
+        ):
+            raise ValueError("SMTP recovery is not configured.")
+        self.host = settings.smtp_host
+        self.port = settings.smtp_port
+        self.username = settings.smtp_username
+        self.password = settings.smtp_password
+        self.sender = settings.smtp_from
+
+    def send_recovery_code(self, recipient: str, code: str) -> None:
+        message = EmailMessage()
+        message["From"] = self.sender
+        message["To"] = recipient
+        message["Subject"] = "OpenAnonymi account recovery code"
+        message.set_content(
+            "Use this one-time code in the OpenAnonymi account recovery form:\n\n"
+            f"{code}\n\nIt expires in 30 minutes. If you did not request it, ignore this email."
+        )
+        try:
+            with smtplib.SMTP_SSL(
+                self.host, self.port, timeout=10, context=ssl.create_default_context()
+            ) as connection:
+                connection.login(self.username, self.password.get_secret_value())
+                connection.send_message(message)
+        except (OSError, smtplib.SMTPException) as exc:
+            raise RecoveryDeliveryError("Account recovery delivery failed.") from exc
+
+
+def _digest(code: str) -> bytes:
+    return hashlib.sha256(code.encode("ascii")).digest()
+
+
+def request_recovery(
+    session: Session, *, email: str, now: datetime, mailer: RecoveryMailer
+) -> None:
+    try:
+        normalized = normalize_email(email)
+    except ValueError:
+        return
+    with session.begin():
+        user = session.scalar(select(User).where(User.email == normalized))
+        if user is None or user.disabled_at is not None:
+            return
+        code = secrets.token_urlsafe(24)
+        token = RecoveryToken(
+            id=uuid4(),
+            user_id=user.id,
+            token_hash=_digest(code),
+            created_at=now,
+            expires_at=now + RECOVERY_TTL,
+        )
+        session.add(token)
+        session.flush()
+        mailer.send_recovery_code(user.email, code)
+
+
+def complete_recovery(
+    session: Session, *, email: str, code: str, new_password: str, now: datetime
+) -> None:
+    try:
+        normalized = normalize_email(email)
+        digest = _digest(code)
+    except (ValueError, UnicodeEncodeError):
+        raise InvalidRecoveryCode("The recovery code is invalid or expired.") from None
+    new_hash = hash_password(new_password)
+    with session.begin():
+        token = session.scalar(
+            select(RecoveryToken).where(RecoveryToken.token_hash == digest).with_for_update()
+        )
+        if token is None or token.used_at is not None or token.expires_at <= now:
+            raise InvalidRecoveryCode("The recovery code is invalid or expired.")
+        user = session.get(User, token.user_id)
+        if user is None or user.disabled_at is not None or user.email != normalized:
+            raise InvalidRecoveryCode("The recovery code is invalid or expired.")
+        user.password_hash = new_hash
+        session.execute(
+            update(RecoveryToken)
+            .where(RecoveryToken.user_id == user.id, RecoveryToken.used_at.is_(None))
+            .values(used_at=now)
+        )
+        session.execute(
+            update(StoredSession)
+            .where(StoredSession.user_id == user.id, StoredSession.revoked_at.is_(None))
+            .values(revoked_at=now)
+        )

@@ -7,7 +7,12 @@ nav a[aria-current='page'] { font-weight: 700; color: #222; }
 main { max-width: 60rem; padding: 1rem 1.5rem; }
 h1 { font-size: 1.6rem; }
 button { padding: .4rem .75rem; }
+.auth-page { max-width: 28rem; }
+.auth-page form { display: grid; gap: .5rem; margin: 1rem 0; }
+.auth-page input { box-sizing: border-box; width: 100%; padding: .5rem; }
+.auth-page button { justify-self: start; }
 @media (max-width: 600px) {
+  .app-header { flex-wrap: wrap; }
   .app-body { display: block; }
   nav { width: auto; border-right: 0; border-bottom: 1px solid #ccc; }
   nav a { display: inline-block; }

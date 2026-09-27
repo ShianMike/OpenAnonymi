@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     environment: Literal["development", "test", "production"] = "development"
     active_key_id: str | None = None
     content_keys: dict[str, SecretStr] = Field(default_factory=dict, repr=False)
+    smtp_host: str | None = None
+    smtp_port: int = Field(default=465, ge=1, le=65535)
+    smtp_username: str | None = None
+    smtp_password: SecretStr | None = Field(default=None, repr=False)
+    smtp_from: str | None = None
 
     @field_validator("database_url")
     @classmethod
@@ -58,6 +63,14 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def require_production_security(self) -> "Settings":
+        smtp_fields = (
+            self.smtp_host,
+            self.smtp_username,
+            self.smtp_password,
+            self.smtp_from,
+        )
+        if any(smtp_fields) and not all(smtp_fields):
+            raise ValueError("SMTP recovery requires host, username, password, and sender")
         if self.active_key_id and self.active_key_id not in self.content_keys:
             raise ValueError("active_key_id must identify a configured content key")
         if self.content_keys and not self.active_key_id:

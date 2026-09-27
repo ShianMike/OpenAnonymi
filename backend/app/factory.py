@@ -9,12 +9,18 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.accounts.api import create_auth_router
+from app.accounts.recovery import RecoveryMailer, SmtpRecoveryMailer
 from app.config import Settings, load_settings
 from app.contracts import ErrorResponse, HealthResponse, ServiceMetadata, service_metadata
 from app.errors import ApiError, api_error_handler, validation_error_handler
 
 
-def create_app(settings: Settings | None = None, engine: Engine | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    engine: Engine | None = None,
+    recovery_mailer: RecoveryMailer | None = None,
+) -> FastAPI:
     settings = settings or load_settings()
     owned_engine = engine is None
     engine = engine or create_engine(
@@ -33,6 +39,9 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     app = FastAPI(title="OpenAnonymi API", version="0.1.0", lifespan=lifespan)
     app.state.settings = settings
     app.state.engine = engine
+    app.state.recovery_mailer = recovery_mailer or (
+        SmtpRecoveryMailer(settings) if settings.smtp_host else None
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
@@ -42,6 +51,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
     )
     app.add_exception_handler(ApiError, api_error_handler)
     app.add_exception_handler(RequestValidationError, validation_error_handler)
+    app.include_router(create_auth_router(engine, settings))
 
     @app.middleware("http")
     async def prevent_api_caching(request, call_next):
