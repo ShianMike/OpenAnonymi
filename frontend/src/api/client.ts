@@ -4,6 +4,8 @@ export type ServiceMetadata = components['schemas']['ServiceMetadata']
 export type HealthResponse = components['schemas']['HealthResponse']
 export type SessionView = components['schemas']['SessionView']
 export type RecoveryMessage = components['schemas']['RecoveryMessage']
+export type MemberView = components['schemas']['MemberView']
+export type WorkspaceSettingsView = components['schemas']['WorkspaceSettingsView']
 type ErrorResponse = components['schemas']['ErrorResponse']
 
 export class ApiRequestError extends Error {
@@ -49,20 +51,26 @@ async function requireSuccess(response: Response): Promise<void> {
   throw new ApiRequestError(response.status, 'request_failed', `Request failed (${response.status}).`)
 }
 
-async function post<T>(path: string, body: object, csrfToken?: string): Promise<T> {
+async function sendJson<T>(
+  method: 'POST' | 'PATCH' | 'PUT', path: string, body?: object, csrfToken?: string,
+): Promise<T> {
   const response = await fetch(`/api/v1${path}`, {
-    method: 'POST',
+    method,
     credentials: 'same-origin',
     cache: 'no-store',
     headers: {
-      'Content-Type': 'application/json',
       Accept: 'application/json',
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
       ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
     },
-    body: JSON.stringify(body),
+    body: body ? JSON.stringify(body) : undefined,
   })
   await requireSuccess(response)
   return response.json() as Promise<T>
+}
+
+function post<T>(path: string, body: object, csrfToken?: string): Promise<T> {
+  return sendJson<T>('POST', path, body, csrfToken)
 }
 
 export function getMetadata(signal?: AbortSignal): Promise<ServiceMetadata> {
@@ -118,4 +126,61 @@ export async function completeRecovery(
     body: JSON.stringify({ email, code, new_password: newPassword }),
   })
   await requireSuccess(response)
+}
+
+export function getWorkspaceSettings(
+  workspaceId: string, signal?: AbortSignal,
+): Promise<WorkspaceSettingsView> {
+  return get<WorkspaceSettingsView>(`/workspaces/${encodeURIComponent(workspaceId)}/settings`, signal)
+}
+
+export function getMembers(workspaceId: string, signal?: AbortSignal): Promise<MemberView[]> {
+  return get<MemberView[]>(`/workspaces/${encodeURIComponent(workspaceId)}/members`, signal)
+}
+
+export function updateWorkspaceSettings(
+  workspaceId: string, expectedVersion: number, contentDays: number,
+  activityDays: number, csrfToken: string,
+): Promise<WorkspaceSettingsView> {
+  return sendJson<WorkspaceSettingsView>(
+    'PUT', `/workspaces/${encodeURIComponent(workspaceId)}/settings`,
+    { expected_version: expectedVersion, content_retention_days: contentDays,
+      activity_retention_days: activityDays }, csrfToken,
+  )
+}
+
+export function inviteMember(
+  workspaceId: string, email: string, role: 'member' | 'administrator', csrfToken: string,
+): Promise<MemberView> {
+  return post<MemberView>(
+    `/workspaces/${encodeURIComponent(workspaceId)}/members/invitations`,
+    { email, role }, csrfToken,
+  )
+}
+
+export function changeMemberRole(
+  workspaceId: string, userId: string, role: 'member' | 'administrator', csrfToken: string,
+): Promise<MemberView> {
+  return sendJson<MemberView>(
+    'PATCH', `/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}/role`,
+    { role }, csrfToken,
+  )
+}
+
+export function revokeMember(
+  workspaceId: string, userId: string, csrfToken: string,
+): Promise<MemberView> {
+  return sendJson<MemberView>(
+    'POST', `/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}/revoke`,
+    undefined, csrfToken,
+  )
+}
+
+export function restoreMember(
+  workspaceId: string, userId: string, csrfToken: string,
+): Promise<MemberView> {
+  return sendJson<MemberView>(
+    'POST', `/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}/restore`,
+    undefined, csrfToken,
+  )
 }

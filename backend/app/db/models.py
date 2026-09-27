@@ -57,10 +57,12 @@ class Workspace(Base):
     activity_retention_days: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default="90"
     )
+    settings_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
 
     __table_args__ = (
         CheckConstraint("content_retention_days > 0", name="positive_content_retention"),
         CheckConstraint("activity_retention_days > 0", name="positive_activity_retention"),
+        CheckConstraint("settings_version > 0", name="positive_workspace_settings_version"),
     )
 
 

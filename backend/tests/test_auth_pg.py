@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, delete, select
 from sqlalchemy.engine import make_url
@@ -152,6 +153,33 @@ def test_sign_in_attempts_are_bounded(auth_site):
         assert response.status_code == 401
     limited = _sign_in(client)
     assert limited.status_code == 429
+
+
+def test_production_cookie_is_secure_and_foreign_origin_cannot_sign_in(auth_site):
+    _client, engine, _workspace_id, _member_id, _other_id, _admin_id = auth_site
+    origin = "https://review.example.invalid"
+    settings = Settings(
+        database_url=os.environ["PRIVACY_REVIEW_TEST_DATABASE_URL"],
+        allowed_origins=[origin],
+        environment="production",
+        active_key_id="synthetic",
+        content_keys={"synthetic": Fernet.generate_key().decode()},
+        _env_file=None,
+    )
+    with TestClient(create_app(settings, engine=engine)) as production_client:
+        denied = production_client.post(
+            "/api/v1/auth/sign-in",
+            json={"email": "member-a@example.invalid", "password": PASSWORD},
+            headers={"Origin": "https://other.example.invalid"},
+        )
+        assert denied.status_code == 403
+        signed_in = production_client.post(
+            "/api/v1/auth/sign-in",
+            json={"email": "member-a@example.invalid", "password": PASSWORD},
+            headers={"Origin": origin},
+        )
+        assert signed_in.status_code == 200
+        assert "secure" in signed_in.headers["set-cookie"].lower()
 
 
 class CapturingMailer:

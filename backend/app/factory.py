@@ -9,11 +9,13 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.accounts.admin_api import create_admin_router
 from app.accounts.api import create_auth_router
 from app.accounts.recovery import RecoveryMailer, SmtpRecoveryMailer
 from app.config import Settings, load_settings
 from app.contracts import ErrorResponse, HealthResponse, ServiceMetadata, service_metadata
 from app.errors import ApiError, api_error_handler, validation_error_handler
+from app.intake.api import create_intake_router
 
 
 def create_app(
@@ -52,6 +54,8 @@ def create_app(
     app.add_exception_handler(ApiError, api_error_handler)
     app.add_exception_handler(RequestValidationError, validation_error_handler)
     app.include_router(create_auth_router(engine, settings))
+    app.include_router(create_admin_router(engine))
+    app.include_router(create_intake_router(engine))
 
     @app.middleware("http")
     async def prevent_api_caching(request, call_next):

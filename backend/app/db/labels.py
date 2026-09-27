@@ -6,9 +6,10 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.accounts.access import owned_document
 from app.contracts import DocumentStatus, FindingCategory, VersionRef
 from app.db.models import EntityGroup, LabelCounter
-from app.db.repository import VersionConflict, _owned_document, _version
+from app.db.repository import VersionConflict, _version
 from app.lifecycle import require_transition
 
 
@@ -27,7 +28,7 @@ def create_labeled_group(
     (document_id, label), so a stray writer cannot assign one label twice.
     """
     with session.begin():
-        document = _owned_document(session, document_id, actor_id, now, lock=True)
+        document = owned_document(session, document_id, actor_id, now, lock=True)
         current = _version(document)
         if current != expected:
             raise VersionConflict(current)

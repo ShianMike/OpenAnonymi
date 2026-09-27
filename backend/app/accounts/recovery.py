@@ -31,6 +31,8 @@ class InvalidRecoveryCode(RuntimeError):
 class RecoveryMailer(Protocol):
     def send_recovery_code(self, recipient: str, code: str) -> None: ...
 
+    def send_invitation_code(self, recipient: str, code: str) -> None: ...
+
 
 class SmtpRecoveryMailer:
     def __init__(self, settings: Settings) -> None:
@@ -50,14 +52,32 @@ class SmtpRecoveryMailer:
         self.sender = settings.smtp_from
 
     def send_recovery_code(self, recipient: str, code: str) -> None:
+        self._send_code(
+            recipient,
+            code,
+            "OpenAnonymi account recovery code",
+            "Use this one-time code in the OpenAnonymi account recovery form:",
+            "It expires in 30 minutes. If you did not request it, ignore this email.",
+        )
+
+    def send_invitation_code(self, recipient: str, code: str) -> None:
+        self._send_code(
+            recipient,
+            code,
+            "OpenAnonymi workspace invitation",
+            "An administrator invited you to OpenAnonymi. Use this code in the "
+            "Recover account form to set your password:",
+            "It expires in 24 hours. If you did not expect it, ignore this email.",
+        )
+
+    def _send_code(
+        self, recipient: str, code: str, subject: str, introduction: str, expiry: str
+    ) -> None:
         message = EmailMessage()
         message["From"] = self.sender
         message["To"] = recipient
-        message["Subject"] = "OpenAnonymi account recovery code"
-        message.set_content(
-            "Use this one-time code in the OpenAnonymi account recovery form:\n\n"
-            f"{code}\n\nIt expires in 30 minutes. If you did not request it, ignore this email."
-        )
+        message["Subject"] = subject
+        message.set_content(f"{introduction}\n\n{code}\n\n{expiry}")
         try:
             with smtplib.SMTP_SSL(
                 self.host, self.port, timeout=10, context=ssl.create_default_context()

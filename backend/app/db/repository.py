@@ -4,22 +4,15 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.accounts.access import ContentUnavailable, DocumentNotFound, owned_document
 from app.contracts import DocumentStatus, FindingCategory, SourceSpan, VersionRef
 from app.db.crypto import KeyRing, ProtectedValue
 from app.db.models import Document, Finding, Membership, SourceRevision, User, Workspace
 from app.intake.validation import validate_source
 from app.lifecycle import require_transition
-
-
-class DocumentNotFound(LookupError):
-    """Also used for inaccessible documents, to avoid revealing their existence."""
-
-
-class ContentUnavailable(RuntimeError):
-    pass
 
 
 class StorageValidationError(ValueError):
@@ -56,44 +49,6 @@ def _version(document: Document) -> VersionRef:
         decision_version=document.decision_version,
         settings_version=document.settings_version,
     )
-
-
-def _owned_document(
-    session: Session, document_id: UUID, actor_id: UUID, now: datetime, *, lock: bool = False
-) -> Document:
-    statement = (
-        select(Document)
-        .join(
-            Membership,
-            and_(
-                Membership.workspace_id == Document.workspace_id,
-                Membership.user_id == Document.owner_id,
-            ),
-        )
-        .join(User, User.id == Membership.user_id)
-        .where(
-            Document.id == document_id,
-            Document.owner_id == actor_id,
-            Membership.revoked_at.is_(None),
-            User.disabled_at.is_(None),
-        )
-    )
-    if lock:
-        statement = statement.with_for_update(of=Document)
-    document = session.scalar(statement)
-    if document is None:
-        raise DocumentNotFound("Document not found.")
-    if (
-        document.deleted_at is not None
-        or document.status
-        in (
-            DocumentStatus.EXPIRED,
-            DocumentStatus.DELETED,
-        )
-        or document.expires_at <= now
-    ):
-        raise ContentUnavailable("This document has expired or was deleted.")
-    return document
 
 
 def _active_workspace(session: Session, workspace_id: UUID, owner_id: UUID) -> Workspace:
@@ -184,7 +139,7 @@ def create_document(
 def load_current_source(
     session: Session, *, document_id: UUID, actor_id: UUID, keys: KeyRing, now: datetime
 ) -> LoadedSource:
-    document = _owned_document(session, document_id, actor_id, now)
+    document = owned_document(session, document_id, actor_id, now)
     version = _version(document)
     revision = session.scalar(
         select(SourceRevision).where(
@@ -210,7 +165,7 @@ def append_source_revision(
 ) -> SavedDocument:
     validated = validate_source(source)
     with session.begin():
-        document = _owned_document(session, document_id, actor_id, now, lock=True)
+        document = owned_document(session, document_id, actor_id, now, lock=True)
         current = _version(document)
         if expected != current:
             raise VersionConflict(current)
@@ -254,7 +209,7 @@ def add_manual_finding(
     now: datetime,
 ) -> UUID:
     with session.begin():
-        document = _owned_document(session, document_id, actor_id, now, lock=True)
+        document = owned_document(session, document_id, actor_id, now, lock=True)
         current = _version(document)
         if expected != current:
             raise VersionConflict(current)

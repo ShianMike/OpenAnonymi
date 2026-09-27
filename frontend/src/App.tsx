@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Route, Routes } from 'react-router-dom'
 import { SignInPage } from './accounts/SignInPage'
+import { SettingsPage } from './accounts/SettingsPage'
 import {
   ApiRequestError, getLiveness, getMetadata, getReadiness, getSession, signOut,
   type ServiceMetadata, type SessionView,
@@ -166,7 +167,8 @@ function App() {
         <main id="main-content">
           <Routes>
             <Route path="/" element={<Overview />} />
-            {pages.slice(1).map((page) => (
+            <Route path="/settings" element={<SettingsPage session={authentication.session} />} />
+            {pages.slice(1).filter((page) => page.path !== '/settings').map((page) => (
               <Route key={page.path} path={page.path} element={<PendingPage title={page.name} />} />
             ))}
             <Route path="*" element={<PendingPage title="Page not found" />} />
