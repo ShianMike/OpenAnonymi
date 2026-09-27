@@ -75,3 +75,20 @@ def require_administrator(
     ):
         raise WorkspaceAccessDenied("Workspace not found.")
     return workspace
+
+
+def active_workspace(session: Session, workspace_id: UUID, user_id: UUID) -> Workspace:
+    workspace = session.scalar(
+        select(Workspace)
+        .join(Membership, Membership.workspace_id == Workspace.id)
+        .join(User, User.id == Membership.user_id)
+        .where(
+            Workspace.id == workspace_id,
+            Membership.user_id == user_id,
+            Membership.revoked_at.is_(None),
+            User.disabled_at.is_(None),
+        )
+    )
+    if workspace is None:
+        raise WorkspaceAccessDenied("Workspace not found.")
+    return workspace

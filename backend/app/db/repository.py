@@ -7,10 +7,16 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.accounts.access import ContentUnavailable, DocumentNotFound, owned_document
+from app.accounts.access import (
+    ContentUnavailable,
+    DocumentNotFound,
+    WorkspaceAccessDenied,
+    active_workspace,
+    owned_document,
+)
 from app.contracts import DocumentStatus, FindingCategory, SourceSpan, VersionRef
 from app.db.crypto import KeyRing, ProtectedValue
-from app.db.models import Document, Finding, Membership, SourceRevision, User, Workspace
+from app.db.models import Document, Finding, SourceRevision
 from app.intake.validation import validate_source
 from app.lifecycle import require_transition
 
@@ -38,6 +44,9 @@ class LoadedSource:
     text: str
     expires_at: datetime
     status: DocumentStatus
+    title: str | None
+    categories: tuple[FindingCategory, ...]
+    phone_region: str
 
 
 def _version(document: Document) -> VersionRef:
@@ -49,23 +58,6 @@ def _version(document: Document) -> VersionRef:
         decision_version=document.decision_version,
         settings_version=document.settings_version,
     )
-
-
-def _active_workspace(session: Session, workspace_id: UUID, owner_id: UUID) -> Workspace:
-    workspace = session.scalar(
-        select(Workspace)
-        .join(Membership, Membership.workspace_id == Workspace.id)
-        .join(User, User.id == Membership.user_id)
-        .where(
-            Workspace.id == workspace_id,
-            Membership.user_id == owner_id,
-            Membership.revoked_at.is_(None),
-            User.disabled_at.is_(None),
-        )
-    )
-    if workspace is None:
-        raise DocumentNotFound("Workspace not found.")
-    return workspace
 
 
 def create_document(
@@ -94,7 +86,10 @@ def create_document(
         raise StorageValidationError("Choose supported detection categories.")
 
     with session.begin():
-        workspace = _active_workspace(session, workspace_id, owner_id)
+        try:
+            workspace = active_workspace(session, workspace_id, owner_id)
+        except WorkspaceAccessDenied:
+            raise DocumentNotFound("Workspace not found.") from None
         max_expiry = now + timedelta(days=workspace.content_retention_days)
         expiry = requested_expiry or max_expiry
         if expiry <= now or expiry > max_expiry:
@@ -150,7 +145,23 @@ def load_current_source(
     if revision is None:
         raise ContentUnavailable("The current source revision is unavailable.")
     text = keys.decrypt_text(ProtectedValue(revision.source_ciphertext, revision.source_key_id))
-    return LoadedSource(version, text, document.expires_at, DocumentStatus(document.status))
+    title = (
+        keys.decrypt_text(ProtectedValue(document.title_ciphertext, document.title_key_id))
+        if document.title_ciphertext is not None and document.title_key_id is not None
+        else None
+    )
+    categories = tuple(
+        FindingCategory(value) for value in document.category_settings.split(",") if value
+    )
+    return LoadedSource(
+        version,
+        text,
+        document.expires_at,
+        DocumentStatus(document.status),
+        title,
+        categories,
+        document.phone_region,
+    )
 
 
 def append_source_revision(

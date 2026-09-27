@@ -8,6 +8,8 @@ from threading import Barrier
 from uuid import uuid4
 
 import pytest
+from alembic import command
+from alembic.config import Config
 from cryptography.fernet import Fernet
 from sqlalchemy import create_engine, delete, select, text, update
 from sqlalchemy.engine import make_url
@@ -79,6 +81,60 @@ def local_database():
             session.execute(delete(Workspace).where(Workspace.id == workspace_id))
             session.execute(delete(User).where(User.id.in_([user_id, admin_id])))
         engine.dispose()
+
+
+@pytest.fixture
+def isolated_rotation_database(monkeypatch):
+    """Key rotation scans every row, so run it in its own migrated database."""
+    raw_url = os.getenv("PRIVACY_REVIEW_TEST_DATABASE_URL")
+    if not raw_url:
+        pytest.skip("set PRIVACY_REVIEW_TEST_DATABASE_URL for the local database gate")
+    url = make_url(raw_url)
+    if url.host not in ("127.0.0.1", "localhost") or url.port != 5434:
+        pytest.skip("isolated key rotation requires the local PostgreSQL server on port 5434")
+    database_name = f"openanonymi_rotation_{uuid4().hex}"
+    admin_engine = create_engine(raw_url, isolation_level="AUTOCOMMIT", hide_parameters=True)
+    with admin_engine.connect() as connection:
+        connection.execute(text(f'CREATE DATABASE "{database_name}"'))
+    isolated_url = url.set(database=database_name).render_as_string(hide_password=False)
+    monkeypatch.setenv("PRIVACY_REVIEW_DATABASE_URL", isolated_url)
+    monkeypatch.setenv("PRIVACY_REVIEW_ALLOWED_ORIGINS", '["http://localhost:5173"]')
+    monkeypatch.setenv("PRIVACY_REVIEW_ENVIRONMENT", "test")
+    engine = None
+    try:
+        command.upgrade(Config("alembic.ini"), "head")
+        engine = create_engine(isolated_url, pool_pre_ping=True, hide_parameters=True)
+        user_id, admin_id, workspace_id = uuid4(), uuid4(), uuid4()
+        with Session(engine) as session, session.begin():
+            session.add_all(
+                [
+                    User(
+                        id=user_id,
+                        email="rotation-owner@example.invalid",
+                        password_hash="test-only",
+                    ),
+                    User(
+                        id=admin_id,
+                        email="rotation-admin@example.invalid",
+                        password_hash="test-only",
+                    ),
+                    Workspace(id=workspace_id, name="Rotation test workspace"),
+                ]
+            )
+            session.flush()
+            session.add_all(
+                [
+                    Membership(workspace_id=workspace_id, user_id=user_id, role="member"),
+                    Membership(workspace_id=workspace_id, user_id=admin_id, role="administrator"),
+                ]
+            )
+        yield engine, user_id, admin_id, workspace_id
+    finally:
+        if engine is not None:
+            engine.dispose()
+        with admin_engine.connect() as connection:
+            connection.execute(text(f'DROP DATABASE "{database_name}" WITH (FORCE)'))
+        admin_engine.dispose()
 
 
 def test_encrypted_revision_persists_and_admin_cannot_read_owner_content(local_database):
@@ -233,8 +289,8 @@ def test_encrypted_revision_persists_and_admin_cannot_read_owner_content(local_d
         )
 
 
-def test_database_key_rotation_preserves_content(local_database, monkeypatch):
-    engine, user_id, _admin_id, workspace_id = local_database
+def test_database_key_rotation_preserves_content(isolated_rotation_database, monkeypatch):
+    engine, user_id, _admin_id, workspace_id = isolated_rotation_database
     now = datetime.now(UTC)
     first, second = Fernet.generate_key(), Fernet.generate_key()
     old_keys = KeyRing("old", {"old": first})

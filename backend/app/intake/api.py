@@ -1,20 +1,41 @@
-"""Authenticated source read path; intake writes follow in T04."""
+"""Authenticated source intake, saved drafts, and immutable source edits."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
+from starlette.datastructures import UploadFile as StarletteUploadFile
 
-from app.accounts.api import current_identity
+from app.accounts.access import WorkspaceAccessDenied, active_workspace
+from app.accounts.api import current_identity, mutation_identity
 from app.accounts.security import SessionIdentity
-from app.contracts import DocumentStatus, ErrorResponse, VersionRef
+from app.contracts import (
+    MAX_UTF8_BYTES,
+    ConflictResponse,
+    DocumentStatus,
+    ErrorResponse,
+    FindingCategory,
+    VersionRef,
+)
 from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedContentError
-from app.db.repository import ContentUnavailable, DocumentNotFound, load_current_source
+from app.db.repository import (
+    ContentUnavailable,
+    DocumentNotFound,
+    LoadedSource,
+    SavedDocument,
+    StorageValidationError,
+    VersionConflict,
+    append_source_revision,
+    create_document,
+    load_current_source,
+)
 from app.errors import ApiError
+from app.intake.validation import SourceValidationError, validate_txt_file
 
 
 class SourceView(BaseModel):
@@ -22,10 +43,268 @@ class SourceView(BaseModel):
     text: str
     expires_at: datetime
     status: DocumentStatus
+    title: str | None
+    categories: list[FindingCategory]
+    phone_region: str
+
+
+class IntakeDefaultsView(BaseModel):
+    workspace_id: UUID
+    content_retention_days: int
+    current_time: datetime
+
+
+class CreateDraftRequest(BaseModel):
+    workspace_id: UUID
+    source: str
+    title: str | None = Field(default=None, max_length=200)
+    categories: list[FindingCategory] = Field(
+        default_factory=lambda: [FindingCategory.EMAIL, FindingCategory.PHONE]
+    )
+    phone_region: str = Field(default="PH", min_length=2, max_length=2)
+    retention_days: int | None = Field(default=None, ge=1, le=30)
+
+
+class EditSourceRequest(BaseModel):
+    expected: VersionRef
+    source: str
+
+
+class SavedDraftView(BaseModel):
+    version: VersionRef
+    expires_at: datetime
+    status: DocumentStatus
+
+
+def _source_view(source: LoadedSource) -> SourceView:
+    return SourceView(
+        version=source.version,
+        text=source.text,
+        expires_at=source.expires_at,
+        status=source.status,
+        title=source.title,
+        categories=list(source.categories),
+        phone_region=source.phone_region,
+    )
+
+
+def _saved_view(saved: SavedDocument) -> SavedDraftView:
+    return SavedDraftView(version=saved.version, expires_at=saved.expires_at, status=saved.status)
+
+
+def _keys(request: Request) -> KeyRing:
+    try:
+        return KeyRing.from_settings(request.app.state.settings)
+    except ContentKeyUnavailable:
+        raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
+
+
+def _categories(values: list[FindingCategory]) -> set[FindingCategory]:
+    categories = set(values)
+    if not categories.issubset({FindingCategory.EMAIL, FindingCategory.PHONE}):
+        raise ApiError(422, "invalid_categories", "Choose email and/or phone suggestions.")
+    return categories
+
+
+def _input_error(exc: ValueError) -> ApiError:
+    return ApiError(422, "invalid_source", str(exc))
+
+
+def _conflict(exc: VersionConflict) -> JSONResponse:
+    return JSONResponse(
+        status_code=409,
+        content=ConflictResponse(current_version=exc.current).model_dump(mode="json"),
+    )
+
+
+def _load_owned_source(
+    engine: Engine, request: Request, document_id: UUID, actor_id: UUID
+) -> LoadedSource:
+    keys = _keys(request)
+    try:
+        with Session(engine) as session:
+            return load_current_source(
+                session,
+                document_id=document_id,
+                actor_id=actor_id,
+                keys=keys,
+                now=datetime.now(UTC),
+            )
+    except DocumentNotFound:
+        raise ApiError(404, "document_not_found", "Document not found.") from None
+    except ContentUnavailable:
+        raise ApiError(410, "content_expired", "Document content is unavailable.") from None
+    except (ContentKeyUnavailable, ProtectedContentError):
+        raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
 
 
 def create_intake_router(engine: Engine) -> APIRouter:
     router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
+
+    @router.get(
+        "/intake-defaults/{workspace_id}",
+        response_model=IntakeDefaultsView,
+        responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+    )
+    def intake_defaults_route(
+        workspace_id: UUID,
+        identity: Annotated[SessionIdentity, Depends(current_identity)],
+    ) -> IntakeDefaultsView:
+        try:
+            with Session(engine) as session:
+                workspace = active_workspace(session, workspace_id, identity.user_id)
+                retention_days = workspace.content_retention_days
+        except WorkspaceAccessDenied:
+            raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
+        return IntakeDefaultsView(
+            workspace_id=workspace_id,
+            content_retention_days=retention_days,
+            current_time=datetime.now(UTC),
+        )
+
+    @router.post(
+        "",
+        response_model=SavedDraftView,
+        status_code=201,
+        responses={401: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+    )
+    def create_pasted_draft_route(
+        body: CreateDraftRequest,
+        request: Request,
+        identity: Annotated[SessionIdentity, Depends(mutation_identity)],
+    ) -> SavedDraftView:
+        keys = _keys(request)
+        now = datetime.now(UTC)
+        try:
+            with Session(engine) as session:
+                saved = create_document(
+                    session,
+                    owner_id=identity.user_id,
+                    workspace_id=body.workspace_id,
+                    source=body.source,
+                    title=body.title,
+                    categories=_categories(body.categories),
+                    phone_region=body.phone_region,
+                    keys=keys,
+                    now=now,
+                    requested_expiry=(now + timedelta(days=body.retention_days))
+                    if body.retention_days is not None
+                    else None,
+                )
+        except DocumentNotFound:
+            raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
+        except (SourceValidationError, StorageValidationError) as exc:
+            raise _input_error(exc) from None
+        return _saved_view(saved)
+
+    @router.post(
+        "/from-file",
+        response_model=SavedDraftView,
+        status_code=201,
+        responses={401: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+    )
+    async def create_file_draft_route(
+        request: Request,
+        identity: Annotated[SessionIdentity, Depends(mutation_identity)],
+        workspace_id: Annotated[UUID, Form()],
+        file: Annotated[UploadFile, File()],
+        title: Annotated[str | None, Form(max_length=200)] = None,
+        categories: Annotated[str, Form()] = "email,phone",
+        phone_region: Annotated[str, Form(min_length=2, max_length=2)] = "PH",
+        retention_days: Annotated[int | None, Form(ge=1, le=30)] = None,
+    ) -> SavedDraftView:
+        # FastAPI has already parsed the multipart body. Reject extra file parts and
+        # bound the bytes read from the uploaded file before decoding.
+        form = await request.form()
+        if (
+            len(form.getlist("file")) != 1
+            or sum(isinstance(value, StarletteUploadFile) for _name, value in form.multi_items())
+            != 1
+        ):
+            raise ApiError(422, "invalid_file", "Choose exactly one UTF-8 .txt file.")
+        if file.size is not None and file.size > MAX_UTF8_BYTES:
+            raise ApiError(422, "invalid_file", "File exceeds the 1 MiB UTF-8 limit.")
+        raw = await file.read(MAX_UTF8_BYTES + 1)
+        try:
+            validated = validate_txt_file(file.filename, raw)
+            parsed_categories = [
+                FindingCategory(value.strip()) for value in categories.split(",") if value.strip()
+            ]
+        except (SourceValidationError, ValueError) as exc:
+            if isinstance(exc, SourceValidationError):
+                raise _input_error(exc) from None
+            raise ApiError(
+                422, "invalid_categories", "Choose email and/or phone suggestions."
+            ) from None
+        keys = _keys(request)
+        now = datetime.now(UTC)
+        try:
+            with Session(engine) as session:
+                saved = create_document(
+                    session,
+                    owner_id=identity.user_id,
+                    workspace_id=workspace_id,
+                    source=validated.text,
+                    title=title,
+                    categories=_categories(parsed_categories),
+                    phone_region=phone_region,
+                    keys=keys,
+                    now=now,
+                    requested_expiry=(now + timedelta(days=retention_days))
+                    if retention_days is not None
+                    else None,
+                )
+        except DocumentNotFound:
+            raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
+        except (SourceValidationError, StorageValidationError) as exc:
+            raise _input_error(exc) from None
+        return _saved_view(saved)
+
+    @router.get(
+        "/{document_id}/source",
+        response_model=SourceView,
+        responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+    )
+    def source_route(
+        document_id: UUID,
+        request: Request,
+        identity: Annotated[SessionIdentity, Depends(current_identity)],
+    ) -> SourceView:
+        source = _load_owned_source(engine, request, document_id, identity.user_id)
+        return _source_view(source)
+
+    @router.put(
+        "/{document_id}/source",
+        response_model=SavedDraftView,
+        responses={409: {"model": ConflictResponse}, 422: {"model": ErrorResponse}},
+    )
+    def edit_source_route(
+        document_id: UUID,
+        body: EditSourceRequest,
+        request: Request,
+        identity: Annotated[SessionIdentity, Depends(mutation_identity)],
+    ) -> SavedDraftView | JSONResponse:
+        keys = _keys(request)
+        try:
+            with Session(engine) as session:
+                saved = append_source_revision(
+                    session,
+                    document_id=document_id,
+                    actor_id=identity.user_id,
+                    expected=body.expected,
+                    source=body.source,
+                    keys=keys,
+                    now=datetime.now(UTC),
+                )
+        except DocumentNotFound:
+            raise ApiError(404, "document_not_found", "Document not found.") from None
+        except ContentUnavailable:
+            raise ApiError(410, "content_expired", "Document content is unavailable.") from None
+        except VersionConflict as exc:
+            return _conflict(exc)
+        except SourceValidationError as exc:
+            raise _input_error(exc) from None
+        return _saved_view(saved)
 
     @router.get(
         "/{document_id}/revisions/{revision_id}/source",
@@ -43,32 +322,9 @@ def create_intake_router(engine: Engine) -> APIRouter:
         request: Request,
         identity: Annotated[SessionIdentity, Depends(current_identity)],
     ) -> SourceView:
-        try:
-            keys = KeyRing.from_settings(request.app.state.settings)
-        except ContentKeyUnavailable:
-            raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
-        try:
-            with Session(engine) as session:
-                source = load_current_source(
-                    session,
-                    document_id=document_id,
-                    actor_id=identity.user_id,
-                    keys=keys,
-                    now=datetime.now(UTC),
-                )
-        except DocumentNotFound:
-            raise ApiError(404, "document_not_found", "Document not found.") from None
-        except ContentUnavailable:
-            raise ApiError(410, "content_expired", "Document content is unavailable.") from None
-        except (ContentKeyUnavailable, ProtectedContentError):
-            raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
+        source = _load_owned_source(engine, request, document_id, identity.user_id)
         if source.version.source_revision_id != revision_id:
             raise ApiError(404, "revision_not_found", "Revision not found.")
-        return SourceView(
-            version=source.version,
-            text=source.text,
-            expires_at=source.expires_at,
-            status=source.status,
-        )
+        return _source_view(source)
 
     return router

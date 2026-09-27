@@ -899,6 +899,295 @@
         }
       }
     },
+    "/api/v1/documents/intake-defaults/{workspace_id}": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Intake Defaults Route",
+        "operationId": "intake_defaults_route_api_v1_documents_intake_defaults__workspace_id__get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntakeDefaultsView"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Create Pasted Draft Route",
+        "operationId": "create_pasted_draft_route_api_v1_documents_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedDraftView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/from-file": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Create File Draft Route",
+        "operationId": "create_file_draft_route_api_v1_documents_from_file_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_create_file_draft_route_api_v1_documents_from_file_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedDraftView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/source": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Source Route",
+        "operationId": "source_route_api_v1_documents__document_id__source_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Edit Source Route",
+        "operationId": "edit_source_route_api_v1_documents__document_id__source_put",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditSourceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SavedDraftView"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
     "/api/v1/documents/{document_id}/revisions/{revision_id}/source": {
       "get": {
         "tags": [
@@ -1069,6 +1358,63 @@
   },
   "components": {
     "schemas": {
+      "Body_create_file_draft_route_api_v1_documents_from_file_post": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Workspace Id"
+          },
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "categories": {
+            "type": "string",
+            "title": "Categories",
+            "default": "email,phone"
+          },
+          "phone_region": {
+            "type": "string",
+            "maxLength": 2,
+            "minLength": 2,
+            "title": "Phone Region",
+            "default": "PH"
+          },
+          "retention_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 30.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retention Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "file"
+        ],
+        "title": "Body_create_file_draft_route_api_v1_documents_from_file_post"
+      },
       "ChangeRoleRequest": {
         "properties": {
           "role": {
@@ -1080,6 +1426,87 @@
           "role"
         ],
         "title": "ChangeRoleRequest"
+      },
+      "ConflictResponse": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "const": "version_conflict",
+            "title": "Code",
+            "default": "version_conflict"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": "This review changed in another session. Reload before saving."
+          },
+          "current_version": {
+            "$ref": "#/components/schemas/VersionRef"
+          }
+        },
+        "type": "object",
+        "required": [
+          "current_version"
+        ],
+        "title": "ConflictResponse"
+      },
+      "CreateDraftRequest": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Workspace Id"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/FindingCategory"
+            },
+            "type": "array",
+            "title": "Categories"
+          },
+          "phone_region": {
+            "type": "string",
+            "maxLength": 2,
+            "minLength": 2,
+            "title": "Phone Region",
+            "default": "PH"
+          },
+          "retention_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 30.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retention Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "source"
+        ],
+        "title": "CreateDraftRequest"
       },
       "DecisionAction": {
         "type": "string",
@@ -1103,6 +1530,23 @@
           "deleted"
         ],
         "title": "DocumentStatus"
+      },
+      "EditSourceRequest": {
+        "properties": {
+          "expected": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected",
+          "source"
+        ],
+        "title": "EditSourceRequest"
       },
       "ErrorDetail": {
         "properties": {
@@ -1185,6 +1629,31 @@
           "status"
         ],
         "title": "HealthResponse"
+      },
+      "IntakeDefaultsView": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Workspace Id"
+          },
+          "content_retention_days": {
+            "type": "integer",
+            "title": "Content Retention Days"
+          },
+          "current_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Current Time"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "content_retention_days",
+          "current_time"
+        ],
+        "title": "IntakeDefaultsView"
       },
       "InviteMemberRequest": {
         "properties": {
@@ -1331,6 +1800,28 @@
         ],
         "title": "RecoveryRequest"
       },
+      "SavedDraftView": {
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DocumentStatus"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "expires_at",
+          "status"
+        ],
+        "title": "SavedDraftView"
+      },
       "ServiceMetadata": {
         "properties": {
           "name": {
@@ -1461,6 +1952,28 @@
           },
           "status": {
             "$ref": "#/components/schemas/DocumentStatus"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/FindingCategory"
+            },
+            "type": "array",
+            "title": "Categories"
+          },
+          "phone_region": {
+            "type": "string",
+            "title": "Phone Region"
           }
         },
         "type": "object",
@@ -1468,7 +1981,10 @@
           "version",
           "text",
           "expires_at",
-          "status"
+          "status",
+          "title",
+          "categories",
+          "phone_region"
         ],
         "title": "SourceView"
       },

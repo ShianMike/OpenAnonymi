@@ -6,6 +6,11 @@ export type SessionView = components['schemas']['SessionView']
 export type RecoveryMessage = components['schemas']['RecoveryMessage']
 export type MemberView = components['schemas']['MemberView']
 export type WorkspaceSettingsView = components['schemas']['WorkspaceSettingsView']
+export type IntakeDefaultsView = components['schemas']['IntakeDefaultsView']
+export type SavedDraftView = components['schemas']['SavedDraftView']
+export type SourceView = components['schemas']['SourceView']
+export type VersionRef = components['schemas']['VersionRef']
+export type CreateDraftRequest = components['schemas']['CreateDraftRequest']
 type ErrorResponse = components['schemas']['ErrorResponse']
 
 export class ApiRequestError extends Error {
@@ -21,6 +26,16 @@ export class ApiRequestError extends Error {
     this.name = 'ApiRequestError'
     this.status = status
     this.code = code
+  }
+}
+
+export class ApiConflictError extends ApiRequestError {
+  readonly currentVersion: VersionRef
+
+  constructor(currentVersion: VersionRef, message: string) {
+    super(409, 'version_conflict', message)
+    this.name = 'ApiConflictError'
+    this.currentVersion = currentVersion
   }
 }
 
@@ -45,6 +60,15 @@ async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
 async function requireSuccess(response: Response): Promise<void> {
   if (response.ok) return
   const body: unknown = await response.json().catch(() => null)
+  if (
+    response.status === 409 && typeof body === 'object' && body !== null &&
+    'code' in body && body.code === 'version_conflict' &&
+    'message' in body && typeof body.message === 'string' &&
+    'current_version' in body && typeof body.current_version === 'object' &&
+    body.current_version !== null
+  ) {
+    throw new ApiConflictError(body.current_version as VersionRef, body.message)
+  }
   if (isErrorResponse(body)) {
     throw new ApiRequestError(response.status, body.code, body.message)
   }
@@ -182,5 +206,54 @@ export function restoreMember(
   return sendJson<MemberView>(
     'POST', `/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}/restore`,
     undefined, csrfToken,
+  )
+}
+
+export function getIntakeDefaults(
+  workspaceId: string, signal?: AbortSignal,
+): Promise<IntakeDefaultsView> {
+  return get<IntakeDefaultsView>(
+    `/documents/intake-defaults/${encodeURIComponent(workspaceId)}`, signal,
+  )
+}
+
+export function createPastedDraft(
+  draft: CreateDraftRequest, csrfToken: string,
+): Promise<SavedDraftView> {
+  return post<SavedDraftView>('/documents', draft, csrfToken)
+}
+
+export async function createFileDraft(
+  workspaceId: string, file: File, title: string, categories: string[],
+  phoneRegion: string, retentionDays: number, csrfToken: string,
+): Promise<SavedDraftView> {
+  const form = new FormData()
+  form.append('workspace_id', workspaceId)
+  form.append('file', file)
+  form.append('title', title)
+  form.append('categories', categories.join(','))
+  form.append('phone_region', phoneRegion)
+  form.append('retention_days', String(retentionDays))
+  const response = await fetch('/api/v1/documents/from-file', {
+    method: 'POST',
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers: { 'X-CSRF-Token': csrfToken, Accept: 'application/json' },
+    body: form,
+  })
+  await requireSuccess(response)
+  return response.json() as Promise<SavedDraftView>
+}
+
+export function getDraft(documentId: string, signal?: AbortSignal): Promise<SourceView> {
+  return get<SourceView>(`/documents/${encodeURIComponent(documentId)}/source`, signal)
+}
+
+export function saveDraftSource(
+  documentId: string, expected: VersionRef, source: string, csrfToken: string,
+): Promise<SavedDraftView> {
+  return sendJson<SavedDraftView>(
+    'PUT', `/documents/${encodeURIComponent(documentId)}/source`,
+    { expected, source }, csrfToken,
   )
 }

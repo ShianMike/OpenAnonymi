@@ -192,6 +192,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/intake-defaults/{workspace_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Intake Defaults Route */
+        get: operations["intake_defaults_route_api_v1_documents_intake_defaults__workspace_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Pasted Draft Route */
+        post: operations["create_pasted_draft_route_api_v1_documents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/from-file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create File Draft Route */
+        post: operations["create_file_draft_route_api_v1_documents_from_file_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Source Route */
+        get: operations["source_route_api_v1_documents__document_id__source_get"];
+        /** Edit Source Route */
+        put: operations["edit_source_route_api_v1_documents__document_id__source_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents/{document_id}/revisions/{revision_id}/source": {
         parameters: {
             query?: never;
@@ -264,9 +333,69 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Body_create_file_draft_route_api_v1_documents_from_file_post */
+        Body_create_file_draft_route_api_v1_documents_from_file_post: {
+            /**
+             * Workspace Id
+             * Format: uuid
+             */
+            workspace_id: string;
+            /** File */
+            file: string;
+            /** Title */
+            title?: string | null;
+            /**
+             * Categories
+             * @default email,phone
+             */
+            categories: string;
+            /**
+             * Phone Region
+             * @default PH
+             */
+            phone_region: string;
+            /** Retention Days */
+            retention_days?: number | null;
+        };
         /** ChangeRoleRequest */
         ChangeRoleRequest: {
             role: components["schemas"]["WorkspaceRole"];
+        };
+        /** ConflictResponse */
+        ConflictResponse: {
+            /**
+             * Code
+             * @default version_conflict
+             * @constant
+             */
+            code: "version_conflict";
+            /**
+             * Message
+             * @default This review changed in another session. Reload before saving.
+             */
+            message: string;
+            current_version: components["schemas"]["VersionRef"];
+        };
+        /** CreateDraftRequest */
+        CreateDraftRequest: {
+            /**
+             * Workspace Id
+             * Format: uuid
+             */
+            workspace_id: string;
+            /** Source */
+            source: string;
+            /** Title */
+            title?: string | null;
+            /** Categories */
+            categories?: components["schemas"]["FindingCategory"][];
+            /**
+             * Phone Region
+             * @default PH
+             */
+            phone_region: string;
+            /** Retention Days */
+            retention_days?: number | null;
         };
         /**
          * DecisionAction
@@ -278,6 +407,12 @@ export interface components {
          * @enum {string}
          */
         DocumentStatus: "draft" | "scanning" | "needs_review" | "ready" | "exported" | "failed" | "expired" | "deleted";
+        /** EditSourceRequest */
+        EditSourceRequest: {
+            expected: components["schemas"]["VersionRef"];
+            /** Source */
+            source: string;
+        };
         /** ErrorDetail */
         ErrorDetail: {
             /** Field */
@@ -308,6 +443,21 @@ export interface components {
         HealthResponse: {
             /** Status */
             status: string;
+        };
+        /** IntakeDefaultsView */
+        IntakeDefaultsView: {
+            /**
+             * Workspace Id
+             * Format: uuid
+             */
+            workspace_id: string;
+            /** Content Retention Days */
+            content_retention_days: number;
+            /**
+             * Current Time
+             * Format: date-time
+             */
+            current_time: string;
         };
         /** InviteMemberRequest */
         InviteMemberRequest: {
@@ -361,6 +511,16 @@ export interface components {
         RecoveryRequest: {
             /** Email */
             email: string;
+        };
+        /** SavedDraftView */
+        SavedDraftView: {
+            version: components["schemas"]["VersionRef"];
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            status: components["schemas"]["DocumentStatus"];
         };
         /** ServiceMetadata */
         ServiceMetadata: {
@@ -419,6 +579,12 @@ export interface components {
              */
             expires_at: string;
             status: components["schemas"]["DocumentStatus"];
+            /** Title */
+            title: string | null;
+            /** Categories */
+            categories: components["schemas"]["FindingCategory"][];
+            /** Phone Region */
+            phone_region: string;
         };
         /** UpdateWorkspaceSettingsRequest */
         UpdateWorkspaceSettingsRequest: {
@@ -1194,6 +1360,232 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    intake_defaults_route_api_v1_documents_intake_defaults__workspace_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntakeDefaultsView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_pasted_draft_route_api_v1_documents_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedDraftView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_file_draft_route_api_v1_documents_from_file_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_create_file_draft_route_api_v1_documents_from_file_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedDraftView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    source_route_api_v1_documents__document_id__source_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SourceView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_source_route_api_v1_documents__document_id__source_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditSourceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavedDraftView"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
