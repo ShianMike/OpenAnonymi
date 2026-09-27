@@ -1,0 +1,14 @@
+.app-header { display: flex; gap: 1rem; align-items: center; padding: 1rem; border-bottom: 1px solid #ccc; }
+.app-header span { color: #555; }
+.app-body { display: flex; min-height: calc(100vh - 3.5rem); }
+nav { width: 12rem; flex: none; padding: 1rem; border-right: 1px solid #ccc; }
+nav a { display: block; padding: .5rem; color: #174ea6; }
+nav a[aria-current='page'] { font-weight: 700; color: #222; }
+main { max-width: 60rem; padding: 1rem 1.5rem; }
+h1 { font-size: 1.6rem; }
+button { padding: .4rem .75rem; }
+@media (max-width: 600px) {
+  .app-body { display: block; }
+  nav { width: auto; border-right: 0; border-bottom: 1px solid #ccc; }
+  nav a { display: inline-block; }
+}

@@ -1,0 +1,19 @@
+# Local configuration and Python
+.env
+*.env.local
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Frontend output
+node_modules/
+dist/
+coverage/
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

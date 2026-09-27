@@ -1,0 +1,231 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OpenAnonymi API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/health/live": {
+      "get": {
+        "summary": "Live",
+        "operationId": "live_api_v1_health_live_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health/ready": {
+      "get": {
+        "summary": "Ready",
+        "operationId": "ready_api_v1_health_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/meta": {
+      "get": {
+        "summary": "Metadata",
+        "operationId": "metadata_api_v1_meta_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceMetadata"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DecisionAction": {
+        "type": "string",
+        "enum": [
+          "label",
+          "redact",
+          "keep"
+        ],
+        "title": "DecisionAction"
+      },
+      "DocumentStatus": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "scanning",
+          "needs_review",
+          "ready",
+          "exported",
+          "failed",
+          "expired",
+          "deleted"
+        ],
+        "title": "DocumentStatus"
+      },
+      "ErrorDetail": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "issue": {
+            "type": "string",
+            "title": "Issue"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "issue"
+        ],
+        "title": "ErrorDetail"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorDetail"
+            },
+            "type": "array",
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorResponse"
+      },
+      "FindingCategory": {
+        "type": "string",
+        "enum": [
+          "person",
+          "organization",
+          "address",
+          "identifier",
+          "custom",
+          "email",
+          "phone"
+        ],
+        "title": "FindingCategory"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "HealthResponse"
+      },
+      "ServiceMetadata": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "api_version": {
+            "type": "string",
+            "title": "Api Version"
+          },
+          "source_max_utf8_bytes": {
+            "type": "integer",
+            "title": "Source Max Utf8 Bytes"
+          },
+          "source_max_code_points": {
+            "type": "integer",
+            "title": "Source Max Code Points"
+          },
+          "document_statuses": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentStatus"
+            },
+            "type": "array",
+            "title": "Document Statuses"
+          },
+          "finding_categories": {
+            "items": {
+              "$ref": "#/components/schemas/FindingCategory"
+            },
+            "type": "array",
+            "title": "Finding Categories"
+          },
+          "decision_actions": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionAction"
+            },
+            "type": "array",
+            "title": "Decision Actions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "api_version",
+          "source_max_utf8_bytes",
+          "source_max_code_points",
+          "document_statuses",
+          "finding_categories",
+          "decision_actions"
+        ],
+        "title": "ServiceMetadata"
+      }
+    }
+  }
+}
