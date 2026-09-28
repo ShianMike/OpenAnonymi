@@ -1364,6 +1364,130 @@ def test_completed_review_copy_txt_summary_and_stale_export_gate(intake_site):
     assert owner.get(f"{path}/summary").status_code == 409
 
 
+def test_full_review_journey_persists_and_cleans_up(intake_site):
+    owner, other, engine, workspace_id, _owner_id = intake_site
+    headers = _login(owner, "intake-owner@example.invalid")
+    _login(other, "intake-other@example.invalid")
+    source = "😀 Alice met Alice. Contact ali@example.com."
+    created = owner.post(
+        "/api/v1/documents",
+        json=_draft_body(workspace_id, source=source, categories=["email"]),
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    version = created.json()["version"]
+    path = f"/api/v1/documents/{version['document_id']}"
+    scanned = owner.post(f"{path}/scan", json={"expected": version}, headers=headers)
+    assert scanned.status_code == 200, scanned.text
+    assert scanned.json()["match_count"] == 1
+    version = scanned.json()["version"]
+    email_id = scanned.json()["suggestions"][0]["finding_id"]
+
+    for position in (source.index("Alice"), source.rindex("Alice")):
+        added = owner.post(
+            f"{path}/findings",
+            json={
+                "expected": version,
+                "span": {"start": position, "end": position + 5},
+                "category": "person",
+            },
+            headers=headers,
+        )
+        assert added.status_code == 200, added.text
+        version = added.json()["version"]
+    people = sorted(
+        (
+            row
+            for row in owner.get(f"{path}/findings").json()["findings"]
+            if row["category"] == "person"
+        ),
+        key=lambda row: row["span"]["start"],
+    )
+    first_id, second_id = (row["finding_id"] for row in people)
+    kept = owner.post(
+        f"{path}/findings/{email_id}/decision",
+        json={
+            "expected": version,
+            "action": "keep",
+            "keep_reason": "false_match",
+            "affected_finding_ids": [email_id],
+        },
+        headers=headers,
+    )
+    assert kept.status_code == 200, kept.text
+    version = kept.json()["version"]
+    labeled = owner.post(
+        f"{path}/findings/{first_id}/decision",
+        json={"expected": version, "action": "label", "affected_finding_ids": [first_id]},
+        headers=headers,
+    )
+    assert labeled.status_code == 200, labeled.text
+    version = labeled.json()["version"]
+    merged = owner.post(
+        f"{path}/findings/{second_id}/merge",
+        json={"expected": version, "target_finding_id": first_id},
+        headers=headers,
+    )
+    assert merged.status_code == 200, merged.text
+    version = merged.json()["version"]
+    grouped = owner.post(
+        f"{path}/findings/{first_id}/decision",
+        json={
+            "expected": version,
+            "action": "label",
+            "group_scope": True,
+            "affected_finding_ids": [first_id, second_id],
+        },
+        headers=headers,
+    )
+    assert grouped.status_code == 200, grouped.text
+    version = grouped.json()["version"]
+
+    # Reopen through a fresh app instance before confirmation and export.
+    with TestClient(create_app(owner.app.state.settings, engine=engine)) as reopened:
+        reopened_headers = _login(reopened, "intake-owner@example.invalid")
+        assert reopened.get(f"{path}/source").json()["text"] == source
+        findings = reopened.get(f"{path}/findings").json()["findings"]
+        assert len(findings) == 3
+        assert {row["label"] for row in findings if row["category"] == "person"} == {"PERSON_001"}
+        assert (
+            next(row for row in findings if row["finding_id"] == email_id)["keep_reason"]
+            == "false_match"
+        )
+        expected_text = "😀 PERSON_001 met PERSON_001. Contact ali@example.com."
+        preview = reopened.get(f"{path}/preview")
+        assert preview.status_code == 200 and preview.json()["text"] == expected_text
+        completed = reopened.post(
+            f"{path}/complete",
+            json={"expected": version, "confirmed_preview": True},
+            headers=reopened_headers,
+        )
+        assert completed.status_code == 200, completed.text
+        summary = reopened.get(f"{path}/summary")
+        assert summary.status_code == 200
+        assert summary.json()["counts_by_action"] == {"label": 2, "keep": 1}
+        assert "Alice" not in summary.text and "ali@example.com" not in summary.text
+        exported = reopened.post(
+            f"{path}/exports/txt",
+            json={"expected": version, "event_id": str(uuid4())},
+            headers=reopened_headers,
+        )
+        assert exported.status_code == 200, exported.text
+        assert exported.content == expected_text.encode("utf-8")
+        assert other.get(f"{path}/source").status_code == 404
+        assert reopened.delete(path, headers=reopened_headers).json() == {"status": "deleted"}
+        assert reopened.get(f"{path}/source").status_code == 410
+
+    assert purge_unavailable_content(engine, now=datetime.now(UTC)).documents_purged == 1
+    history = owner.get(
+        f"/api/v1/workspaces/{workspace_id}/documents/{version['document_id']}/history"
+    )
+    assert history.status_code == 200
+    assert history.json()["status"] == "deleted"
+    assert history.json()["revision_total"] == 0
+    assert source not in history.text
+
+
 def test_zero_match_confirmation_and_explicit_keep_export(intake_site):
     owner, _other, _engine, workspace_id, _owner_id = intake_site
     headers = _login(owner, "intake-owner@example.invalid")

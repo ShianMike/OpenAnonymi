@@ -16,6 +16,14 @@ type DraftState =
   | { kind: 'error'; message: string }
   | { kind: 'ready'; saved: SourceView }
 
+type GroupConfirmation = {
+  findingId: string
+  action: 'label' | 'redact' | 'keep'
+  affectedIds: string[]
+  spans: SourceSpan[]
+  version: VersionRef
+}
+
 function messageFrom(error: unknown): string {
   return error instanceof Error ? error.message : 'The request could not be completed.'
 }
@@ -55,6 +63,10 @@ export function EditDraftPage({ session }: { session: SessionView }) {
   } | null>(null)
   const sourceRef = useRef<HTMLTextAreaElement>(null)
   const previewRef = useRef<HTMLTextAreaElement>(null)
+  const groupConfirmRef = useRef<HTMLButtonElement>(null)
+  const groupTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const lastFocusedRef = useRef<HTMLElement | null>(null)
+  const wasPendingRef = useRef(false)
   const [selection, setSelection] = useState<SourceSpan | null>(null)
   const [manualCategory, setManualCategory] = useState<FindingCategory>('person')
   const [categoryFilter, setCategoryFilter] = useState<FindingCategory | 'all'>('all')
@@ -65,11 +77,34 @@ export function EditDraftPage({ session }: { session: SessionView }) {
   const [exactMatches, setExactMatches] = useState<{ findingId: string; result: ExactMatchesView } | null>(null)
   const [mergeTargets, setMergeTargets] = useState<Record<string, string>>({})
   const [keepReason, setKeepReason] = useState<'false_match' | 'intended_disclosure'>('false_match')
+  const [groupConfirmation, setGroupConfirmation] = useState<GroupConfirmation | null>(null)
   const [scanPending, setScanPending] = useState(false)
   const [settingsPending, setSettingsPending] = useState(false)
   const [emailEnabled, setEmailEnabled] = useState(true)
   const [phoneEnabled, setPhoneEnabled] = useState(true)
   const [phoneRegion, setPhoneRegion] = useState('PH')
+  const actionPending = pending || completionPending || exportPending || findingPending ||
+    scanPending || settingsPending
+
+  useEffect(() => {
+    if (actionPending) {
+      wasPendingRef.current = true
+      return
+    }
+    if (!wasPendingRef.current) return
+    wasPendingRef.current = false
+    const frame = requestAnimationFrame(() => {
+      if (document.activeElement !== document.body) return
+      const previous = lastFocusedRef.current
+      if (previous?.isConnected && !previous.matches(':disabled')) previous.focus()
+      else sourceRef.current?.focus()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [actionPending])
+
+  useEffect(() => {
+    if (groupConfirmation) groupConfirmRef.current?.focus()
+  }, [groupConfirmation])
 
   useEffect(() => {
     if (!documentId) return
@@ -443,6 +478,7 @@ export function EditDraftPage({ session }: { session: SessionView }) {
       setPreparedDownload(null)
       setSelection(null)
       setExactMatches(null)
+      setGroupConfirmation(null)
       await refreshPreview(documentId, result.version)
       try {
         setScan(await getScan(documentId))
@@ -508,6 +544,7 @@ export function EditDraftPage({ session }: { session: SessionView }) {
       setConfirmedPreview(false)
       setPreparedDownload(null)
       setExactMatches(null)
+      setGroupConfirmation(null)
       await refreshPreview(documentId, result.version)
       if (result.version.decision_version !== state.saved.version.decision_version) {
         setUndoCount((count) => Math.min(count + 1, 20))
@@ -535,6 +572,7 @@ export function EditDraftPage({ session }: { session: SessionView }) {
       setPreparedDownload(null)
       setUndoCount((count) => Math.max(0, count - 1))
       setExactMatches(null)
+      setGroupConfirmation(null)
       await refreshPreview(documentId, result.version)
       setNotice('Last review edit undone. Review the current findings before completion.')
     } catch (cause: unknown) {
@@ -543,6 +581,33 @@ export function EditDraftPage({ session }: { session: SessionView }) {
     } finally {
       setFindingPending(false)
     }
+  }
+
+  function confirmGroupDecision() {
+    if (!groupConfirmation || state.kind !== 'ready' || !findings) return
+    const item = findings.findings.find(
+      (candidate) => candidate.finding_id === groupConfirmation.findingId,
+    )
+    const currentIds = item?.group_id
+      ? findings.findings.filter((candidate) => candidate.group_id === item.group_id)
+        .map((candidate) => candidate.finding_id)
+      : []
+    if (!sameVersion(groupConfirmation.version, state.saved.version) ||
+      currentIds.length !== groupConfirmation.affectedIds.length ||
+      !currentIds.every((id) => groupConfirmation.affectedIds.includes(id))) {
+      setGroupConfirmation(null)
+      setError('This group changed. Review its occurrences again before applying a decision.')
+      return
+    }
+    const { findingId, action } = groupConfirmation
+    setGroupConfirmation(null)
+    lastFocusedRef.current = groupTriggerRef.current
+    void changeReview('decision', findingId, { action, groupScope: true })
+  }
+
+  function cancelGroupDecision() {
+    setGroupConfirmation(null)
+    requestAnimationFrame(() => groupTriggerRef.current?.focus())
   }
 
   function locateFinding(findingId: string, target: 'source' | 'preview') {
@@ -669,7 +734,9 @@ export function EditDraftPage({ session }: { session: SessionView }) {
   }
 
   return (
-    <section>
+    <section onFocusCapture={(event) => {
+      if (event.target instanceof HTMLElement) lastFocusedRef.current = event.target
+    }}>
       <h1>Saved draft</h1>
       {state.kind === 'loading' && <p role="status">Loading the saved draft…</p>}
       {state.kind === 'error' && (
@@ -984,20 +1051,34 @@ export function EditDraftPage({ session }: { session: SessionView }) {
                         </button>{' '}
                         {(['label', 'redact', 'keep'] as const).map((action) => (
                           <button key={action} type="button"
-                            onClick={() => {
+                            onClick={(event) => {
                               const members = findings.findings.filter(
                                 (candidate) => candidate.group_id === item.group_id,
                               )
-                              if (window.confirm(`Apply ${action} to ${members.length} occurrences at ${members.map(
-                                (member) => `${member.span.start + 1}–${member.span.end}`,
-                              ).join(', ')}?`)) {
-                                void changeReview('decision', item.finding_id, { action, groupScope: true })
-                              }
+                              groupTriggerRef.current = event.currentTarget
+                              setGroupConfirmation({
+                                findingId: item.finding_id,
+                                action,
+                                affectedIds: members.map((member) => member.finding_id),
+                                spans: members.map((member) => member.span),
+                                version: state.saved.version,
+                              })
                             }}
                             disabled={dirty || settingsDirty || findingPending || conflict}>
                             {action} group
                           </button>
                         ))}
+                        {groupConfirmation?.findingId === item.finding_id && (
+                          <div role="group" aria-label="Confirm group decision">
+                            <p>Apply {groupConfirmation.action} to {groupConfirmation.affectedIds.length} occurrences
+                              at {groupConfirmation.spans.map(
+                                (span) => `${span.start + 1}–${span.end}`,
+                              ).join(', ')}?</p>
+                            <button ref={groupConfirmRef} type="button" onClick={confirmGroupDecision}
+                              disabled={dirty || settingsDirty || findingPending || conflict}>Apply to group</button>{' '}
+                            <button type="button" onClick={cancelGroupDecision}>Cancel</button>
+                          </div>
+                        )}
                       </>
                     )}
                     <label htmlFor={`merge-${item.finding_id}`}>Merge with</label>{' '}
