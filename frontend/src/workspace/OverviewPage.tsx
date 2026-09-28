@@ -65,7 +65,7 @@ export function OverviewPage({ session }: { session: SessionView }) {
           <div className="overview-metrics">
             <article className="metric-card">
               <span>Your reviews</span><strong>{data.value.own_total.toLocaleString()}</strong>
-              <small>All active documents</small>
+              <small>Non-deleted documents</small>
             </article>
             <article className="metric-card">
               <span>Created recently</span>

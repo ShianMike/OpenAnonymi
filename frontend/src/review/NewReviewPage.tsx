@@ -141,7 +141,7 @@ export function NewReviewPage({ session }: { session: SessionView }) {
           <button type="button" onClick={() => setAttempt((value) => value + 1)}>Retry</button>
         </div>
       )}
-      <form onSubmit={save}>
+      <form className="intake-form" onSubmit={save}>
         {session.memberships.length > 1 && (
           <>
             <label htmlFor="intake-workspace">Workspace</label>{' '}
@@ -150,8 +150,10 @@ export function NewReviewPage({ session }: { session: SessionView }) {
                 setDefaults({ kind: 'loading' })
                 setWorkspaceId(event.target.value)
               }}>
-              {session.memberships.map((item) => (
-                <option key={item.workspace_id} value={item.workspace_id}>{item.workspace_id}</option>
+              {session.memberships.map((item, index) => (
+                <option key={item.workspace_id} value={item.workspace_id}>
+                  {item.workspace_name || `Workspace ${index + 1}`}
+                </option>
               ))}
             </select>
           </>
@@ -185,10 +187,10 @@ export function NewReviewPage({ session }: { session: SessionView }) {
           )}
           <p role="status">{characters.toLocaleString()} characters, {bytes.toLocaleString()} UTF-8 bytes. Maximum: 100,000 characters and 1 MiB.</p>
         </fieldset>
-        <label htmlFor="draft-title">Optional title</label>{' '}
+        <label className="block-label" htmlFor="draft-title">Optional title</label>{' '}
         <input id="draft-title" type="text" maxLength={200} value={title}
           onChange={(event) => setTitle(event.target.value)} />
-        <p>The uploaded filename is never used as the document title or storage name.</p>
+        {mode === 'file' && <p>The uploaded filename is never used as the document title or storage name.</p>}
         <fieldset>
           <legend>Automatic suggestions</legend>
           {defaults.kind === 'ready' && defaults.presets.length > 0 && (
@@ -231,7 +233,7 @@ export function NewReviewPage({ session }: { session: SessionView }) {
         </fieldset>
         {defaults.kind === 'ready' && (
           <>
-            <label htmlFor="retention-days">Keep draft for</label>{' '}
+            <label className="block-label" htmlFor="retention-days">Keep draft for</label>{' '}
             <select id="retention-days" value={retentionDays}
               onChange={(event) => setRetentionDays(Number(event.target.value))}>
               {Array.from({ length: defaults.value.content_retention_days }, (_item, index) => index + 1)

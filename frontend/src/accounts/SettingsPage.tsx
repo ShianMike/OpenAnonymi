@@ -1,9 +1,10 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import {
   changeMemberRole, changePassword, getMembers, getWorkspaceSettings, inviteMember,
   restoreMember, revokeMember, updateWorkspaceSettings,
   type MemberView, type SessionView, type WorkspaceSettingsView,
 } from '../api/client'
+import { PageHeader } from '../ui/PageHeader'
 
 type Data =
   | { kind: 'loading' }
@@ -28,9 +29,14 @@ function MemberRow({
 }) {
   const [role, setRole] = useState<Role>(member.role)
   const [confirmRevoke, setConfirmRevoke] = useState(false)
+  const revokeTriggerRef = useRef<HTMLButtonElement>(null)
+  const confirmRef = useRef<HTMLButtonElement>(null)
   const revoked = member.revoked_at !== null
+  useEffect(() => {
+    if (confirmRevoke) confirmRef.current?.focus()
+  }, [confirmRevoke])
   return (
-    <li>
+    <li className="member-card">
       <strong>{member.email}</strong> — {revoked ? 'revoked' : member.role}
       {member.disabled_at && ' — account disabled'}
       {!isSelf && !revoked && (
@@ -44,16 +50,20 @@ function MemberRow({
           <button type="button" disabled={busy || role === member.role}
             onClick={() => onRoleChange(role)}>Save role</button>{' '}
           {confirmRevoke ? (
-            <>
-              <button type="button" disabled={busy} onClick={() => {
+            <div className="member-revoke" role="group" aria-label={`Revoke access for ${member.email}`}>
+              <p>Revoke {member.email}? Their active sessions will end. An administrator can restore access later.</p>
+              <button className="button-danger" ref={confirmRef} type="button" disabled={busy} onClick={() => {
                 setConfirmRevoke(false)
                 onRevoke()
               }}>Confirm revoke</button>{' '}
               <button type="button" disabled={busy}
-                onClick={() => setConfirmRevoke(false)}>Cancel</button>
-            </>
+                onClick={() => {
+                  setConfirmRevoke(false)
+                  requestAnimationFrame(() => revokeTriggerRef.current?.focus())
+                }}>Keep access</button>
+            </div>
           ) : (
-            <button type="button" disabled={busy}
+            <button className="delete-trigger" ref={revokeTriggerRef} type="button" disabled={busy}
               onClick={() => setConfirmRevoke(true)}>Revoke access</button>
           )}
         </div>
@@ -96,7 +106,7 @@ function AccountSettings({ session, onPasswordChanged }: {
       <h2 id="account-title">Your account</h2>
       <p>Signed in as {session.email}. Changing your password ends all active sessions, including this one.</p>
       {error && <p role="alert">{error}</p>}
-      <form onSubmit={(event) => void save(event)}>
+      <form className="settings-form" onSubmit={(event) => void save(event)}>
         <label htmlFor="current-password">Current password</label>{' '}
         <input id="current-password" type="password" autoComplete="current-password" required
           value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />{' '}
@@ -161,7 +171,7 @@ export function SettingsPage({ session, onPasswordChanged }: {
   if (adminWorkspaces.length === 0) {
     return (
       <section>
-        <h1>Settings</h1>
+        <PageHeader title="Settings" description="Manage your account and workspace preferences." />
         <AccountSettings session={session} onPasswordChanged={onPasswordChanged} />
         <p>Workspace membership and defaults are managed by an administrator.</p>
       </section>
@@ -170,10 +180,10 @@ export function SettingsPage({ session, onPasswordChanged }: {
 
   return (
     <section>
-      <h1>Settings</h1>
+      <PageHeader title="Settings" description="Manage your account and workspace preferences." />
       <AccountSettings session={session} onPasswordChanged={onPasswordChanged} />
       {adminWorkspaces.length > 1 && (
-        <>
+        <div className="workspace-picker">
           <label htmlFor="admin-workspace">Workspace</label>{' '}
           <select id="admin-workspace" value={workspaceId}
             onChange={(event) => {
@@ -181,10 +191,12 @@ export function SettingsPage({ session, onPasswordChanged }: {
               setWorkspaceId(event.target.value)
             }}>
             {adminWorkspaces.map((item) => (
-              <option key={item.workspace_id} value={item.workspace_id}>{item.workspace_id}</option>
+              <option key={item.workspace_id} value={item.workspace_id}>
+                {item.workspace_name || item.workspace_id}
+              </option>
             ))}
           </select>
-        </>
+        </div>
       )}
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
@@ -197,8 +209,7 @@ export function SettingsPage({ session, onPasswordChanged }: {
       )}
       {data.kind === 'ready' && (
         <>
-          <p>Workspace: {data.settings.name}</p>
-          <form onSubmit={(event: FormEvent<HTMLFormElement>) => {
+          <form className="settings-form surface-panel" onSubmit={(event: FormEvent<HTMLFormElement>) => {
             event.preventDefault()
             void run(
               () => updateWorkspaceSettings(
@@ -220,8 +231,8 @@ export function SettingsPage({ session, onPasswordChanged }: {
           </form>
           <section aria-labelledby="members-title">
             <h2 id="members-title">Members</h2>
-            <p>Invitations are emailed when the workspace operator has configured SMTP.</p>
-            <form onSubmit={(event: FormEvent<HTMLFormElement>) => {
+            <p>Invitations are sent by email when delivery is available.</p>
+            <form className="settings-form" onSubmit={(event: FormEvent<HTMLFormElement>) => {
               event.preventDefault()
               void run(
                 () => inviteMember(workspaceId, inviteEmail, inviteRole, session.csrf_token),
@@ -239,7 +250,7 @@ export function SettingsPage({ session, onPasswordChanged }: {
               </select>{' '}
               <button type="submit" disabled={busy}>Send invitation</button>
             </form>
-            <ul>
+            <ul className="member-list">
               {data.members.map((member) => (
                 <MemberRow key={`${member.user_id}-${member.role}`} member={member}
                   isSelf={member.user_id === session.user_id} busy={busy}

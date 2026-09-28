@@ -3,6 +3,7 @@ import {
   createWorkspacePreset, getWorkspacePresets, updateWorkspacePreset,
   type PresetInput, type PresetView, type SessionView,
 } from '../api/client'
+import { PageHeader } from '../ui/PageHeader'
 
 type Data = { kind: 'loading' } | { kind: 'error'; message: string } |
   { kind: 'ready'; presets: PresetView[] }
@@ -47,7 +48,7 @@ function PresetEditor({ preset, onSave }: {
   }
 
   return (
-    <form onSubmit={(event) => void save(event)}>
+    <form className="preset-form" onSubmit={(event) => void save(event)}>
       {error && <p role="alert">{error}</p>}
       <label htmlFor={`preset-name-${fieldId}`}>Preset name</label>{' '}
       <input id={`preset-name-${fieldId}`} required maxLength={100} value={name}
@@ -107,20 +108,23 @@ export function RulesPage({ session }: { session: SessionView }) {
 
   return (
     <section aria-labelledby="rules-title">
-      <h1 id="rules-title">Rules</h1>
-      <p>Presets choose suggestion categories and a preferred action for new reviews. Every finding still needs your decision. Editing a preset does not change saved reviews.</p>
+      <PageHeader title="Rules" titleId="rules-title"
+        description="Presets set suggestions and a preferred action for new reviews. You still decide every finding." />
+      <p className="data-scope">Changes to a preset do not change reviews already saved.</p>
       {session.memberships.length > 1 && (
-        <>
+        <div className="workspace-picker">
           <label htmlFor="rules-workspace">Workspace</label>{' '}
           <select id="rules-workspace" value={workspaceId} onChange={(event) => {
             setWorkspaceId(event.target.value)
             setData({ kind: 'loading' })
           }}>
             {session.memberships.map((item, index) => (
-              <option key={item.workspace_id} value={item.workspace_id}>Workspace {index + 1}</option>
+              <option key={item.workspace_id} value={item.workspace_id}>
+                {item.workspace_name || `Workspace ${index + 1}`}
+              </option>
             ))}
           </select>
-        </>
+        </div>
       )}
       {notice && <p role="status">{notice}</p>}
       {data.kind === 'loading' && <p role="status">Loading presets…</p>}
@@ -132,9 +136,11 @@ export function RulesPage({ session }: { session: SessionView }) {
       {data.kind === 'ready' && (
         <>
           <h2>Available presets</h2>
-          {data.presets.length === 0 && <p>No presets have been saved for this workspace.</p>}
-          <ul>{data.presets.map((preset) => (
-            <li key={preset.id}>
+          {data.presets.length === 0 && <div className="empty-state surface-panel">
+            <strong>No presets yet</strong><p>Create one to reuse suggestion settings in new reviews.</p>
+          </div>}
+          <ul className="preset-list">{data.presets.map((preset) => (
+            <li className="surface-panel" key={preset.id}>
               <h3>{preset.name}{preset.is_default ? ' — default' : ''}</h3>
               <p>Version {preset.version}. Suggestions: {preset.categories.join(', ') || 'none'}; phone region {preset.phone_region}; preferred action {preset.preferred_action}.</p>
               {administrator && <PresetEditor key={`${preset.id}-${preset.version}`}

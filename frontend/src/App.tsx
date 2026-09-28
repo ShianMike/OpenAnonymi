@@ -169,6 +169,11 @@ function App() {
         <div className="sidebar-footer"><ShieldCheck size={16} aria-hidden="true" />
           <span>Review before sharing</span></div>
       </aside>
+      {menuOpen && <button className="nav-scrim" type="button" aria-label="Close navigation"
+        onClick={() => {
+          setMenuOpen(false)
+          menuButtonRef.current?.focus()
+        }} />}
       <div className="app-workarea">
         <header className="app-topbar">
           <button className="menu-toggle icon-button" type="button" ref={menuButtonRef}

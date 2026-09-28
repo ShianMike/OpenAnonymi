@@ -10,6 +10,10 @@ type Data = { kind: 'loading' } | { kind: 'error'; message: string } |
   { kind: 'ready'; items: DocumentIndexView[] }
 type Sort = 'newest' | 'oldest' | 'expiring' | 'title'
 
+function documentLabel(item: DocumentIndexView): string {
+  return item.title || (item.status === 'expired' ? 'Expired review' : 'Untitled review')
+}
+
 export function DocumentsPage({ session }: { session: SessionView }) {
   const [workspaceId, setWorkspaceId] = useState(session.memberships[0]?.workspace_id ?? '')
   const [data, setData] = useState<Data>({ kind: 'loading' })
@@ -49,11 +53,11 @@ export function DocumentsPage({ session }: { session: SessionView }) {
 
   const visible = data.kind === 'ready' ? data.items.filter((item) =>
     (status === 'all' || item.status === status) &&
-    (!search.trim() || (item.title || `Review ${item.id}`)
+    (!search.trim() || documentLabel(item)
       .toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())),
   ).sort((left, right) => {
     if (sort === 'title') {
-      return (left.title || `Review ${left.id}`).localeCompare(right.title || `Review ${right.id}`)
+      return documentLabel(left).localeCompare(documentLabel(right))
     }
     if (sort === 'expiring') return left.expires_at.localeCompare(right.expires_at)
     if (sort === 'oldest') return left.created_at.localeCompare(right.created_at)
@@ -149,7 +153,7 @@ export function DocumentsPage({ session }: { session: SessionView }) {
               'Adjust the search or status filter to see other reviews.'}</p>
             {data.items.length === 0 && <Link to="/new">Create a review</Link>}
           </div> : (
-            <div className="table-shell" role="region" aria-label="Document list" tabIndex={0}><table>
+            <div className="table-shell document-list-shell" role="region" aria-label="Document list" tabIndex={0}><table>
               <thead><tr>
                 <th scope="col">Document</th><th scope="col">Status</th>
                 <th scope="col">Review progress</th><th scope="col">Created</th>
@@ -158,13 +162,14 @@ export function DocumentsPage({ session }: { session: SessionView }) {
               </tr></thead>
               <tbody>{visible.map((item) => (
                 <tr key={item.id}>
-                  <th scope="row">{item.title || `Review ${item.id}`}</th>
-                  <td><StatusBadge status={item.status} /></td>
-                  <td>{item.decided_count} of {item.finding_count} findings decided</td>
-                  <td>{new Date(item.created_at).toLocaleString()}</td>
-                  <td>{new Date(item.updated_at).toLocaleString()}</td>
-                  <td>{new Date(item.expires_at).toLocaleString()}</td>
-                  <td>{item.status === 'expired' || item.status === 'deleted' ?
+                  <th scope="row">{documentLabel(item)}</th>
+                  <td><span className="mobile-cell-label">Status</span><StatusBadge status={item.status} /></td>
+                  <td><span className="mobile-cell-label">Review progress</span>{item.status === 'expired' ?
+                    'Unavailable' : `${item.decided_count} of ${item.finding_count} findings decided`}</td>
+                  <td><span className="mobile-cell-label">Created</span>{new Date(item.created_at).toLocaleString()}</td>
+                  <td><span className="mobile-cell-label">Updated</span>{new Date(item.updated_at).toLocaleString()}</td>
+                  <td><span className="mobile-cell-label">Expires</span>{new Date(item.expires_at).toLocaleString()}</td>
+                  <td className="document-row-actions">{item.status === 'expired' || item.status === 'deleted' ?
                     'Unavailable' : <Link to={`/documents/${item.id}/edit`}>Open review</Link>}{' '}
                     <Link to={`/workspaces/${workspaceId}/documents/${item.id}/history`}>History</Link>{' '}
                     <button className="delete-trigger" type="button" onClick={(event) => {
@@ -179,8 +184,8 @@ export function DocumentsPage({ session }: { session: SessionView }) {
                     </button>
                     {confirmingId === item.id && (
                       <div className="delete-confirmation" role="group"
-                        aria-label={`Confirm deletion of ${item.title || `Review ${item.id}`}`}>
-                        <p>Delete {item.title || `Review ${item.id}`}? Access ends now and stored content
+                        aria-label={`Confirm deletion of ${documentLabel(item)}`}>
+                        <p>Delete {documentLabel(item)}? Access ends now and stored content
                           is removed by cleanup. This cannot be restored.</p>
                         <button className="button-danger" ref={confirmDeleteRef} type="button"
                           onClick={() => void removeDocument(item)} disabled={deletingId !== null}>

@@ -1,19 +1,21 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import {
   ApiConflictError, ApiRequestError, addExactMatch, addManualFinding, confirmReview, decideFindings,
   downloadReviewedTxt, getCopyPayload, getDraft, getExactMatches, getFindings, getPreview,
-  getReviewSummary, getScan, mergeFindings, recordCopySuccess, removeFinding, reviseFinding,
+  getReviewSummary, getScan, getWorkspaceDocuments, mergeFindings, recordCopySuccess, removeFinding, reviseFinding,
   saveDraftSource, splitFinding, startScan, undoReviewEdit, updateScanSettings,
   type ExactMatchesView, type FindingCategory, type FindingsView, type PreviewView,
   type ReviewSummaryView, type ScanView, type SessionView, type SourceSpan, type SourceView,
   type VersionRef,
 } from '../api/client'
 import { codePointRangeToUtf16, utf16OffsetToCodePoint } from './offsets'
+import { PageHeader } from '../ui/PageHeader'
+import { StatusBadge } from '../ui/StatusBadge'
 
 type DraftState =
   | { kind: 'loading' }
-  | { kind: 'error'; message: string }
+  | { kind: 'error'; message: string; retryable?: boolean }
   | { kind: 'ready'; saved: SourceView }
 
 type GroupConfirmation = {
@@ -43,6 +45,7 @@ function sameScanVersion(left: VersionRef, right: VersionRef): boolean {
 
 export function EditDraftPage({ session }: { session: SessionView }) {
   const { documentId } = useParams<{ documentId: string }>()
+  const workspaceIds = session.memberships.map((item) => item.workspace_id).join(',')
   const [state, setState] = useState<DraftState>({ kind: 'loading' })
   const [text, setText] = useState('')
   const [attempt, setAttempt] = useState(0)
@@ -72,6 +75,7 @@ export function EditDraftPage({ session }: { session: SessionView }) {
   const [categoryFilter, setCategoryFilter] = useState<FindingCategory | 'all'>('all')
   const [decisionFilter, setDecisionFilter] = useState<'all' | 'pending' | 'decided'>('all')
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null)
+  const [mobilePanel, setMobilePanel] = useState<'original' | 'preview' | 'findings'>('original')
   const [findingPending, setFindingPending] = useState(false)
   const [undoCount, setUndoCount] = useState(0)
   const [exactMatches, setExactMatches] = useState<{ findingId: string; result: ExactMatchesView } | null>(null)
@@ -96,8 +100,13 @@ export function EditDraftPage({ session }: { session: SessionView }) {
     const frame = requestAnimationFrame(() => {
       if (document.activeElement !== document.body) return
       const previous = lastFocusedRef.current
-      if (previous?.isConnected && !previous.matches(':disabled')) previous.focus()
-      else sourceRef.current?.focus()
+      const canFocus = (element: HTMLElement | null | undefined) =>
+        element?.isConnected && !element.matches(':disabled') && element.getClientRects().length > 0
+      const summary = previous?.closest('details')?.querySelector<HTMLElement>('summary')
+      if (canFocus(previous)) previous?.focus()
+      else if (canFocus(summary)) summary?.focus()
+      else if (canFocus(sourceRef.current)) sourceRef.current?.focus()
+      else document.querySelector<HTMLElement>('.review-panel-switch button[aria-pressed="true"]')?.focus()
     })
     return () => cancelAnimationFrame(frame)
   }, [actionPending])
@@ -146,11 +155,28 @@ export function EditDraftPage({ session }: { session: SessionView }) {
           }
         }).catch(() => undefined)
       }
-    }).catch((cause: unknown) => {
-      if (!controller.signal.aborted) setState({ kind: 'error', message: messageFrom(cause) })
+    }).catch(async (cause: unknown) => {
+      if (controller.signal.aborted) return
+      if (cause instanceof ApiRequestError && cause.status === 410) {
+        const lists = await Promise.allSettled(workspaceIds.split(',').filter(Boolean).map(
+          (id) => getWorkspaceDocuments(id, controller.signal),
+        ))
+        if (controller.signal.aborted) return
+        const expired = lists.some((result) => result.status === 'fulfilled' && result.value.some(
+          (item) => item.id === documentId && item.status === 'expired',
+        ))
+        if (expired) {
+          setState({ kind: 'error', message: 'This document has expired. Its content can no longer be opened.', retryable: false })
+          return
+        }
+      }
+      setState({
+        kind: 'error', message: messageFrom(cause),
+        retryable: !(cause instanceof ApiRequestError && [404, 410].includes(cause.status)),
+      })
     })
     return () => controller.abort()
-  }, [documentId, attempt])
+  }, [documentId, attempt, workspaceIds])
 
   async function refreshPreview(id: string, expected: VersionRef) {
     setPreview(null)
@@ -296,8 +322,7 @@ export function EditDraftPage({ session }: { session: SessionView }) {
           ...state.saved, version: result.version, status: 'needs_review',
         } })
         setNotice(result.match_count === 0
-          ? 'No suggestions were found. Review the full text before export.'
-          : 'Suggestions are unresolved. Review every occurrence before export.')
+          ? null : 'Suggestions are unresolved. Review every occurrence before export.')
       } else {
         setNotice('A scan is in progress. Refresh its status shortly.')
       }
@@ -538,6 +563,9 @@ export function EditDraftPage({ session }: { session: SessionView }) {
           session.csrf_token)
       } else return
       setFindings(result)
+      if (operation === 'merge') {
+        setMergeTargets((current) => ({ ...current, [findingId]: '' }))
+      }
       setState({ kind: 'ready', saved: { ...state.saved, version: result.version,
         status: 'needs_review' } })
       setSummary(null)
@@ -615,12 +643,22 @@ export function EditDraftPage({ session }: { session: SessionView }) {
     const item = findings.findings.find((row) => row.finding_id === findingId)
     if (!item) return
     setSelectedFindingId(findingId)
+    setMobilePanel(target === 'source' ? 'original' : 'preview')
     if (target === 'source' && sourceRef.current) {
       const range = codePointRangeToUtf16(
         state.saved.text, item.span.start, item.span.end,
       )
-      sourceRef.current.focus()
-      sourceRef.current.setSelectionRange(range.start, range.end)
+      requestAnimationFrame(() => {
+        sourceRef.current?.focus()
+        sourceRef.current?.setSelectionRange(range.start, range.end)
+        if (window.matchMedia('(min-width: 701px)').matches) {
+          const panel = document.getElementById('review-findings-panel')
+          const card = document.getElementById(`finding-${findingId}`)
+          if (panel && card) {
+            panel.scrollTop += card.getBoundingClientRect().top - panel.getBoundingClientRect().top - 80
+          }
+        }
+      })
       return
     }
     const mapping = preview?.mappings.find((row) => row.finding_id === findingId)
@@ -628,8 +666,10 @@ export function EditDraftPage({ session }: { session: SessionView }) {
       const range = codePointRangeToUtf16(
         preview.text, mapping.preview_span.start, mapping.preview_span.end,
       )
-      previewRef.current.focus()
-      previewRef.current.setSelectionRange(range.start, range.end)
+      requestAnimationFrame(() => {
+        previewRef.current?.focus()
+        previewRef.current?.setSelectionRange(range.start, range.end)
+      })
     }
   }
 
@@ -651,7 +691,7 @@ export function EditDraftPage({ session }: { session: SessionView }) {
       const completed = await confirmReview(documentId, state.saved.version, session.csrf_token)
       setState({ kind: 'ready', saved: { ...state.saved, status: completed.status } })
       setConfirmedPreview(false)
-      setNotice('Review confirmed. The current processed text is ready to copy or download.')
+      setNotice('Review confirmed. The reviewed output is ready to copy or download.')
       try {
         const result = await getReviewSummary(documentId)
         if (sameVersion(result.version, state.saved.version)) setSummary(result)
@@ -734,31 +774,88 @@ export function EditDraftPage({ session }: { session: SessionView }) {
   }
 
   return (
-    <section onFocusCapture={(event) => {
+    <section className="review-page" aria-labelledby="review-title" onFocusCapture={(event) => {
       if (event.target instanceof HTMLElement) lastFocusedRef.current = event.target
     }}>
-      <h1>Saved draft</h1>
+      <PageHeader title={state.kind === 'ready' ? state.saved.title || 'Untitled review' : 'Review workspace'}
+        titleId="review-title" description="Inspect the original and reviewed output, then decide each finding."
+        action={<Link to="/documents">Back to documents</Link>} />
       {state.kind === 'loading' && <p role="status">Loading the saved draft…</p>}
       {state.kind === 'error' && (
         <div role="alert">
           <p>{state.message}</p>
-          <button type="button" onClick={reloadSaved}>Retry</button>
+          {state.retryable !== false && <button type="button" onClick={reloadSaved}>Retry</button>}
         </div>
       )}
       {state.kind === 'ready' && (
         <>
-          <p>{state.saved.title || `Review ${state.saved.version.document_id}`}</p>
-          <p>Status: {state.saved.status}. Expires: {new Date(state.saved.expires_at).toLocaleString()}.</p>
-          <p>Suggestions: {state.saved.categories.join(', ') || 'none'}; phone region: {state.saved.phone_region}.</p>
-          <p>Source revision: {state.saved.version.source_revision_id}</p>
-          {state.saved.preset_id && (
-            <p>Started with Rules preset version {state.saved.preset_version}. Preferred action: {state.saved.preferred_action}. Preset changes do not update this review.</p>
-          )}
-          {error && <p role="alert">{error}</p>}
+          <div className="review-summary-strip" aria-label="Current review status">
+            <StatusBadge status={state.saved.status} />
+            {scan?.status === 'completed' || activeFindings.length > 0 ?
+              <span>{pendingFindings.length > 0
+                ? `${pendingFindings.length} ${pendingFindings.length === 1 ? 'finding' : 'findings'} still need a decision`
+                : state.saved.status === 'ready' || state.saved.status === 'exported' ? 'Review confirmed'
+                  : activeFindings.length === 0 ? 'No matches; review full text' : 'All findings have decisions'}</span>
+              : <span>{scan?.status === 'scanning' ? 'Checking suggestions' : 'Suggestion scan not run'}</span>}
+            <span>Expires {new Date(state.saved.expires_at).toLocaleString()}</span>
+            <span>{dirty ? 'Unsaved source edits' : 'Source saved'}</span>
+          </div>
+          <details className="review-details"><summary>Review setup</summary>
+            <p>Automatic suggestions: {state.saved.categories.join(', ') || 'none'}; phone region: {state.saved.phone_region}.</p>
+            {state.saved.preset_id && (
+              <p>Started with a Rules preset. Preferred action: {state.saved.preferred_action}. Later preset changes do not update this review.</p>
+            )}
+          </details>
+          {error && !dirty && <p role="alert">{error}</p>}
           {notice && <p role="status">{notice}</p>}
-          <form onSubmit={save}>
+          <div className="review-panel-switch" role="group" aria-label="Review views">
+            {(['original', 'preview', 'findings'] as const).map((panel) => (
+              <button key={panel} type="button" aria-pressed={mobilePanel === panel}
+                aria-controls={`review-${panel}-panel`} onClick={() => setMobilePanel(panel)}>
+                {panel === 'original' ? 'Original' : panel === 'preview' ? 'Reviewed output' : 'Findings'}
+              </button>
+            ))}
+          </div>
+          <div className="review-layout" data-mobile-panel={mobilePanel}>
+          <section className="review-suggestions surface-panel" aria-labelledby="suggestions-heading">
+            <h2 id="suggestions-heading">Automatic suggestions</h2>
+            <p>Suggestions do not decide how text will be handled.</p>
+            <button type="button" onClick={() => void scanDraft()}
+              disabled={dirty || settingsDirty || pending || settingsPending || scanPending || conflict ||
+                scan?.status === 'scanning' || scan?.status === 'completed'}>
+              {scanPending ? 'Scanning…' : scan?.status === 'failed' ? 'Retry scan' : 'Find suggestions'}
+            </button>{' '}
+            <button type="button" onClick={() => void refreshScan()} disabled={dirty || scanPending}>
+              Refresh scan status
+            </button>
+            {scan?.status === 'not_started' && <p>No scan has run for this source and settings.</p>}
+            {scan?.status === 'scanning' && <p role="status">Scan in progress.</p>}
+            {scan?.status === 'failed' && <p role="alert">Scan failed ({scan.failure_code}). Retry after checking the text or settings.</p>}
+            {scan?.status === 'completed' && scan.match_count === 0 &&
+              state.saved.status !== 'ready' && state.saved.status !== 'exported' &&
+              <p>No suggestions found. The full text still needs review before export.</p>}
+            {scan?.status === 'completed' && scan.match_count !== null && scan.match_count > 0 && (
+              <details className="scan-explanations">
+                <summary>{scan.match_count} suggestions found — view rule details</summary>
+                <ol>
+                {scan.suggestions.map((item) => (
+                  <li key={item.finding_id}>
+                    <strong>{item.category}</strong> at characters {item.span.start + 1}–{item.span.end}: {' '}
+                    <code>{codePoints.slice(item.span.start, item.span.end).join('')}</code>. {' '}
+                    {item.reason} Rule {item.rule_id} ({item.rule_version}). {' '}
+                    {findings?.findings.find((finding) => finding.finding_id === item.finding_id)?.action || 'Pending review'}.
+                  </li>
+                ))}
+                </ol>
+              </details>
+            )}
+          </section>
+          <div className="review-text-column">
+          <form className="review-source surface-panel" id="review-original-panel" onSubmit={save}>
+            <h2>Original text</h2>
             <label htmlFor="saved-source">Text to review</label>
             <textarea id="saved-source" className="source-editor" value={text} ref={sourceRef}
+              aria-describedby={error && dirty ? 'source-save-error' : undefined}
               onMouseUp={captureSelection}
               onKeyUp={captureSelection}
               onChange={(event) => {
@@ -772,19 +869,20 @@ export function EditDraftPage({ session }: { session: SessionView }) {
               {Array.from(text).length.toLocaleString()} characters.
               {' '}{dirty ? 'Unsaved edits.' : 'Saved.'}
             </p>
+            {error && dirty && <p id="source-save-error" role="alert">{error}</p>}
             <button type="submit" disabled={!dirty || pending || conflict}>
               {pending ? 'Saving…' : 'Save new revision'}
             </button>{' '}
             <button type="button" onClick={reloadSaved} disabled={pending}>
               {dirty ? 'Discard edits and reload saved' : 'Reload saved'}
             </button>
+            {dirty && (
+              <button type="button" onClick={() => void copyUnsaved()}>
+                Copy unsaved edits
+              </button>
+            )}
           </form>
-          {dirty && (
-            <button type="button" onClick={() => void copyUnsaved()}>
-              Copy unsaved edits
-            </button>
-          )}
-          <section aria-labelledby="preview-heading">
+          <section className="review-preview surface-panel" id="review-preview-panel" aria-labelledby="preview-heading">
             <h2 id="preview-heading">Reviewed output preview</h2>
             {dirty || settingsDirty ? (
               <p>Save the source and suggestion settings to refresh this preview.</p>
@@ -793,13 +891,13 @@ export function EditDraftPage({ session }: { session: SessionView }) {
             ) : preview && sameVersion(preview.version, state.saved.version) && preview.text !== null ? (
               <>
                 <p role="status">{preview.status === 'incomplete'
-                  ? `${preview.unresolved_finding_ids.length} finding(s) still need a decision. This preview is provisional.`
+                  ? `${preview.unresolved_finding_ids.length} ${preview.unresolved_finding_ids.length === 1 ? 'finding' : 'findings'} still need a decision. This preview is provisional.`
                   : state.saved.status === 'ready' || state.saved.status === 'exported'
-                    ? 'This is the processed text for the confirmed review.'
+                    ? 'This is the confirmed reviewed output.'
                   : scan?.status !== 'completed' && state.saved.categories.length > 0
                     ? 'All marked findings have decisions. Run the selected automatic scan, then inspect the full text.'
                     : 'All marked findings have decisions. Inspect the full text before final confirmation.'}</p>
-                <label htmlFor="reviewed-preview">Processed text</label>
+                <label htmlFor="reviewed-preview">Reviewed output</label>
                 <textarea id="reviewed-preview" className="source-editor" value={preview.text}
                   ref={previewRef} readOnly />
               </>
@@ -814,15 +912,235 @@ export function EditDraftPage({ session }: { session: SessionView }) {
               </button>
             )}
           </section>
-          <section aria-labelledby="completion-heading">
+          </div>
+          <section className="review-findings surface-panel" id="review-findings-panel" aria-labelledby="findings-heading">
+            <h2 id="findings-heading">Current findings</h2>
+            <p>Select an exact range in the saved text to add or correct a finding. Existing overlapping ranges must be corrected or removed first.</p>
+            <p role="status">{activeFindings.length} active {activeFindings.length === 1 ? 'finding' : 'findings'}: {' '}
+              {pendingFindings.length} pending, {' '}
+              {activeFindings.filter((item) => item.action === 'label').length} labeled, {' '}
+              {activeFindings.filter((item) => item.action === 'redact').length} redacted, {' '}
+              {activeFindings.filter((item) => item.action === 'keep').length} kept.</p>
+            <div className="finding-filter-grid"><div>
+            <label htmlFor="finding-category-filter">Category filter</label>
+            <select id="finding-category-filter" value={categoryFilter}
+              onChange={(event) => setCategoryFilter(event.target.value as typeof categoryFilter)}>
+              <option value="all">All categories</option>
+              <option value="person">Person</option>
+              <option value="organization">Organization</option>
+              <option value="address">Address</option>
+              <option value="identifier">Identifier</option>
+              <option value="custom">Custom</option>
+              <option value="email">Email</option>
+              <option value="phone">Phone</option>
+            </select></div><div>
+            <label htmlFor="finding-decision-filter">Decision filter</label>
+            <select id="finding-decision-filter" value={decisionFilter}
+              onChange={(event) => setDecisionFilter(event.target.value as typeof decisionFilter)}>
+              <option value="all">All decisions</option>
+              <option value="pending">Pending</option>
+              <option value="decided">Decided</option>
+            </select></div></div>
+            <button type="button" onClick={nextUnresolved}
+              disabled={pendingFindings.length === 0 || dirty || settingsDirty}>
+              Next unresolved
+            </button>
+            <button type="button" onClick={() => void undoReview()}
+              disabled={undoCount === 0 || dirty || settingsDirty || findingPending || conflict}>
+              Undo last review edit
+            </button>
+            {selection && (
+              <p role="status">Selected characters {selection.start + 1}–{selection.end}: {' '}
+                <code>{JSON.stringify(Array.from(text).slice(selection.start, selection.end).join(''))}</code></p>
+            )}
+            {selectionOverlaps && <p>This range overlaps a current finding. Correct or remove it first.</p>}
+            <details className="manual-finding-controls" open={selection !== null}>
+            <summary>Add a finding from selected text</summary>
+            <label htmlFor="manual-category">Category</label>
+            <select id="manual-category" value={manualCategory}
+              onChange={(event) => setManualCategory(event.target.value as FindingCategory)}>
+              <option value="person">Person</option>
+              <option value="organization">Organization</option>
+              <option value="address">Address</option>
+              <option value="identifier">Identifier</option>
+              <option value="custom">Custom</option>
+              <option value="email">Email</option>
+              <option value="phone">Phone</option>
+            </select>{' '}
+            <button type="button" onClick={() => void changeFinding('add')}
+              disabled={!selection || selectionOverlaps || dirty || settingsDirty || findingPending || scanPending || conflict}>
+              {findingPending ? 'Saving…' : 'Add selected finding'}
+            </button>
+            </details>
+            <label htmlFor="keep-reason">Reason when keeping text</label>
+            <select id="keep-reason" value={keepReason}
+              onChange={(event) => setKeepReason(event.target.value as typeof keepReason)}>
+              <option value="false_match">False match</option>
+              <option value="intended_disclosure">Intended disclosure</option>
+            </select>
+            {findings && findings.overlaps.length > 0 && (
+              <p role="alert">{findings.overlaps.length} overlapping range(s) need correction or removal.</p>
+            )}
+            {findings?.findings.length === 0 && <p>No active findings for this source revision.</p>}
+            {activeFindings.length > 0 && visibleFindings.length === 0 &&
+              <p>No findings match these filters.</p>}
+            {groupMembers.size > 0 && (
+              <div aria-label="Entity groups">
+                <h3>Linked occurrences</h3>
+                {Array.from(groupMembers, ([groupId, members]) => (
+                  <details key={groupId}>
+                    <summary>{members[0].label} — {members.length} {members.length === 1 ? 'occurrence' : 'occurrences'}</summary>
+                    <ul>{members.map((member) => (
+                      <li key={member.finding_id}>
+                        Characters {member.span.start + 1}–{member.span.end}: {' '}
+                        {member.action || 'pending'}
+                      </li>
+                    ))}</ul>
+                  </details>
+                ))}
+              </div>
+            )}
+            {findings && findings.findings.length > 0 && (
+              <ol className="finding-list">
+                {visibleFindings.map((item) => (
+                  <li key={item.finding_id} id={`finding-${item.finding_id}`}
+                    aria-current={selectedFindingId === item.finding_id ? 'true' : undefined}>
+                    <div className="finding-header"><strong>{item.category}</strong>
+                      <span className={`finding-state${item.action ? ' is-decided' : ''}`}>
+                        {item.action ?? 'Pending review'}
+                      </span></div>
+                    <p className="finding-excerpt"><code>{JSON.stringify(
+                      codePoints.slice(item.span.start, item.span.end).join(''),
+                    )}</code></p>
+                    <p className="finding-meta">Characters {item.span.start + 1}–{item.span.end} · {' '}
+                      {item.origin === 'automatic' ? 'Automatic suggestion' : 'Manual finding'}
+                      {item.keep_reason ? ` · ${item.keep_reason.replace('_', ' ')}` : ''}
+                      {item.label ? ` · ${item.label}` : ''}</p>
+                    <div className="finding-decision-actions" role="group"
+                      aria-label={`Decision for ${item.category} at characters ${item.span.start + 1}–${item.span.end}`}>
+                      {(['label', 'redact', 'keep'] as const).map((action) => (
+                        <button className={`finding-action finding-action--${action}`}
+                          key={action} type="button" aria-pressed={item.action === action}
+                          onClick={() => void changeReview('decision', item.finding_id, { action })}
+                          disabled={dirty || settingsDirty || findingPending || conflict}>
+                          {action === 'keep' ? 'Keep' : action === 'label' ? 'Label' : 'Redact'}
+                          {action === state.saved.preferred_action ? ' (preferred)' : ''}
+                        </button>
+                      ))}
+                    </div>
+                    <details className="finding-more"><summary>More finding actions</summary>
+                    <div className="finding-extra-actions">
+                    <button type="button" onClick={() => void changeFinding('revise', item.finding_id)}
+                      disabled={!selection || activeFindings.some((other) =>
+                        other.finding_id !== item.finding_id &&
+                        selection.start < other.span.end && other.span.start < selection.end,
+                      ) || dirty || settingsDirty || findingPending || scanPending || conflict}>
+                      Use selected range
+                    </button>{' '}
+                    <button type="button" onClick={() => void changeFinding('remove', item.finding_id)}
+                      disabled={dirty || settingsDirty || findingPending || scanPending || conflict}>
+                      Remove finding
+                    </button>{' '}
+                    {item.group_id && findings.findings.filter(
+                      (candidate) => candidate.group_id === item.group_id,
+                    ).length > 1 && (
+                      <>
+                        <button type="button" onClick={() => void changeReview('split', item.finding_id)}
+                          disabled={dirty || settingsDirty || findingPending || conflict}>
+                          Review separately
+                        </button>{' '}
+                        {(['label', 'redact', 'keep'] as const).map((action) => (
+                          <button key={action} type="button"
+                            onClick={(event) => {
+                              const members = findings.findings.filter(
+                                (candidate) => candidate.group_id === item.group_id,
+                              )
+                              groupTriggerRef.current = event.currentTarget
+                              setGroupConfirmation({
+                                findingId: item.finding_id,
+                                action,
+                                affectedIds: members.map((member) => member.finding_id),
+                                spans: members.map((member) => member.span),
+                                version: state.saved.version,
+                              })
+                            }}
+                            disabled={dirty || settingsDirty || findingPending || conflict}>
+                            {action === 'label' ? 'Label' : action === 'redact' ? 'Redact' : 'Keep'} all linked
+                          </button>
+                        ))}
+                        {groupConfirmation?.findingId === item.finding_id && (
+                          <div role="group" aria-label="Confirm group decision">
+                            <p>Apply {groupConfirmation.action} to {groupConfirmation.affectedIds.length} occurrences
+                              at {groupConfirmation.spans.map(
+                                (span) => `${span.start + 1}–${span.end}`,
+                              ).join(', ')}?</p>
+                            <button ref={groupConfirmRef} type="button" onClick={confirmGroupDecision}
+                              disabled={dirty || settingsDirty || findingPending || conflict}>Apply to all linked</button>{' '}
+                            <button type="button" onClick={cancelGroupDecision}>Cancel</button>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <label htmlFor={`merge-${item.finding_id}`}>Link with another occurrence</label>{' '}
+                    <select id={`merge-${item.finding_id}`} value={mergeTargets[item.finding_id] || ''}
+                      onChange={(event) => setMergeTargets((current) => ({
+                        ...current, [item.finding_id]: event.target.value,
+                      }))}>
+                      <option value="">Choose occurrence</option>
+                      {findings.findings.filter((candidate) =>
+                        candidate.finding_id !== item.finding_id && candidate.category === item.category &&
+                        (!item.group_id || candidate.group_id !== item.group_id),
+                      ).map((candidate) => <option key={candidate.finding_id} value={candidate.finding_id}>
+                        {candidate.span.start + 1}–{candidate.span.end}
+                      </option>)}
+                    </select>{' '}
+                    <button type="button" onClick={() => void changeReview('merge', item.finding_id)}
+                      disabled={!mergeTargets[item.finding_id] || dirty || settingsDirty || findingPending || conflict}>
+                      Link occurrences
+                    </button>{' '}
+                    <button type="button" onClick={() => void showExactMatches(item.finding_id)}
+                      disabled={dirty || settingsDirty || findingPending || conflict}>
+                      Find other identical text
+                    </button>{' '}
+                    <button type="button" onClick={() => locateFinding(item.finding_id, 'source')}
+                      disabled={dirty || settingsDirty}>
+                      Locate original
+                    </button>{' '}
+                    {preview?.mappings.some((mapping) => mapping.finding_id === item.finding_id) && (
+                      <button type="button" onClick={() => locateFinding(item.finding_id, 'preview')}
+                        disabled={dirty || settingsDirty || preview.status === 'conflict'}>
+                        Locate preview
+                      </button>
+                    )}
+                    {exactMatches?.findingId === item.finding_id && (
+                      <div>
+                        <p>{exactMatches.result.spans.length} unmarked exact matches
+                          {exactMatches.result.truncated ? ' (first 100 shown)' : ''}.</p>
+                        {exactMatches.result.spans.map((span) => (
+                          <button key={span.start} type="button"
+                            onClick={() => void changeReview('exact', item.finding_id, { span })}
+                            disabled={findingPending || conflict}>
+                            Mark characters {span.start + 1}–{span.end}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    </div>
+                    </details>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+          <section className="review-completion surface-panel" aria-labelledby="completion-heading">
             <h2 id="completion-heading">Finish review and export</h2>
-            <p>Read the entire processed text above, including passages without findings. It may still identify someone through context.</p>
+            <p>Read the entire reviewed output above, including passages without findings. It may still identify someone through context.</p>
             {state.saved.status === 'needs_review' && (
               <>
                 <label><input type="checkbox" checked={confirmedPreview}
                   disabled={!canConfirm}
                   onChange={(event) => setConfirmedPreview(event.target.checked)} />
-                  I reviewed the full processed text and confirm this version.</label>{' '}
+                  I reviewed the full output and confirm this version.</label>{' '}
                 <button type="button" onClick={() => void completeReview()}
                   disabled={!canConfirm || !confirmedPreview}>
                   {completionPending ? 'Confirming…' : 'Confirm review'}
@@ -833,7 +1151,7 @@ export function EditDraftPage({ session }: { session: SessionView }) {
               <p role="status">Complete the current scan, resolve all findings and overlaps, and save any edits before confirmation.</p>
             )}
             {(state.saved.status === 'ready' || state.saved.status === 'exported') && (
-              <p role="status">This source revision and its review decisions are confirmed.</p>
+              <p role="status">This version and its review decisions are confirmed.</p>
             )}
             <div>
               <button type="button" onClick={() => void copyReviewedOutput()} disabled={!canExport}>
@@ -852,8 +1170,9 @@ export function EditDraftPage({ session }: { session: SessionView }) {
             {currentSummary && !dirty && !settingsDirty && (
               <div aria-label="Review summary">
                 <h3>Review summary</h3>
-                <p>{currentSummary.finding_count} findings on source revision {' '}
-                  {currentSummary.version.source_revision_id}.</p>
+                <p>{currentSummary.finding_count === 0
+                  ? 'No findings were marked.'
+                  : `${currentSummary.finding_count} ${currentSummary.finding_count === 1 ? 'finding' : 'findings'} reviewed.`}</p>
                 <p>Categories: {Object.entries(currentSummary.counts_by_category)
                   .map(([category, count]) => `${category} ${count}`).join(', ') || 'none'}.</p>
                 <p>Decisions: {Object.entries(currentSummary.counts_by_action)
@@ -866,7 +1185,7 @@ export function EditDraftPage({ session }: { session: SessionView }) {
               </div>
             )}
           </section>
-          <section aria-labelledby="suggestion-settings-heading">
+          <section className="review-settings surface-panel" aria-labelledby="suggestion-settings-heading">
             <h2 id="suggestion-settings-heading">Suggestion settings</h2>
             <p>Changing these settings starts a new review. Save text edits first.</p>
             <label><input type="checkbox" checked={emailEnabled}
@@ -900,236 +1219,9 @@ export function EditDraftPage({ session }: { session: SessionView }) {
               {settingsPending ? 'Saving settings…' : 'Save suggestion settings'}
             </button>
           </section>
-          <section aria-labelledby="suggestions-heading">
-            <h2 id="suggestions-heading">Automatic suggestions</h2>
-            <p>Suggestions do not decide how text will be handled.</p>
-            <button type="button" onClick={() => void scanDraft()}
-              disabled={dirty || settingsDirty || pending || settingsPending || scanPending || conflict ||
-                scan?.status === 'scanning' || scan?.status === 'completed'}>
-              {scanPending ? 'Scanning…' : scan?.status === 'failed' ? 'Retry scan' : 'Find suggestions'}
-            </button>{' '}
-            <button type="button" onClick={() => void refreshScan()} disabled={dirty || scanPending}>
-              Refresh scan status
-            </button>
-            {scan?.status === 'not_started' && <p>No scan has run for this source and settings.</p>}
-            {scan?.status === 'scanning' && <p role="status">Scan in progress.</p>}
-            {scan?.status === 'failed' && <p role="alert">Scan failed ({scan.failure_code}). Retry after checking the text or settings.</p>}
-            {scan?.status === 'completed' && scan.match_count === 0 &&
-              state.saved.status !== 'ready' && state.saved.status !== 'exported' &&
-              <p>No suggestions found. The full text still needs review before export.</p>}
-            {scan?.status === 'completed' && scan.match_count !== null && scan.match_count > 0 && (
-              <ol>
-                {scan.suggestions.map((item) => (
-                  <li key={item.finding_id}>
-                    <strong>{item.category}</strong> at characters {item.span.start + 1}–{item.span.end}: {' '}
-                    <code>{codePoints.slice(item.span.start, item.span.end).join('')}</code>. {' '}
-                    {item.reason} Rule {item.rule_id} ({item.rule_version}). {' '}
-                    {findings?.findings.find((finding) => finding.finding_id === item.finding_id)?.action || 'Pending review'}.
-                  </li>
-                ))}
-              </ol>
-            )}
-          </section>
-          <section aria-labelledby="findings-heading">
-            <h2 id="findings-heading">Current findings</h2>
-            <p>Select an exact range in the saved text to add or correct a finding. Existing overlapping ranges must be corrected or removed first.</p>
-            <p role="status">{activeFindings.length} active finding(s): {' '}
-              {pendingFindings.length} pending, {' '}
-              {activeFindings.filter((item) => item.action === 'label').length} labeled, {' '}
-              {activeFindings.filter((item) => item.action === 'redact').length} redacted, {' '}
-              {activeFindings.filter((item) => item.action === 'keep').length} kept.</p>
-            <label htmlFor="finding-category-filter">Category filter</label>{' '}
-            <select id="finding-category-filter" value={categoryFilter}
-              onChange={(event) => setCategoryFilter(event.target.value as typeof categoryFilter)}>
-              <option value="all">All categories</option>
-              <option value="person">Person</option>
-              <option value="organization">Organization</option>
-              <option value="address">Address</option>
-              <option value="identifier">Identifier</option>
-              <option value="custom">Custom</option>
-              <option value="email">Email</option>
-              <option value="phone">Phone</option>
-            </select>{' '}
-            <label htmlFor="finding-decision-filter">Decision filter</label>{' '}
-            <select id="finding-decision-filter" value={decisionFilter}
-              onChange={(event) => setDecisionFilter(event.target.value as typeof decisionFilter)}>
-              <option value="all">All decisions</option>
-              <option value="pending">Pending</option>
-              <option value="decided">Decided</option>
-            </select>{' '}
-            <button type="button" onClick={nextUnresolved}
-              disabled={pendingFindings.length === 0 || dirty || settingsDirty}>
-              Next unresolved
-            </button>
-            <button type="button" onClick={() => void undoReview()}
-              disabled={undoCount === 0 || dirty || settingsDirty || findingPending || conflict}>
-              Undo last review edit
-            </button>
-            {selection && (
-              <p role="status">Selected characters {selection.start + 1}–{selection.end}: {' '}
-                <code>{JSON.stringify(Array.from(text).slice(selection.start, selection.end).join(''))}</code></p>
-            )}
-            {selectionOverlaps && <p>This range overlaps a current finding. Correct or remove it first.</p>}
-            <label htmlFor="manual-category">Category</label>{' '}
-            <select id="manual-category" value={manualCategory}
-              onChange={(event) => setManualCategory(event.target.value as FindingCategory)}>
-              <option value="person">Person</option>
-              <option value="organization">Organization</option>
-              <option value="address">Address</option>
-              <option value="identifier">Identifier</option>
-              <option value="custom">Custom</option>
-              <option value="email">Email</option>
-              <option value="phone">Phone</option>
-            </select>{' '}
-            <button type="button" onClick={() => void changeFinding('add')}
-              disabled={!selection || selectionOverlaps || dirty || settingsDirty || findingPending || scanPending || conflict}>
-              {findingPending ? 'Saving…' : 'Add selected finding'}
-            </button>
-            <label htmlFor="keep-reason">Keep reason</label>{' '}
-            <select id="keep-reason" value={keepReason}
-              onChange={(event) => setKeepReason(event.target.value as typeof keepReason)}>
-              <option value="false_match">False match</option>
-              <option value="intended_disclosure">Intended disclosure</option>
-            </select>
-            {findings && findings.overlaps.length > 0 && (
-              <p role="alert">{findings.overlaps.length} overlapping range(s) need correction or removal.</p>
-            )}
-            {findings?.findings.length === 0 && <p>No active findings for this source revision.</p>}
-            {activeFindings.length > 0 && visibleFindings.length === 0 &&
-              <p>No findings match these filters.</p>}
-            {groupMembers.size > 0 && (
-              <div aria-label="Entity groups">
-                <h3>Groups</h3>
-                {Array.from(groupMembers, ([groupId, members]) => (
-                  <details key={groupId}>
-                    <summary>{members[0].label} — {members.length} occurrence(s)</summary>
-                    <ul>{members.map((member) => (
-                      <li key={member.finding_id}>
-                        Characters {member.span.start + 1}–{member.span.end}: {' '}
-                        {member.action || 'pending'}
-                      </li>
-                    ))}</ul>
-                  </details>
-                ))}
-              </div>
-            )}
-            {findings && findings.findings.length > 0 && (
-              <ol>
-                {visibleFindings.map((item) => (
-                  <li key={item.finding_id}
-                    aria-current={selectedFindingId === item.finding_id ? 'true' : undefined}>
-                    <strong>{item.category}</strong> at characters {item.span.start + 1}–{item.span.end}: {' '}
-                    <code>{JSON.stringify(codePoints.slice(item.span.start, item.span.end).join(''))}</code>. {' '}
-                    {item.origin === 'automatic' ? 'Automatic suggestion' : 'Manual finding'}; {' '}
-                    {item.action ?? 'pending review'}{item.keep_reason ? ` (${item.keep_reason.replace('_', ' ')})` : ''}{item.label ? `; group ${item.label}` : ''}. {' '}
-                    <button type="button" onClick={() => void changeFinding('revise', item.finding_id)}
-                      disabled={!selection || activeFindings.some((other) =>
-                        other.finding_id !== item.finding_id &&
-                        selection.start < other.span.end && other.span.start < selection.end,
-                      ) || dirty || settingsDirty || findingPending || scanPending || conflict}>
-                      Correct to selection
-                    </button>{' '}
-                    <button type="button" onClick={() => void changeFinding('remove', item.finding_id)}
-                      disabled={dirty || settingsDirty || findingPending || scanPending || conflict}>
-                      Remove finding
-                    </button>{' '}
-                    {(['label', 'redact', 'keep'] as const).map((action) => (
-                      <button key={action} type="button"
-                        onClick={() => void changeReview('decision', item.finding_id, { action })}
-                        disabled={dirty || settingsDirty || findingPending || conflict}>
-                        {action === 'keep' ? 'Keep' : action === 'label' ? 'Label' : 'Redact'} this
-                        {action === state.saved.preferred_action ? ' (preferred)' : ''}
-                      </button>
-                    ))}{' '}
-                    {item.group_id && findings.findings.filter(
-                      (candidate) => candidate.group_id === item.group_id,
-                    ).length > 1 && (
-                      <>
-                        <button type="button" onClick={() => void changeReview('split', item.finding_id)}
-                          disabled={dirty || settingsDirty || findingPending || conflict}>
-                          Split from group
-                        </button>{' '}
-                        {(['label', 'redact', 'keep'] as const).map((action) => (
-                          <button key={action} type="button"
-                            onClick={(event) => {
-                              const members = findings.findings.filter(
-                                (candidate) => candidate.group_id === item.group_id,
-                              )
-                              groupTriggerRef.current = event.currentTarget
-                              setGroupConfirmation({
-                                findingId: item.finding_id,
-                                action,
-                                affectedIds: members.map((member) => member.finding_id),
-                                spans: members.map((member) => member.span),
-                                version: state.saved.version,
-                              })
-                            }}
-                            disabled={dirty || settingsDirty || findingPending || conflict}>
-                            {action} group
-                          </button>
-                        ))}
-                        {groupConfirmation?.findingId === item.finding_id && (
-                          <div role="group" aria-label="Confirm group decision">
-                            <p>Apply {groupConfirmation.action} to {groupConfirmation.affectedIds.length} occurrences
-                              at {groupConfirmation.spans.map(
-                                (span) => `${span.start + 1}–${span.end}`,
-                              ).join(', ')}?</p>
-                            <button ref={groupConfirmRef} type="button" onClick={confirmGroupDecision}
-                              disabled={dirty || settingsDirty || findingPending || conflict}>Apply to group</button>{' '}
-                            <button type="button" onClick={cancelGroupDecision}>Cancel</button>
-                          </div>
-                        )}
-                      </>
-                    )}
-                    <label htmlFor={`merge-${item.finding_id}`}>Merge with</label>{' '}
-                    <select id={`merge-${item.finding_id}`} value={mergeTargets[item.finding_id] || ''}
-                      onChange={(event) => setMergeTargets((current) => ({
-                        ...current, [item.finding_id]: event.target.value,
-                      }))}>
-                      <option value="">Choose occurrence</option>
-                      {findings.findings.filter((candidate) =>
-                        candidate.finding_id !== item.finding_id && candidate.category === item.category &&
-                        (!item.group_id || candidate.group_id !== item.group_id),
-                      ).map((candidate) => <option key={candidate.finding_id} value={candidate.finding_id}>
-                        {candidate.span.start + 1}–{candidate.span.end}
-                      </option>)}
-                    </select>{' '}
-                    <button type="button" onClick={() => void changeReview('merge', item.finding_id)}
-                      disabled={!mergeTargets[item.finding_id] || dirty || settingsDirty || findingPending || conflict}>
-                      Merge groups
-                    </button>{' '}
-                    <button type="button" onClick={() => void showExactMatches(item.finding_id)}
-                      disabled={dirty || settingsDirty || findingPending || conflict}>
-                      Find exact matches
-                    </button>{' '}
-                    <button type="button" onClick={() => locateFinding(item.finding_id, 'source')}
-                      disabled={dirty || settingsDirty}>
-                      Locate original
-                    </button>{' '}
-                    {preview?.mappings.some((mapping) => mapping.finding_id === item.finding_id) && (
-                      <button type="button" onClick={() => locateFinding(item.finding_id, 'preview')}
-                        disabled={dirty || settingsDirty || preview.status === 'conflict'}>
-                        Locate preview
-                      </button>
-                    )}
-                    {exactMatches?.findingId === item.finding_id && (
-                      <div>
-                        <p>{exactMatches.result.spans.length} unmarked exact matches
-                          {exactMatches.result.truncated ? ' (first 100 shown)' : ''}.</p>
-                        {exactMatches.result.spans.map((span) => (
-                          <button key={span.start} type="button"
-                            onClick={() => void changeReview('exact', item.finding_id, { span })}
-                            disabled={findingPending || conflict}>
-                            Mark characters {span.start + 1}–{span.end}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ol>
-            )}
-          </section>
+
+          </div>
+
         </>
       )}
     </section>
