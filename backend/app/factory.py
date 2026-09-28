@@ -16,6 +16,7 @@ from app.config import Settings, load_settings
 from app.contracts import ErrorResponse, HealthResponse, ServiceMetadata, service_metadata
 from app.detection.api import create_detection_router
 from app.errors import ApiError, api_error_handler, validation_error_handler
+from app.groups.api import create_groups_router
 from app.intake.api import create_intake_router
 
 
@@ -58,6 +59,7 @@ def create_app(
     app.include_router(create_admin_router(engine))
     app.include_router(create_intake_router(engine))
     app.include_router(create_detection_router(engine))
+    app.include_router(create_groups_router(engine))
 
     @app.middleware("http")
     async def prevent_api_caching(request, call_next):

@@ -313,6 +313,144 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/{document_id}/findings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Findings Route */
+        get: operations["findings_route_api_v1_documents__document_id__findings_get"];
+        put?: never;
+        /** Add Route */
+        post: operations["add_route_api_v1_documents__document_id__findings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/findings/{finding_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Revise Route */
+        put: operations["revise_route_api_v1_documents__document_id__findings__finding_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/findings/{finding_id}/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Remove Route */
+        post: operations["remove_route_api_v1_documents__document_id__findings__finding_id__remove_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/findings/{finding_id}/exact-matches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Exact Matches Route */
+        get: operations["exact_matches_route_api_v1_documents__document_id__findings__finding_id__exact_matches_get"];
+        put?: never;
+        /** Add Exact Match Route */
+        post: operations["add_exact_match_route_api_v1_documents__document_id__findings__finding_id__exact_matches_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/findings/{finding_id}/split": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Split Route */
+        post: operations["split_route_api_v1_documents__document_id__findings__finding_id__split_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/findings/{finding_id}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Merge Route */
+        post: operations["merge_route_api_v1_documents__document_id__findings__finding_id__merge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/findings/{finding_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Decision Route */
+        post: operations["decision_route_api_v1_documents__document_id__findings__finding_id__decision_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/review/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Undo Route */
+        post: operations["undo_route_api_v1_documents__document_id__review_undo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health/live": {
         parameters: {
             query?: never;
@@ -437,6 +575,20 @@ export interface components {
          * @enum {string}
          */
         DecisionAction: "label" | "redact" | "keep";
+        /** DecisionRequest */
+        DecisionRequest: {
+            expected: components["schemas"]["VersionRef"];
+            action: components["schemas"]["DecisionAction"];
+            /** Keep Reason */
+            keep_reason?: string | null;
+            /**
+             * Group Scope
+             * @default false
+             */
+            group_scope: boolean;
+            /** Affected Finding Ids */
+            affected_finding_ids: string[];
+        };
         /**
          * DocumentStatus
          * @enum {string}
@@ -464,11 +616,64 @@ export interface components {
             /** Details */
             details?: components["schemas"]["ErrorDetail"][];
         };
+        /** ExactMatchRequest */
+        ExactMatchRequest: {
+            expected: components["schemas"]["VersionRef"];
+            span: components["schemas"]["SourceSpan"];
+        };
+        /** ExactMatchesView */
+        ExactMatchesView: {
+            version: components["schemas"]["VersionRef"];
+            /** Spans */
+            spans: components["schemas"]["SourceSpan"][];
+            /** Truncated */
+            truncated: boolean;
+        };
         /**
          * FindingCategory
          * @enum {string}
          */
         FindingCategory: "person" | "organization" | "address" | "identifier" | "custom" | "email" | "phone";
+        /** FindingView */
+        FindingView: {
+            /**
+             * Finding Id
+             * Format: uuid
+             */
+            finding_id: string;
+            span: components["schemas"]["SourceSpan"];
+            category: components["schemas"]["FindingCategory"];
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "manual" | "automatic";
+            /** Rule Id */
+            rule_id: string | null;
+            /** Rule Version */
+            rule_version: string | null;
+            /** Reason */
+            reason: string | null;
+            /** Group Id */
+            group_id: string | null;
+            /** Label */
+            label: string | null;
+            /** Action */
+            action: ("label" | "redact" | "keep") | null;
+            /** Keep Reason */
+            keep_reason: string | null;
+        };
+        /** FindingsView */
+        FindingsView: {
+            version: components["schemas"]["VersionRef"];
+            /** Findings */
+            findings: components["schemas"]["FindingView"][];
+            /** Overlaps */
+            overlaps: [
+                string,
+                string
+            ][];
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -525,6 +730,21 @@ export interface components {
             workspace_id: string;
             role: components["schemas"]["WorkspaceRole"];
         };
+        /** MergeRequest */
+        MergeRequest: {
+            expected: components["schemas"]["VersionRef"];
+            /**
+             * Target Finding Id
+             * Format: uuid
+             */
+            target_finding_id: string;
+        };
+        /** NewFindingRequest */
+        NewFindingRequest: {
+            expected: components["schemas"]["VersionRef"];
+            span: components["schemas"]["SourceSpan"];
+            category: components["schemas"]["FindingCategory"];
+        };
         /** RecoveryCompletion */
         RecoveryCompletion: {
             /** Email */
@@ -546,6 +766,16 @@ export interface components {
         RecoveryRequest: {
             /** Email */
             email: string;
+        };
+        /** RemoveFindingRequest */
+        RemoveFindingRequest: {
+            expected: components["schemas"]["VersionRef"];
+        };
+        /** ReviseFindingRequest */
+        ReviseFindingRequest: {
+            expected: components["schemas"]["VersionRef"];
+            span: components["schemas"]["SourceSpan"];
+            category: components["schemas"]["FindingCategory"];
         };
         /** SavedDraftView */
         SavedDraftView: {
@@ -1876,6 +2106,409 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScanSettingsView"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    findings_route_api_v1_documents__document_id__findings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingsView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_route_api_v1_documents__document_id__findings_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewFindingRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingsView"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    revise_route_api_v1_documents__document_id__findings__finding_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+                finding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviseFindingRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingsView"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    remove_route_api_v1_documents__document_id__findings__finding_id__remove_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+                finding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemoveFindingRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingsView"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    exact_matches_route_api_v1_documents__document_id__findings__finding_id__exact_matches_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+                finding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExactMatchesView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_exact_match_route_api_v1_documents__document_id__findings__finding_id__exact_matches_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+                finding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExactMatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingsView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    split_route_api_v1_documents__document_id__findings__finding_id__split_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+                finding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemoveFindingRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingsView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    merge_route_api_v1_documents__document_id__findings__finding_id__merge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+                finding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MergeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingsView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decision_route_api_v1_documents__document_id__findings__finding_id__decision_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+                finding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingsView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    undo_route_api_v1_documents__document_id__review_undo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemoveFindingRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingsView"];
                 };
             };
             /** @description Conflict */

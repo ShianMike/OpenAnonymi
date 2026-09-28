@@ -1478,6 +1478,642 @@
         }
       }
     },
+    "/api/v1/documents/{document_id}/findings": {
+      "get": {
+        "tags": [
+          "findings"
+        ],
+        "summary": "Findings Route",
+        "operationId": "findings_route_api_v1_documents__document_id__findings_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindingsView"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "findings"
+        ],
+        "summary": "Add Route",
+        "operationId": "add_route_api_v1_documents__document_id__findings_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewFindingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindingsView"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/findings/{finding_id}": {
+      "put": {
+        "tags": [
+          "findings"
+        ],
+        "summary": "Revise Route",
+        "operationId": "revise_route_api_v1_documents__document_id__findings__finding_id__put",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "finding_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Finding Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviseFindingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindingsView"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/findings/{finding_id}/remove": {
+      "post": {
+        "tags": [
+          "findings"
+        ],
+        "summary": "Remove Route",
+        "operationId": "remove_route_api_v1_documents__document_id__findings__finding_id__remove_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "finding_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Finding Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveFindingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindingsView"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/findings/{finding_id}/exact-matches": {
+      "get": {
+        "tags": [
+          "findings"
+        ],
+        "summary": "Exact Matches Route",
+        "operationId": "exact_matches_route_api_v1_documents__document_id__findings__finding_id__exact_matches_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "finding_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Finding Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExactMatchesView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "findings"
+        ],
+        "summary": "Add Exact Match Route",
+        "operationId": "add_exact_match_route_api_v1_documents__document_id__findings__finding_id__exact_matches_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "finding_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Finding Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExactMatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindingsView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/findings/{finding_id}/split": {
+      "post": {
+        "tags": [
+          "findings"
+        ],
+        "summary": "Split Route",
+        "operationId": "split_route_api_v1_documents__document_id__findings__finding_id__split_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "finding_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Finding Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveFindingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindingsView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/findings/{finding_id}/merge": {
+      "post": {
+        "tags": [
+          "findings"
+        ],
+        "summary": "Merge Route",
+        "operationId": "merge_route_api_v1_documents__document_id__findings__finding_id__merge_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "finding_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Finding Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MergeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindingsView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/findings/{finding_id}/decision": {
+      "post": {
+        "tags": [
+          "findings"
+        ],
+        "summary": "Decision Route",
+        "operationId": "decision_route_api_v1_documents__document_id__findings__finding_id__decision_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "finding_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Finding Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindingsView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/review/undo": {
+      "post": {
+        "tags": [
+          "findings"
+        ],
+        "summary": "Undo Route",
+        "operationId": "undo_route_api_v1_documents__document_id__review_undo_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveFindingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindingsView"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
     "/api/v1/health/live": {
       "get": {
         "summary": "Live",
@@ -1714,6 +2350,48 @@
         ],
         "title": "DecisionAction"
       },
+      "DecisionRequest": {
+        "properties": {
+          "expected": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "action": {
+            "$ref": "#/components/schemas/DecisionAction"
+          },
+          "keep_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keep Reason"
+          },
+          "group_scope": {
+            "type": "boolean",
+            "title": "Group Scope",
+            "default": false
+          },
+          "affected_finding_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "uniqueItems": true,
+            "title": "Affected Finding Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected",
+          "action",
+          "affected_finding_ids"
+        ],
+        "title": "DecisionRequest"
+      },
       "DocumentStatus": {
         "type": "string",
         "enum": [
@@ -1788,6 +2466,47 @@
         ],
         "title": "ErrorResponse"
       },
+      "ExactMatchRequest": {
+        "properties": {
+          "expected": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "span": {
+            "$ref": "#/components/schemas/SourceSpan"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected",
+          "span"
+        ],
+        "title": "ExactMatchRequest"
+      },
+      "ExactMatchesView": {
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "spans": {
+            "items": {
+              "$ref": "#/components/schemas/SourceSpan"
+            },
+            "type": "array",
+            "title": "Spans"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "spans",
+          "truncated"
+        ],
+        "title": "ExactMatchesView"
+      },
       "FindingCategory": {
         "type": "string",
         "enum": [
@@ -1800,6 +2519,167 @@
           "phone"
         ],
         "title": "FindingCategory"
+      },
+      "FindingView": {
+        "properties": {
+          "finding_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Finding Id"
+          },
+          "span": {
+            "$ref": "#/components/schemas/SourceSpan"
+          },
+          "category": {
+            "$ref": "#/components/schemas/FindingCategory"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "automatic"
+            ],
+            "title": "Origin"
+          },
+          "rule_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Id"
+          },
+          "rule_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule Version"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "label",
+                  "redact",
+                  "keep"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "keep_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keep Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "finding_id",
+          "span",
+          "category",
+          "origin",
+          "rule_id",
+          "rule_version",
+          "reason",
+          "group_id",
+          "label",
+          "action",
+          "keep_reason"
+        ],
+        "title": "FindingView"
+      },
+      "FindingsView": {
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/FindingView"
+            },
+            "type": "array",
+            "title": "Findings"
+          },
+          "overlaps": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Overlaps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "findings",
+          "overlaps"
+        ],
+        "title": "FindingsView"
       },
       "HTTPValidationError": {
         "properties": {
@@ -1938,6 +2818,44 @@
         ],
         "title": "MembershipView"
       },
+      "MergeRequest": {
+        "properties": {
+          "expected": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "target_finding_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Target Finding Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected",
+          "target_finding_id"
+        ],
+        "title": "MergeRequest"
+      },
+      "NewFindingRequest": {
+        "properties": {
+          "expected": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "span": {
+            "$ref": "#/components/schemas/SourceSpan"
+          },
+          "category": {
+            "$ref": "#/components/schemas/FindingCategory"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected",
+          "span",
+          "category"
+        ],
+        "title": "NewFindingRequest"
+      },
       "RecoveryCompletion": {
         "properties": {
           "email": {
@@ -1996,6 +2914,38 @@
           "email"
         ],
         "title": "RecoveryRequest"
+      },
+      "RemoveFindingRequest": {
+        "properties": {
+          "expected": {
+            "$ref": "#/components/schemas/VersionRef"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected"
+        ],
+        "title": "RemoveFindingRequest"
+      },
+      "ReviseFindingRequest": {
+        "properties": {
+          "expected": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "span": {
+            "$ref": "#/components/schemas/SourceSpan"
+          },
+          "category": {
+            "$ref": "#/components/schemas/FindingCategory"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected",
+          "span",
+          "category"
+        ],
+        "title": "ReviseFindingRequest"
       },
       "SavedDraftView": {
         "properties": {

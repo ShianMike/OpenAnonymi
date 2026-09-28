@@ -13,6 +13,10 @@ export type VersionRef = components['schemas']['VersionRef']
 export type CreateDraftRequest = components['schemas']['CreateDraftRequest']
 export type ScanView = components['schemas']['ScanView']
 export type ScanSettingsView = components['schemas']['ScanSettingsView']
+export type FindingsView = components['schemas']['FindingsView']
+export type ExactMatchesView = components['schemas']['ExactMatchesView']
+export type SourceSpan = components['schemas']['SourceSpan']
+export type FindingCategory = components['schemas']['FindingCategory']
 type ErrorResponse = components['schemas']['ErrorResponse']
 
 export class ApiRequestError extends Error {
@@ -279,5 +283,99 @@ export function updateScanSettings(
   return sendJson<ScanSettingsView>(
     'PUT', `/documents/${encodeURIComponent(documentId)}/scan-settings`,
     { expected, categories, phone_region: phoneRegion }, csrfToken,
+  )
+}
+
+export function getFindings(
+  documentId: string, signal?: AbortSignal,
+): Promise<FindingsView> {
+  return get<FindingsView>(`/documents/${encodeURIComponent(documentId)}/findings`, signal)
+}
+
+export function addManualFinding(
+  documentId: string, expected: VersionRef, span: SourceSpan,
+  category: FindingCategory, csrfToken: string,
+): Promise<FindingsView> {
+  return post<FindingsView>(
+    `/documents/${encodeURIComponent(documentId)}/findings`,
+    { expected, span, category }, csrfToken,
+  )
+}
+
+export function reviseFinding(
+  documentId: string, findingId: string, expected: VersionRef,
+  span: SourceSpan, category: FindingCategory, csrfToken: string,
+): Promise<FindingsView> {
+  return sendJson<FindingsView>(
+    'PUT', `/documents/${encodeURIComponent(documentId)}/findings/${encodeURIComponent(findingId)}`,
+    { expected, span, category }, csrfToken,
+  )
+}
+
+export function removeFinding(
+  documentId: string, findingId: string, expected: VersionRef, csrfToken: string,
+): Promise<FindingsView> {
+  return post<FindingsView>(
+    `/documents/${encodeURIComponent(documentId)}/findings/${encodeURIComponent(findingId)}/remove`,
+    { expected }, csrfToken,
+  )
+}
+
+export function getExactMatches(
+  documentId: string, findingId: string, signal?: AbortSignal,
+): Promise<ExactMatchesView> {
+  return get<ExactMatchesView>(
+    `/documents/${encodeURIComponent(documentId)}/findings/${encodeURIComponent(findingId)}/exact-matches`,
+    signal,
+  )
+}
+
+export function addExactMatch(
+  documentId: string, findingId: string, expected: VersionRef,
+  span: SourceSpan, csrfToken: string,
+): Promise<FindingsView> {
+  return post<FindingsView>(
+    `/documents/${encodeURIComponent(documentId)}/findings/${encodeURIComponent(findingId)}/exact-matches`,
+    { expected, span }, csrfToken,
+  )
+}
+
+export function mergeFindings(
+  documentId: string, findingId: string, targetFindingId: string,
+  expected: VersionRef, csrfToken: string,
+): Promise<FindingsView> {
+  return post<FindingsView>(
+    `/documents/${encodeURIComponent(documentId)}/findings/${encodeURIComponent(findingId)}/merge`,
+    { expected, target_finding_id: targetFindingId }, csrfToken,
+  )
+}
+
+export function splitFinding(
+  documentId: string, findingId: string, expected: VersionRef, csrfToken: string,
+): Promise<FindingsView> {
+  return post<FindingsView>(
+    `/documents/${encodeURIComponent(documentId)}/findings/${encodeURIComponent(findingId)}/split`,
+    { expected }, csrfToken,
+  )
+}
+
+export function decideFindings(
+  documentId: string, findingId: string, expected: VersionRef,
+  action: 'label' | 'redact' | 'keep', keepReason: 'false_match' | 'intended_disclosure' | null,
+  groupScope: boolean, affectedFindingIds: string[], csrfToken: string,
+): Promise<FindingsView> {
+  return post<FindingsView>(
+    `/documents/${encodeURIComponent(documentId)}/findings/${encodeURIComponent(findingId)}/decision`,
+    { expected, action, keep_reason: keepReason, group_scope: groupScope,
+      affected_finding_ids: affectedFindingIds }, csrfToken,
+  )
+}
+
+export function undoReviewEdit(
+  documentId: string, expected: VersionRef, csrfToken: string,
+): Promise<FindingsView> {
+  return post<FindingsView>(
+    `/documents/${encodeURIComponent(documentId)}/review/undo`,
+    { expected }, csrfToken,
   )
 }
