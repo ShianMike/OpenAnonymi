@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import {
   Activity, ChevronRight, FilePlus2, Files, LayoutDashboard,
@@ -49,9 +49,12 @@ function App() {
   const [sessionAttempt, setSessionAttempt] = useState(0)
   const [signOutError, setSignOutError] = useState<string | null>(null)
   const [signOutPending, setSignOutPending] = useState(false)
+  const [unsavedPage, setUnsavedPage] = useState(false)
+  const [signOutConfirm, setSignOutConfirm] = useState(false)
   const [signInNotice, setSignInNotice] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const signOutStayRef = useRef<HTMLButtonElement>(null)
   const navRef = useRef<HTMLElement>(null)
   const mainRef = useRef<HTMLElement>(null)
   const previousPathRef = useRef(pathname)
@@ -73,6 +76,15 @@ function App() {
   }, [menuOpen])
 
   useEffect(() => {
+    if (signOutConfirm) signOutStayRef.current?.focus()
+  }, [signOutConfirm])
+
+  const handleUnsavedChange = useCallback((dirty: boolean) => {
+    setUnsavedPage(dirty)
+    if (!dirty) setSignOutConfirm(false)
+  }, [])
+
+  useEffect(() => {
     const controller = new AbortController()
     getSession(controller.signal).then((session) => {
       if (!controller.signal.aborted) setAuthentication({ kind: 'signed-in', session })
@@ -92,6 +104,16 @@ function App() {
 
   async function handleSignOut() {
     if (authentication.kind !== 'signed-in') return
+    if (unsavedPage) {
+      setSignOutConfirm(true)
+      return
+    }
+    await performSignOut()
+  }
+
+  async function performSignOut() {
+    if (authentication.kind !== 'signed-in') return
+    setSignOutConfirm(false)
     setSignOutPending(true)
     setSignOutError(null)
     try {
@@ -198,14 +220,30 @@ function App() {
           </div>
         </header>
         {signOutError && <p role="alert" className="topbar-alert">{signOutError}</p>}
+        {signOutConfirm && (
+          <div className="signout-confirm surface-panel" role="alert">
+            <strong>Unsaved changes</strong>
+            <p>Signing out will discard your unsaved text and settings.</p>
+            <button ref={signOutStayRef} type="button" onClick={() => {
+              setSignOutConfirm(false)
+              requestAnimationFrame(() => document.querySelector<HTMLElement>(
+                '#source-text, #source-file, #saved-source',
+              )?.focus())
+            }}>Stay and keep editing</button>{' '}
+            <button type="button" disabled={signOutPending}
+              onClick={() => void performSignOut()}>Discard edits and sign out</button>
+          </div>
+        )}
         <main id="main-content" ref={mainRef} tabIndex={-1}>
           <Routes>
             <Route path="/" element={<OverviewPage session={authentication.session} />} />
-            <Route path="/new" element={<NewReviewPage session={authentication.session} />} />
+            <Route path="/new" element={<NewReviewPage session={authentication.session}
+              onUnsavedChange={handleUnsavedChange} />} />
             <Route path="/documents" element={<DocumentsPage session={authentication.session} />} />
             <Route path="/activity" element={<ActivityPage session={authentication.session} />} />
             <Route path="/rules" element={<RulesPage session={authentication.session} />} />
-            <Route path="/documents/:documentId/edit" element={<EditDraftPage session={authentication.session} />} />
+            <Route path="/documents/:documentId/edit" element={<EditDraftPage
+              session={authentication.session} onUnsavedChange={handleUnsavedChange} />} />
             <Route path="/workspaces/:workspaceId/documents/:documentId/history" element={<HistoryPage />} />
             <Route path="/settings" element={<SettingsPage session={authentication.session}
               onPasswordChanged={() => {

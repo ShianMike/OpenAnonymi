@@ -12,6 +12,7 @@ import {
 import { codePointRangeToUtf16, utf16OffsetToCodePoint } from './offsets'
 import { PageHeader } from '../ui/PageHeader'
 import { StatusBadge } from '../ui/StatusBadge'
+import { UnsavedNavigationPrompt } from '../ui/UnsavedNavigationPrompt'
 
 type DraftState =
   | { kind: 'loading' }
@@ -43,7 +44,10 @@ function sameScanVersion(left: VersionRef, right: VersionRef): boolean {
     left.settings_version === right.settings_version
 }
 
-export function EditDraftPage({ session }: { session: SessionView }) {
+export function EditDraftPage({ session, onUnsavedChange }: {
+  session: SessionView
+  onUnsavedChange?: (dirty: boolean) => void
+}) {
   const { documentId } = useParams<{ documentId: string }>()
   const workspaceIds = session.memberships.map((item) => item.workspace_id).join(',')
   const [state, setState] = useState<DraftState>({ kind: 'loading' })
@@ -203,14 +207,6 @@ export function EditDraftPage({ session }: { session: SessionView }) {
     state.saved.categories.join(',') !== selectedCategories.join(',') ||
     state.saved.phone_region !== phoneRegion
   )
-  useEffect(() => {
-    if (!dirty) return
-    const warn = (event: BeforeUnloadEvent) => {
-      event.preventDefault()
-    }
-    window.addEventListener('beforeunload', warn)
-    return () => window.removeEventListener('beforeunload', warn)
-  }, [dirty])
   useEffect(() => {
     return () => {
       if (preparedDownload) URL.revokeObjectURL(preparedDownload.url)
@@ -780,6 +776,8 @@ export function EditDraftPage({ session }: { session: SessionView }) {
       <PageHeader title={state.kind === 'ready' ? state.saved.title || 'Untitled review' : 'Review workspace'}
         titleId="review-title" description="Inspect the original and reviewed output, then decide each finding."
         action={<Link to="/documents">Back to documents</Link>} />
+      <UnsavedNavigationPrompt when={dirty || settingsDirty} focusBackId="saved-source"
+        onDirtyChange={onUnsavedChange} />
       {state.kind === 'loading' && <p role="status">Loading the saved draft…</p>}
       {state.kind === 'error' && (
         <div role="alert">

@@ -26,6 +26,8 @@
 .topbar-account { display: flex; align-items: center; gap: .8rem; margin-left: auto; min-width: 0; }
 .topbar-account > span { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: .82rem; }
 .topbar-alert { margin: .8rem 2rem 0; }
+.signout-confirm { margin: .8rem clamp(1rem, 2.4vw, 2rem) 0; border-left: 3px solid var(--danger); }
+.signout-confirm p { margin: .35rem 0 .7rem; }
 .menu-toggle { display: none !important; }
 .nav-scrim { display: none; }
 .icon-button, .text-button { display: inline-flex; align-items: center; justify-content: center; gap: .45rem; border: 0; background: transparent; color: var(--muted); box-shadow: none; }
@@ -107,6 +109,8 @@ summary { cursor: pointer; font-weight: 650; }
 .button-danger { color: #fff; background: var(--danger); border-color: var(--danger); }
 .button-danger:hover:not(:disabled) { color: #fff; background: #922b2d; border-color: #922b2d; }
 .review-summary-strip { display: flex; align-items: center; flex-wrap: wrap; gap: .55rem 1rem; padding: .7rem 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); color: var(--muted); font-size: .86rem; }
+.unsaved-navigation { margin: .8rem 0 1rem; border-left: 3px solid var(--danger); }
+.unsaved-navigation p { margin: .35rem 0 .7rem; }
 .review-summary-strip > span:not(.status-badge) + span:not(.status-badge) { padding-left: 1rem; border-left: 1px solid var(--line); }
 .review-details { margin: .65rem 0 1rem; background: transparent; border: 0; padding: .15rem 0; color: var(--muted); font-size: .83rem; }
 .review-details summary { color: var(--blue-strong); font-weight: 600; }

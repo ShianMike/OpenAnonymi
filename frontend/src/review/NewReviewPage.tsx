@@ -1,10 +1,11 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   createFileDraft, createPastedDraft, getIntakeDefaults, getWorkspacePresets,
   type IntakeDefaultsView, type PresetView, type SessionView,
 } from '../api/client'
 import { PageHeader } from '../ui/PageHeader'
+import { UnsavedNavigationPrompt } from '../ui/UnsavedNavigationPrompt'
 
 type Defaults =
   | { kind: 'loading' }
@@ -20,8 +21,12 @@ function formattedExpiry(now: string, days: number): string {
   return expiry.toLocaleString()
 }
 
-export function NewReviewPage({ session }: { session: SessionView }) {
+export function NewReviewPage({ session, onUnsavedChange }: {
+  session: SessionView
+  onUnsavedChange?: (dirty: boolean) => void
+}) {
   const navigate = useNavigate()
+  const allowNavigationRef = useRef(false)
   const [workspaceId, setWorkspaceId] = useState(session.memberships[0]?.workspace_id ?? '')
   const [defaults, setDefaults] = useState<Defaults>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
@@ -115,6 +120,7 @@ export function NewReviewPage({ session }: { session: SessionView }) {
           workspaceId, file as File, title.trim(), categories, phoneRegion,
           retentionDays, session.csrf_token, presetId || undefined,
         )
+      allowNavigationRef.current = true
       navigate(`/documents/${saved.version.document_id}/edit`)
     } catch (cause: unknown) {
       setError(messageFrom(cause))
@@ -129,11 +135,25 @@ export function NewReviewPage({ session }: { session: SessionView }) {
   const readyToSave = defaults.kind === 'ready' && !pending &&
     (mode === 'paste' ? source.trim().length > 0 :
       file !== null && !fileLoading && fileError === null && fileText.trim().length > 0)
+  const initialPreset = defaults.kind === 'ready'
+    ? defaults.presets.find((preset) => preset.is_default) : undefined
+  const intakeDirty = source.length > 0 || file !== null || title.trim().length > 0 ||
+    workspaceId !== (session.memberships[0]?.workspace_id ?? '') ||
+    (defaults.kind === 'ready' && (
+      presetId !== (initialPreset?.id ?? '') ||
+      emailEnabled !== (initialPreset?.categories.includes('email') ?? true) ||
+      phoneEnabled !== (initialPreset?.categories.includes('phone') ?? true) ||
+      phoneRegion !== (initialPreset?.phone_region ?? 'PH') ||
+      retentionDays !== defaults.value.content_retention_days
+    ))
 
   return (
     <section aria-labelledby="new-review-title">
       <PageHeader title="New review" titleId="new-review-title"
         description="Save a private draft before finding and reviewing possible sensitive information." />
+      <UnsavedNavigationPrompt when={intakeDirty}
+        focusBackId={mode === 'paste' ? 'source-text' : 'source-file'}
+        allowNavigationRef={allowNavigationRef} onDirtyChange={onUnsavedChange} />
       {error && <p role="alert">{error}</p>}
       {defaults.kind === 'loading' && <p role="status">Loading workspace limits…</p>}
       {defaults.kind === 'error' && (
