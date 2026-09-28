@@ -1,32 +1,9 @@
 import { useEffect, useState } from 'react'
 import { getWorkspaceActivity, type ActivityView, type SessionView } from '../api/client'
+import { eventName } from './events'
 
 type Data = { kind: 'loading' } | { kind: 'error'; message: string } |
   { kind: 'ready'; value: ActivityView }
-
-function eventName(code: string): string {
-  const names: Record<string, string> = {
-    document_created: 'Review created',
-    source_revised: 'Source revised',
-    review_completed: 'Review confirmed',
-    output_copied: 'Reviewed text copied',
-    output_generated: 'Reviewed TXT generated',
-    document_deleted: 'Review deleted',
-    document_expired: 'Review expired',
-    preset_created: 'Rules preset created',
-    preset_updated: 'Rules preset updated',
-    scan_settings_changed: 'Suggestion settings changed',
-    scan_completed: 'Suggestions finished',
-    scan_failed: 'Suggestions failed',
-    review_decision_saved: 'Finding decision saved',
-    workspace_settings_changed: 'Workspace settings changed',
-    member_invited: 'Member invited',
-    member_role_changed: 'Member role changed',
-    member_revoked: 'Member access revoked',
-    member_restored: 'Member access restored',
-  }
-  return names[code] || code.replaceAll('_', ' ')
-}
 
 export function ActivityPage({ session }: { session: SessionView }) {
   const [workspaceId, setWorkspaceId] = useState(session.memberships[0]?.workspace_id ?? '')

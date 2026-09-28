@@ -1,0 +1,30 @@
+const names: Record<string, string> = {
+  document_created: 'Review created',
+  source_revised: 'Source revised',
+  review_completed: 'Review confirmed',
+  output_copied: 'Reviewed text copied',
+  output_generated: 'Reviewed TXT generated',
+  document_deleted: 'Review deleted',
+  document_expired: 'Review expired',
+  preset_created: 'Rules preset created',
+  preset_updated: 'Rules preset updated',
+  scan_settings_changed: 'Suggestion settings changed',
+  scan_completed: 'Suggestions finished',
+  scan_failed: 'Suggestions failed',
+  review_decision_saved: 'Finding decision saved',
+  finding_added: 'Finding added',
+  finding_corrected: 'Finding corrected',
+  finding_removed: 'Finding removed',
+  group_split: 'Group split',
+  group_merged: 'Groups merged',
+  review_edit_undone: 'Review edit undone',
+  workspace_settings_changed: 'Workspace settings changed',
+  member_invited: 'Member invited',
+  member_role_changed: 'Member role changed',
+  member_revoked: 'Member access revoked',
+  member_restored: 'Member access restored',
+}
+
+export function eventName(code: string): string {
+  return names[code] || code.replaceAll('_', ' ')
+}

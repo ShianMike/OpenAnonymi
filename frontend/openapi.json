@@ -131,6 +131,50 @@
         }
       }
     },
+    "/api/v1/auth/change-password": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Change Password Route",
+        "operationId": "change_password_route_api_v1_auth_change_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/recovery/request": {
       "post": {
         "tags": [
@@ -2468,6 +2512,69 @@
         }
       }
     },
+    "/api/v1/workspaces/{workspace_id}/documents/{document_id}/history": {
+      "get": {
+        "tags": [
+          "workspace"
+        ],
+        "summary": "History Route",
+        "operationId": "history_route_api_v1_workspaces__workspace_id__documents__document_id__history_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentHistoryView"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/documents": {
       "get": {
         "tags": [
@@ -3136,6 +3243,32 @@
         ],
         "title": "Body_create_file_draft_route_api_v1_documents_from_file_post"
       },
+      "ChangePasswordRequest": {
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 1,
+            "format": "password",
+            "title": "Current Password",
+            "writeOnly": true
+          },
+          "new_password": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 12,
+            "format": "password",
+            "title": "New Password",
+            "writeOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "title": "ChangePasswordRequest"
+      },
       "ChangeRoleRequest": {
         "properties": {
           "role": {
@@ -3409,6 +3542,75 @@
         },
         "type": "object",
         "title": "DeletedView"
+      },
+      "DocumentHistoryView": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Document Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DocumentStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "deleted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deleted At"
+          },
+          "revisions": {
+            "items": {
+              "$ref": "#/components/schemas/RevisionHistoryView"
+            },
+            "type": "array",
+            "title": "Revisions"
+          },
+          "revision_total": {
+            "type": "integer",
+            "title": "Revision Total"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryEventView"
+            },
+            "type": "array",
+            "title": "Events"
+          },
+          "event_total": {
+            "type": "integer",
+            "title": "Event Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "status",
+          "created_at",
+          "expires_at",
+          "deleted_at",
+          "revisions",
+          "revision_total",
+          "events",
+          "event_total"
+        ],
+        "title": "DocumentHistoryView"
       },
       "DocumentIndexView": {
         "properties": {
@@ -3833,6 +4035,30 @@
           "status"
         ],
         "title": "HealthResponse"
+      },
+      "HistoryEventView": {
+        "properties": {
+          "event_code": {
+            "type": "string",
+            "title": "Event Code"
+          },
+          "outcome": {
+            "type": "string",
+            "title": "Outcome"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_code",
+          "outcome",
+          "occurred_at"
+        ],
+        "title": "HistoryEventView"
       },
       "IntakeDefaultsView": {
         "properties": {
@@ -4334,6 +4560,30 @@
           "category"
         ],
         "title": "ReviseFindingRequest"
+      },
+      "RevisionHistoryView": {
+        "properties": {
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "is_current": {
+            "type": "boolean",
+            "title": "Is Current"
+          }
+        },
+        "type": "object",
+        "required": [
+          "number",
+          "created_at",
+          "is_current"
+        ],
+        "title": "RevisionHistoryView"
       },
       "SavedDraftView": {
         "properties": {

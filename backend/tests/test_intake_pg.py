@@ -375,9 +375,10 @@ def test_scan_suggestions_are_unresolved_idempotent_and_settings_bound(intake_si
     assert rescanned.status_code == 200, rescanned.text
     assert [item["category"] for item in rescanned.json()["suggestions"]] == ["email"]
     assert [item["category"] for item in owner.get(findings_path).json()["findings"]] == ["email"]
-    codes = [entry["event_code"] for entry in owner.get(
-        f"/api/v1/workspaces/{workspace_id}/activity"
-    ).json()["own_events"]]
+    codes = [
+        entry["event_code"]
+        for entry in owner.get(f"/api/v1/workspaces/{workspace_id}/activity").json()["own_events"]
+    ]
     assert codes.count("scan_completed") == 2
     assert codes.count("scan_settings_changed") == 1
 
@@ -404,9 +405,7 @@ def test_scan_failure_is_distinct_from_zero_matches_and_can_retry(intake_site, m
     assert state["status"] == "failed"
     assert state["match_count"] is None
     assert state["failure_code"] == "detector_error"
-    failure_events = owner.get(f"/api/v1/workspaces/{workspace_id}/activity").json()[
-        "own_events"
-    ]
+    failure_events = owner.get(f"/api/v1/workspaces/{workspace_id}/activity").json()["own_events"]
     assert any(
         event["event_code"] == "scan_failed" and event["outcome"] == "failed"
         for event in failure_events
@@ -485,6 +484,13 @@ def test_abandoned_scan_lease_can_be_retried_without_duplicates(intake_site):
             )
         )
     path = f"/api/v1/documents/{version['document_id']}/scan"
+    interrupted = owner.get(path)
+    assert interrupted.status_code == 200, interrupted.text
+    assert interrupted.json()["status"] == "failed"
+    assert interrupted.json()["failure_code"] == "scan_interrupted"
+    assert (
+        owner.get(f"/api/v1/documents/{version['document_id']}/source").json()["status"] == "failed"
+    )
     completed = owner.post(path, json={"expected": version}, headers=headers)
     assert completed.status_code == 200, completed.text
     assert completed.json()["status"] == "completed"
@@ -910,6 +916,13 @@ def test_review_undo_restores_multiple_edits_without_reusing_labels(intake_site)
     assert unlabeled["findings"][0]["action"] is None
     empty = owner.post(undo_path, json={"expected": version}, headers=headers).json()
     assert empty["findings"] == []
+    activity = owner.get(f"/api/v1/workspaces/{workspace_id}/activity").json()
+    codes = [item["event_code"] for item in activity["own_events"]]
+    assert codes.count("finding_added") == 2
+    assert codes.count("group_merged") == 1
+    assert codes.count("review_decision_saved") == 2
+    assert codes.count("review_edit_undone") == 5
+    assert "Ada" not in str(activity)
     assert (
         owner.post(undo_path, json={"expected": empty["version"]}, headers=headers).json()["code"]
         == "nothing_to_undo"
@@ -1235,9 +1248,7 @@ def test_completed_review_copy_txt_summary_and_stale_export_gate(intake_site):
     assert summary.json()["counts_by_category"] == {"person": 2, "email": 1}
     assert summary.json()["counts_by_action"] == {"label": 2, "redact": 1}
     assert summary.json()["last_output_generated_at"] is None
-    decision_events = owner.get(f"/api/v1/workspaces/{workspace_id}/activity").json()[
-        "own_events"
-    ]
+    decision_events = owner.get(f"/api/v1/workspaces/{workspace_id}/activity").json()["own_events"]
     assert sum(event["event_code"] == "review_decision_saved" for event in decision_events) == 3
     assert "Alice" not in summary.text and "a@example.com" not in summary.text
     assert other.get(f"{path}/summary").status_code == 404
@@ -1503,9 +1514,12 @@ def test_workspace_index_and_overview_preserve_member_content_boundary(intake_si
     assert own_overview["workspace_total"] is None
     activity_path = f"/api/v1/workspaces/{workspace_id}/activity"
     own_activity = owner.get(activity_path).json()
-    assert own_activity["own_total"] == 1
-    assert own_activity["own_events"][0]["event_code"] == "document_created"
-    assert own_activity["own_events"][0]["document_id"] == first_id
+    assert own_activity["own_total"] == 2
+    assert {item["event_code"] for item in own_activity["own_events"]} == {
+        "document_created",
+        "finding_added",
+    }
+    assert {item["document_id"] for item in own_activity["own_events"]} == {first_id}
     assert own_activity["workspace_counts"] is None
     assert "Other's confidential title" not in str(own_activity)
     assert other.get(activity_path).json()["own_events"][0]["document_id"] == second_id
@@ -1518,8 +1532,8 @@ def test_workspace_index_and_overview_preserve_member_content_boundary(intake_si
     assert admin_overview["workspace_total"] == 2
     assert "Other's confidential title" not in str(admin_overview)
     admin_activity = owner.get(activity_path).json()
-    assert admin_activity["own_total"] == 1
-    assert admin_activity["workspace_counts"] == {"document_created": 2}
+    assert admin_activity["own_total"] == 2
+    assert admin_activity["workspace_counts"] == {"document_created": 2, "finding_added": 1}
     assert second_id not in str(admin_activity)
     assert other.get(f"/api/v1/workspaces/{uuid4()}/documents").status_code == 404
 
@@ -1613,6 +1627,59 @@ def test_presets_are_member_readable_admin_managed_and_snapshotted_at_intake(int
     assert other.get(f"/api/v1/workspaces/{workspace_id}/documents").status_code == 200
 
 
+def test_document_history_is_owner_only_and_content_free_after_cleanup(intake_site):
+    owner, other, engine, workspace_id, _owner_id = intake_site
+    owner_headers = _login(owner, "intake-owner@example.invalid")
+    _login(other, "intake-other@example.invalid")
+    created = owner.post(
+        "/api/v1/documents",
+        json=_draft_body(workspace_id, source="Secret synthetic first revision"),
+        headers=owner_headers,
+    )
+    assert created.status_code == 201, created.text
+    document_id = created.json()["version"]["document_id"]
+    updated = owner.put(
+        f"/api/v1/documents/{document_id}/source",
+        json={
+            "expected": created.json()["version"],
+            "source": "Secret synthetic second revision",
+        },
+        headers=owner_headers,
+    )
+    assert updated.status_code == 200, updated.text
+    path = f"/api/v1/workspaces/{workspace_id}/documents/{document_id}/history"
+    history = owner.get(path)
+    assert history.status_code == 200, history.text
+    assert history.headers["Cache-Control"] == "no-store"
+    assert history.json()["revision_total"] == 2
+    assert [item["number"] for item in history.json()["revisions"]] == [2, 1]
+    assert [item["is_current"] for item in history.json()["revisions"]] == [True, False]
+    assert {item["event_code"] for item in history.json()["events"]} == {
+        "document_created",
+        "source_revised",
+    }
+    assert "Secret" not in history.text
+    assert other.get(path).status_code == 404
+    assert (
+        owner.get(f"/api/v1/workspaces/{uuid4()}/documents/{document_id}/history").status_code
+        == 404
+    )
+
+    assert (
+        owner.delete(f"/api/v1/documents/{document_id}", headers=owner_headers).status_code == 200
+    )
+    purge_unavailable_content(engine, now=datetime.now(UTC))
+    after = owner.get(path).json()
+    assert after["status"] == "deleted"
+    assert after["revision_total"] == 0
+    assert after["revisions"] == []
+    assert {item["event_code"] for item in after["events"]} == {
+        "document_created",
+        "source_revised",
+        "document_deleted",
+    }
+
+
 def test_delete_and_expiry_deny_content_then_purge_protected_rows(intake_site):
     owner, other, engine, workspace_id, _owner_id = intake_site
     headers = _login(owner, "intake-owner@example.invalid")
@@ -1675,6 +1742,7 @@ def test_delete_and_expiry_deny_content_then_purge_protected_rows(intake_site):
         ).all()
         assert {event.event_code for event in events} == {
             "document_created",
+            "finding_added",
             "document_deleted",
         }
     assert owner.get(f"/api/v1/workspaces/{workspace_id}/documents").json() == []

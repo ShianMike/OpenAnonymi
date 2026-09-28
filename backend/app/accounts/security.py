@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 
 from pwdlib import PasswordHash
 from pwdlib.exceptions import UnknownHashError
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.contracts import WorkspaceRole
@@ -154,3 +154,30 @@ def revoke_session(session: Session, *, identity: SessionIdentity, now: datetime
         if record is None or record.revoked_at is not None:
             raise InvalidSession("Sign in to continue.")
         record.revoked_at = now
+
+
+def change_password(
+    session: Session,
+    *,
+    identity: SessionIdentity,
+    current_password: str,
+    new_password: str,
+    now: datetime,
+) -> None:
+    """Change only the signed-in account and end all of its sessions."""
+    with session.begin():
+        user = session.scalar(select(User).where(User.id == identity.user_id).with_for_update())
+        if (
+            user is None
+            or user.disabled_at is not None
+            or not _verify_password(current_password, user.password_hash)
+        ):
+            raise InvalidCredentials("Current password was not accepted.")
+        if _verify_password(new_password, user.password_hash):
+            raise ValueError("Choose a different new password.")
+        user.password_hash = hash_password(new_password)
+        session.execute(
+            update(StoredSession)
+            .where(StoredSession.user_id == user.id, StoredSession.revoked_at.is_(None))
+            .values(revoked_at=now)
+        )

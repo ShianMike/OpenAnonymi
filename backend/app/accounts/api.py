@@ -26,6 +26,7 @@ from app.accounts.security import (
     InvalidCredentials,
     InvalidSession,
     SessionIdentity,
+    change_password,
     read_session,
     revoke_session,
     sign_in,
@@ -65,6 +66,11 @@ class RecoveryCompletion(BaseModel):
 
 class RecoveryMessage(BaseModel):
     message: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: SecretStr = Field(min_length=1, max_length=1024)
+    new_password: SecretStr = Field(min_length=12, max_length=1024)
 
 
 def _view(identity: SessionIdentity) -> SessionView:
@@ -195,6 +201,34 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
                 revoke_session(session, identity=identity, now=datetime.now(UTC))
             except InvalidSession:
                 raise ApiError(401, "sign_in_required", "Sign in to continue.") from None
+        response = Response(status_code=204)
+        response.delete_cookie(COOKIE_NAME, path=COOKIE_PATH)
+        return response
+
+    @router.post(
+        "/change-password",
+        status_code=204,
+        responses={400: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+    )
+    def change_password_route(
+        body: ChangePasswordRequest,
+        identity: Annotated[SessionIdentity, Depends(mutation_identity)],
+    ) -> Response:
+        try:
+            with Session(engine) as session:
+                change_password(
+                    session,
+                    identity=identity,
+                    current_password=body.current_password.get_secret_value(),
+                    new_password=body.new_password.get_secret_value(),
+                    now=datetime.now(UTC),
+                )
+        except InvalidCredentials:
+            raise ApiError(
+                400, "incorrect_password", "Current password was not accepted."
+            ) from None
+        except ValueError as exc:
+            raise ApiError(422, "invalid_password", str(exc)) from None
         response = Response(status_code=204)
         response.delete_cookie(COOKIE_NAME, path=COOKIE_PATH)
         return response

@@ -142,6 +142,7 @@ export function DocumentsPage({ session }: { session: SessionView }) {
                   <td>{new Date(item.expires_at).toLocaleString()}</td>
                   <td>{item.status === 'expired' || item.status === 'deleted' ?
                     'Unavailable' : <Link to={`/documents/${item.id}/edit`}>Open review</Link>}{' '}
+                    <Link to={`/workspaces/${workspaceId}/documents/${item.id}/history`}>History</Link>{' '}
                     <button type="button" onClick={() => void removeDocument(item)}
                       disabled={deletingId !== null}>
                       {deletingId === item.id ? 'Deleting…' : 'Delete'}

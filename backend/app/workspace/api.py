@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy.engine import Engine
 
-from app.accounts.access import WorkspaceAccessDenied
+from app.accounts.access import DocumentNotFound, WorkspaceAccessDenied
 from app.accounts.api import current_identity
 from app.accounts.security import SessionIdentity
 from app.contracts import DocumentStatus, ErrorResponse
@@ -16,6 +16,7 @@ from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedContentError
 from app.errors import ApiError
 from app.workspace.activity import load_activity
 from app.workspace.documents import list_documents, load_overview
+from app.workspace.history import load_document_history
 
 
 class DocumentIndexView(BaseModel):
@@ -53,8 +54,70 @@ class ActivityView(BaseModel):
     workspace_counts: dict[str, int] | None
 
 
+class RevisionHistoryView(BaseModel):
+    number: int
+    created_at: datetime
+    is_current: bool
+
+
+class HistoryEventView(BaseModel):
+    event_code: str
+    outcome: str
+    occurred_at: datetime
+
+
+class DocumentHistoryView(BaseModel):
+    document_id: UUID
+    status: DocumentStatus
+    created_at: datetime
+    expires_at: datetime
+    deleted_at: datetime | None
+    revisions: list[RevisionHistoryView]
+    revision_total: int
+    events: list[HistoryEventView]
+    event_total: int
+
+
 def create_workspace_router(engine: Engine) -> APIRouter:
     router = APIRouter(prefix="/api/v1/workspaces", tags=["workspace"])
+
+    @router.get(
+        "/{workspace_id}/documents/{document_id}/history",
+        response_model=DocumentHistoryView,
+        responses={404: {"model": ErrorResponse}},
+    )
+    def history_route(
+        workspace_id: UUID,
+        document_id: UUID,
+        identity: Annotated[SessionIdentity, Depends(current_identity)],
+    ) -> DocumentHistoryView:
+        try:
+            record = load_document_history(
+                engine,
+                workspace_id=workspace_id,
+                document_id=document_id,
+                actor_id=identity.user_id,
+                now=datetime.now(UTC),
+            )
+        except DocumentNotFound:
+            raise ApiError(404, "document_not_found", "Document not found.") from None
+        return DocumentHistoryView(
+            document_id=record.document_id,
+            status=record.status,
+            created_at=record.created_at,
+            expires_at=record.expires_at,
+            deleted_at=record.deleted_at,
+            revisions=[
+                RevisionHistoryView.model_validate(item, from_attributes=True)
+                for item in record.revisions
+            ],
+            revision_total=record.revision_total,
+            events=[
+                HistoryEventView(event_code=code, outcome=outcome, occurred_at=when)
+                for code, outcome, when in record.events
+            ],
+            event_total=record.event_total,
+        )
 
     @router.get(
         "/{workspace_id}/documents",

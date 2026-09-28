@@ -426,3 +426,42 @@ def test_failed_invitation_delivery_rolls_back_new_account(admin_site):
         assert failed.status_code == 503
     with Session(engine) as session:
         assert session.scalar(select(User).where(User.email == "invited@example.invalid")) is None
+
+
+def test_member_password_change_requires_current_password_and_revokes_all_sessions(admin_site):
+    app, _engine, _workspace_id, _admin_id, _first_id, _second_id = admin_site
+    with TestClient(app) as first, TestClient(app) as second:
+        csrf = _login(first, "member-first@example.invalid")
+        _login(second, "member-first@example.invalid")
+        path = "/api/v1/auth/change-password"
+        wrong = first.post(
+            path,
+            json={
+                "current_password": "incorrect-password",
+                "new_password": "new-synthetic-password",
+            },
+            headers=_headers(csrf),
+        )
+        assert wrong.status_code == 400
+        assert first.get("/api/v1/auth/session").status_code == 200
+        assert second.get("/api/v1/auth/session").status_code == 200
+        changed = first.post(
+            path,
+            json={"current_password": PASSWORD, "new_password": "new-synthetic-password"},
+            headers=_headers(csrf),
+        )
+        assert changed.status_code == 204, changed.text
+        assert first.get("/api/v1/auth/session").status_code == 401
+        assert second.get("/api/v1/auth/session").status_code == 401
+        old_sign_in = first.post(
+            "/api/v1/auth/sign-in",
+            json={"email": "member-first@example.invalid", "password": PASSWORD},
+            headers={"Origin": ORIGIN},
+        )
+        assert old_sign_in.status_code == 401
+        new_sign_in = first.post(
+            "/api/v1/auth/sign-in",
+            json={"email": "member-first@example.invalid", "password": "new-synthetic-password"},
+            headers={"Origin": ORIGIN},
+        )
+        assert new_sign_in.status_code == 200

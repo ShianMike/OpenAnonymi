@@ -332,6 +332,19 @@ def _touch_review(document: Document, now: datetime) -> None:
     document.updated_at = now
 
 
+def _record_review_edit(
+    session: Session, document: Document, actor_id: UUID, event_code: str, now: datetime
+) -> None:
+    record_event(
+        session,
+        workspace_id=document.workspace_id,
+        actor_id=actor_id,
+        document_id=document.id,
+        event_code=event_code,
+        now=now,
+    )
+
+
 def add_finding(
     engine: Engine,
     *,
@@ -361,6 +374,7 @@ def add_finding(
             )
         )
         _touch_review(document, now)
+        _record_review_edit(session, document, actor_id, "finding_added", now)
         session.flush()
         snapshot = _snapshot(session, _version(document))
     _remember_undo(document_id, actor_id, version, snapshot.version, before)
@@ -404,6 +418,7 @@ def revise_finding(
         if decision is not None:
             session.delete(decision)
         _touch_review(document, now)
+        _record_review_edit(session, document, actor_id, "finding_corrected", now)
         session.flush()
         snapshot = _snapshot(session, _version(document))
     _remember_undo(document_id, actor_id, version, snapshot.version, before)
@@ -428,6 +443,7 @@ def remove_finding(
         if decision is not None:
             session.delete(decision)
         _touch_review(document, now)
+        _record_review_edit(session, document, actor_id, "finding_removed", now)
         session.flush()
         snapshot = _snapshot(session, _version(document))
     _remember_undo(document_id, actor_id, version, snapshot.version, before)
@@ -474,6 +490,7 @@ def add_exact_match(
             )
         )
         _touch_review(document, now)
+        _record_review_edit(session, document, actor_id, "finding_added", now)
         session.flush()
         snapshot = _snapshot(session, _version(document))
     _remember_undo(document_id, actor_id, version, snapshot.version, before)
@@ -516,6 +533,7 @@ def split_finding(
             session, document=document, category=FindingCategory(finding.category), now=now
         ).id
         _touch_review(document, now)
+        _record_review_edit(session, document, actor_id, "group_split", now)
         session.flush()
         snapshot = _snapshot(session, _version(document))
     _remember_undo(document_id, actor_id, version, snapshot.version, before)
@@ -554,6 +572,7 @@ def merge_findings(
             if row.id == source.id or (old_group_id is not None and row.group_id == old_group_id):
                 row.group_id = target_group.id
         _touch_review(document, now)
+        _record_review_edit(session, document, actor_id, "group_merged", now)
         session.flush()
         snapshot = _snapshot(session, _version(document))
     _remember_undo(document_id, actor_id, version, snapshot.version, before)
@@ -683,6 +702,7 @@ def undo_last_review_edit(
                     decision.decided_at = now
                     decision.decision_version = document.decision_version + 1
             _touch_review(document, now)
+            _record_review_edit(session, document, actor_id, "review_edit_undone", now)
             session.flush()
             snapshot = _snapshot(session, _version(document))
         entries.pop()

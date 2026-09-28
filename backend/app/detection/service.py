@@ -103,10 +103,28 @@ def _snapshot(session: Session, version: VersionRef, run: ScanRun | None) -> Sca
 def load_scan_state(
     engine: Engine, *, document_id: UUID, actor_id: UUID, now: datetime
 ) -> ScanSnapshot:
-    with Session(engine) as session:
-        document = owned_document(session, document_id, actor_id, now)
+    with Session(engine) as session, session.begin():
+        document = owned_document(session, document_id, actor_id, now, lock=True)
         version = _version(document)
-        return _snapshot(session, version, _run_for_current(session, version))
+        run = _run_for_current(session, version, lock=True)
+        if run is not None and run.status == "scanning" and now - run.started_at >= SCAN_LEASE:
+            run.status = "failed"
+            run.failure_code = "scan_interrupted"
+            run.finished_at = now
+            if document.status == DocumentStatus.SCANNING:
+                require_transition(DocumentStatus(document.status), DocumentStatus.FAILED)
+                document.status = DocumentStatus.FAILED
+                document.updated_at = now
+            record_event(
+                session,
+                workspace_id=document.workspace_id,
+                actor_id=None,
+                document_id=document.id,
+                event_code="scan_failed",
+                now=now,
+                outcome="failed",
+            )
+        return _snapshot(session, version, run)
 
 
 def change_scan_settings(

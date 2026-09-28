@@ -28,7 +28,7 @@ def test_liveness_readiness_and_metadata_contract():
     assert "/api/v1/meta" in app.openapi()["paths"]
 
 
-def test_validation_errors_do_not_echo_submitted_text():
+def test_validation_errors_do_not_echo_submitted_text(caplog):
     settings = Settings(
         database_url="postgresql+psycopg://test:test@localhost/review",
         allowed_origins=["http://localhost:5173"],
@@ -46,3 +46,4 @@ def test_validation_errors_do_not_echo_submitted_text():
     assert response.status_code == 422
     assert response.json()["code"] == "validation_error"
     assert "synthetic-secret" not in response.text
+    assert "synthetic-secret" not in caplog.text

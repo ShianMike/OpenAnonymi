@@ -8,6 +8,7 @@ import { ActivityPage } from './workspace/ActivityPage'
 import { DocumentsPage } from './workspace/DocumentsPage'
 import { OverviewPage } from './workspace/OverviewPage'
 import { RulesPage } from './workspace/RulesPage'
+import { HistoryPage } from './workspace/HistoryPage'
 import {
   ApiRequestError, getSession, signOut, type SessionView,
 } from './api/client'
@@ -42,6 +43,7 @@ function App() {
   const [sessionAttempt, setSessionAttempt] = useState(0)
   const [signOutError, setSignOutError] = useState<string | null>(null)
   const [signOutPending, setSignOutPending] = useState(false)
+  const [signInNotice, setSignInNotice] = useState<string | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -93,7 +95,11 @@ function App() {
     return (
       <div className="app">
         <header className="app-header"><strong>OpenAnonymi</strong><span>Privacy review</span></header>
-        <SignInPage onSignedIn={(session) => setAuthentication({ kind: 'signed-in', session })} />
+        {signInNotice && <p role="status">{signInNotice}</p>}
+        <SignInPage onSignedIn={(session) => {
+          setSignInNotice(null)
+          setAuthentication({ kind: 'signed-in', session })
+        }} />
       </div>
     )
   }
@@ -124,7 +130,12 @@ function App() {
             <Route path="/activity" element={<ActivityPage session={authentication.session} />} />
             <Route path="/rules" element={<RulesPage session={authentication.session} />} />
             <Route path="/documents/:documentId/edit" element={<EditDraftPage session={authentication.session} />} />
-            <Route path="/settings" element={<SettingsPage session={authentication.session} />} />
+            <Route path="/workspaces/:workspaceId/documents/:documentId/history" element={<HistoryPage />} />
+            <Route path="/settings" element={<SettingsPage session={authentication.session}
+              onPasswordChanged={() => {
+                setSignInNotice('Password changed. Sign in again with your new password.')
+                setAuthentication({ kind: 'signed-out' })
+              }} />} />
             {pages.slice(1).filter((page) => !['/new', '/documents', '/rules', '/activity', '/settings'].includes(page.path)).map((page) => (
               <Route key={page.path} path={page.path} element={<PendingPage title={page.name} />} />
             ))}

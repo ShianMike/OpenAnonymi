@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import {
-  changeMemberRole, getMembers, getWorkspaceSettings, inviteMember,
+  changeMemberRole, changePassword, getMembers, getWorkspaceSettings, inviteMember,
   restoreMember, revokeMember, updateWorkspaceSettings,
   type MemberView, type SessionView, type WorkspaceSettingsView,
 } from '../api/client'
@@ -66,7 +66,54 @@ function MemberRow({
   )
 }
 
-export function SettingsPage({ session }: { session: SessionView }) {
+function AccountSettings({ session, onPasswordChanged }: {
+  session: SessionView
+  onPasswordChanged: () => void
+}) {
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setPending(true)
+    setError(null)
+    try {
+      await changePassword(currentPassword, newPassword, session.csrf_token)
+      setCurrentPassword('')
+      setNewPassword('')
+      onPasswordChanged()
+    } catch (cause: unknown) {
+      setError(messageFrom(cause))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <section aria-labelledby="account-title">
+      <h2 id="account-title">Your account</h2>
+      <p>Signed in as {session.email}. Changing your password ends all active sessions, including this one.</p>
+      {error && <p role="alert">{error}</p>}
+      <form onSubmit={(event) => void save(event)}>
+        <label htmlFor="current-password">Current password</label>{' '}
+        <input id="current-password" type="password" autoComplete="current-password" required
+          value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />{' '}
+        <label htmlFor="changed-password">New password (at least 12 characters)</label>{' '}
+        <input id="changed-password" type="password" autoComplete="new-password" required
+          minLength={12} value={newPassword}
+          onChange={(event) => setNewPassword(event.target.value)} />{' '}
+        <button type="submit" disabled={pending}>{pending ? 'Changing…' : 'Change password'}</button>
+      </form>
+    </section>
+  )
+}
+
+export function SettingsPage({ session, onPasswordChanged }: {
+  session: SessionView
+  onPasswordChanged: () => void
+}) {
   const adminWorkspaces = session.memberships.filter((item) => item.role === 'administrator')
   const [workspaceId, setWorkspaceId] = useState(adminWorkspaces[0]?.workspace_id ?? '')
   const [attempt, setAttempt] = useState(0)
@@ -115,7 +162,8 @@ export function SettingsPage({ session }: { session: SessionView }) {
     return (
       <section>
         <h1>Settings</h1>
-        <p>Signed in as {session.email}. Workspace membership and defaults are managed by an administrator.</p>
+        <AccountSettings session={session} onPasswordChanged={onPasswordChanged} />
+        <p>Workspace membership and defaults are managed by an administrator.</p>
       </section>
     )
   }
@@ -123,6 +171,7 @@ export function SettingsPage({ session }: { session: SessionView }) {
   return (
     <section>
       <h1>Settings</h1>
+      <AccountSettings session={session} onPasswordChanged={onPasswordChanged} />
       {adminWorkspaces.length > 1 && (
         <>
           <label htmlFor="admin-workspace">Workspace</label>{' '}
@@ -210,6 +259,7 @@ export function SettingsPage({ session }: { session: SessionView }) {
               ))}
             </ul>
           </section>
+          <p>Accounts and their saved reviews are retained when membership is revoked. An administrator can restore access. The last active administrator cannot be demoted or revoked. Account deletion is not available through this website while ownership records remain.</p>
         </>
       )}
     </section>

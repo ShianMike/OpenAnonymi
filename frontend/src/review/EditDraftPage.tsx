@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useParams } from 'react-router-dom'
 import {
-  ApiConflictError, addExactMatch, addManualFinding, confirmReview, decideFindings,
+  ApiConflictError, ApiRequestError, addExactMatch, addManualFinding, confirmReview, decideFindings,
   downloadReviewedTxt, getCopyPayload, getDraft, getExactMatches, getFindings, getPreview,
   getReviewSummary, getScan, mergeFindings, recordCopySuccess, removeFinding, reviseFinding,
   saveDraftSource, splitFinding, startScan, undoReviewEdit, updateScanSettings,
@@ -195,6 +195,11 @@ export function EditDraftPage({ session }: { session: SessionView }) {
       if (cause instanceof ApiConflictError) {
         setConflict(true)
         setError('This draft changed in another session. Copy your edits or reload the latest saved version.')
+      } else if (
+        cause instanceof TypeError ||
+        (cause instanceof ApiRequestError && [502, 504].includes(cause.status))
+      ) {
+        setError('The save could not be confirmed. Your edits remain in this tab. Retry when the connection returns, or copy them before reloading.')
       } else {
         setError(messageFrom(cause))
       }
@@ -707,7 +712,7 @@ export function EditDraftPage({ session }: { session: SessionView }) {
               {dirty ? 'Discard edits and reload saved' : 'Reload saved'}
             </button>
           </form>
-          {conflict && (
+          {dirty && (
             <button type="button" onClick={() => void copyUnsaved()}>
               Copy unsaved edits
             </button>

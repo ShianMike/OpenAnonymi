@@ -23,6 +23,7 @@ export type DeletedView = components['schemas']['DeletedView']
 export type ActivityView = components['schemas']['ActivityView']
 export type PresetView = components['schemas']['PresetView']
 export type PresetInput = components['schemas']['PresetInput']
+export type DocumentHistoryView = components['schemas']['DocumentHistoryView']
 export type CopyPayloadView = components['schemas']['CopyPayloadView']
 export type ExportEventView = components['schemas']['ExportEventView']
 export type ExactMatchesView = components['schemas']['ExactMatchesView']
@@ -152,6 +153,23 @@ export async function signOut(csrfToken: string): Promise<void> {
   await requireSuccess(response)
 }
 
+export async function changePassword(
+  currentPassword: string, newPassword: string, csrfToken: string,
+): Promise<void> {
+  const response = await fetch('/api/v1/auth/change-password', {
+    method: 'POST',
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'X-CSRF-Token': csrfToken,
+    },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  })
+  await requireSuccess(response)
+}
+
 export function requestRecovery(email: string): Promise<RecoveryMessage> {
   return post<RecoveryMessage>('/auth/recovery/request', { email })
 }
@@ -197,6 +215,15 @@ export function getWorkspacePresets(
   workspaceId: string, signal?: AbortSignal,
 ): Promise<PresetView[]> {
   return get<PresetView[]>(`/workspaces/${encodeURIComponent(workspaceId)}/presets`, signal)
+}
+
+export function getDocumentHistory(
+  workspaceId: string, documentId: string, signal?: AbortSignal,
+): Promise<DocumentHistoryView> {
+  return get<DocumentHistoryView>(
+    `/workspaces/${encodeURIComponent(workspaceId)}/documents/${encodeURIComponent(documentId)}/history`,
+    signal,
+  )
 }
 
 export function createWorkspacePreset(
