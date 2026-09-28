@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import {
   Activity, ChevronRight, FilePlus2, Files, LayoutDashboard,
   LogOut, Menu, Settings2, ShieldCheck, SlidersHorizontal, X,
@@ -33,11 +33,12 @@ type Authentication =
   | { kind: 'error'; message: string }
   | { kind: 'signed-in'; session: SessionView }
 
-function PendingPage({ title }: { title: string }) {
+function NotFoundPage() {
   return (
     <section>
-      <h1>{title}</h1>
-      <p>This part of the review workflow is not available yet.</p>
+      <h1>Page not found</h1>
+      <p>That page could not be found in this workspace.</p>
+      <Link to="/">Back to Overview</Link>
     </section>
   )
 }
@@ -206,7 +207,7 @@ function App() {
                 setSignInNotice('Password changed. Sign in again with your new password.')
                 setAuthentication({ kind: 'signed-out' })
               }} />} />
-            <Route path="*" element={<PendingPage title="Page not found" />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </main>
       </div>

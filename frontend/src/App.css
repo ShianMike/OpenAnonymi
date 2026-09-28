@@ -97,7 +97,12 @@ summary { cursor: pointer; font-weight: 650; }
 .table-shell table { min-width: 850px; }
 .table-shell td:last-child { min-width: 220px; }
 .table-shell td:last-child > * { margin: .15rem .35rem .15rem 0; }
-.table-shell td:last-child button { color: var(--danger); }
+.table-shell .delete-trigger { color: var(--danger); }
+.delete-confirmation { min-width: min(18rem, 100%); max-width: 25rem; padding: .7rem .8rem; background: #fff7f6; border: 1px solid #efc9c4; border-radius: var(--radius-sm); }
+.delete-confirmation p { margin: 0 0 .65rem; color: var(--text); font-size: .86rem; line-height: 1.45; }
+.delete-confirmation button { margin: 0 .4rem .2rem 0; }
+.delete-confirmation .button-danger { color: #fff; background: var(--danger); border-color: var(--danger); }
+.delete-confirmation .button-danger:hover:not(:disabled) { color: #fff; background: #922b2d; border-color: #922b2d; }
 .auth-shell { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem 1rem; }
 .auth-brand { margin-bottom: 1.25rem; }
 .auth-brand > span:last-child { margin-left: .3rem; padding-left: .8rem; color: var(--muted); border-left: 1px solid var(--line-strong); }

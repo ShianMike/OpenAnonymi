@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   deleteDocument, getWorkspaceDocuments, type DocumentIndexView, type SessionView,
@@ -18,8 +18,20 @@ export function DocumentsPage({ session }: { session: SessionView }) {
   const [status, setStatus] = useState('all')
   const [sort, setSort] = useState<Sort>('newest')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const deleteTriggerRef = useRef<HTMLButtonElement>(null)
+  const confirmDeleteRef = useRef<HTMLButtonElement>(null)
+  const noticeRef = useRef<HTMLParagraphElement>(null)
+
+  useEffect(() => {
+    if (confirmingId) confirmDeleteRef.current?.focus()
+  }, [confirmingId])
+
+  useEffect(() => {
+    if (notice) noticeRef.current?.focus()
+  }, [notice])
 
   useEffect(() => {
     if (!workspaceId) return
@@ -49,9 +61,7 @@ export function DocumentsPage({ session }: { session: SessionView }) {
   }) : []
 
   async function removeDocument(item: DocumentIndexView) {
-    if (!window.confirm(
-      `Delete ${item.title || `Review ${item.id}`}? This ends access immediately and schedules its stored content for permanent removal. It cannot be restored.`,
-    )) return
+    if (confirmingId !== item.id) return
     setDeletingId(item.id)
     setActionError(null)
     setNotice(null)
@@ -60,6 +70,7 @@ export function DocumentsPage({ session }: { session: SessionView }) {
       setData((current) => current.kind === 'ready'
         ? { kind: 'ready', items: current.items.filter((row) => row.id !== item.id) }
         : current)
+      setConfirmingId(null)
       setNotice('Review deleted. Its stored content is scheduled for removal.')
     } catch (cause: unknown) {
       setActionError(cause instanceof Error ? cause.message : 'Review could not be deleted.')
@@ -68,13 +79,18 @@ export function DocumentsPage({ session }: { session: SessionView }) {
     }
   }
 
+  function cancelDeletion() {
+    setConfirmingId(null)
+    deleteTriggerRef.current?.focus()
+  }
+
   return (
     <section aria-labelledby="documents-title">
       <PageHeader title="Documents" titleId="documents-title"
         description="Find and resume your saved reviews. Expired content cannot be reopened."
         action={<Link className="button-primary" to="/new">New review</Link>} />
       {actionError && <p role="alert">{actionError}</p>}
-      {notice && <p role="status">{notice}</p>}
+      {notice && <p role="status" ref={noticeRef} tabIndex={-1}>{notice}</p>}
       {session.memberships.length > 1 && (
         <div className="workspace-picker">
           <label htmlFor="documents-workspace">Workspace</label>
@@ -151,10 +167,30 @@ export function DocumentsPage({ session }: { session: SessionView }) {
                   <td>{item.status === 'expired' || item.status === 'deleted' ?
                     'Unavailable' : <Link to={`/documents/${item.id}/edit`}>Open review</Link>}{' '}
                     <Link to={`/workspaces/${workspaceId}/documents/${item.id}/history`}>History</Link>{' '}
-                    <button type="button" onClick={() => void removeDocument(item)}
-                      disabled={deletingId !== null}>
-                      {deletingId === item.id ? 'Deleting…' : 'Delete'}
+                    <button className="delete-trigger" type="button" onClick={(event) => {
+                      deleteTriggerRef.current = event.currentTarget
+                      if (confirmingId === item.id) cancelDeletion()
+                      else setConfirmingId(item.id)
+                    }}
+                      aria-expanded={confirmingId === item.id}
+                      disabled={deletingId !== null ||
+                        (confirmingId !== null && confirmingId !== item.id)}>
+                      {confirmingId === item.id ? 'Cancel deletion' : 'Delete'}
                     </button>
+                    {confirmingId === item.id && (
+                      <div className="delete-confirmation" role="group"
+                        aria-label={`Confirm deletion of ${item.title || `Review ${item.id}`}`}>
+                        <p>Delete {item.title || `Review ${item.id}`}? Access ends now and stored content
+                          is removed by cleanup. This cannot be restored.</p>
+                        <button className="button-danger" ref={confirmDeleteRef} type="button"
+                          onClick={() => void removeDocument(item)} disabled={deletingId !== null}>
+                          {deletingId === item.id ? 'Deleting…' : 'Delete review'}
+                        </button>
+                        <button type="button" onClick={cancelDeletion} disabled={deletingId !== null}>
+                          Keep review
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}</tbody>
