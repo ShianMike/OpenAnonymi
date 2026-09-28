@@ -2114,6 +2114,360 @@
         }
       }
     },
+    "/api/v1/documents/{document_id}/preview": {
+      "get": {
+        "tags": [
+          "preview"
+        ],
+        "summary": "Preview Route",
+        "operationId": "preview_route_api_v1_documents__document_id__preview_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewView"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/complete": {
+      "post": {
+        "tags": [
+          "review"
+        ],
+        "summary": "Complete Route",
+        "operationId": "complete_route_api_v1_documents__document_id__complete_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmReviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompletionView"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConflictResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/summary": {
+      "get": {
+        "tags": [
+          "review"
+        ],
+        "summary": "Summary Route",
+        "operationId": "summary_route_api_v1_documents__document_id__summary_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewSummaryView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/exports/copy-payload": {
+      "post": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "Copy Payload Route",
+        "operationId": "copy_payload_route_api_v1_documents__document_id__exports_copy_payload_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopyPayloadRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CopyPayloadView"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/exports/copy-success": {
+      "post": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "Copy Success Route",
+        "operationId": "copy_success_route_api_v1_documents__document_id__exports_copy_success_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopyAckRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportEventView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/exports/txt": {
+      "post": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "Txt Route",
+        "operationId": "txt_route_api_v1_documents__document_id__exports_txt_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/plain": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/health/live": {
       "get": {
         "summary": "Live",
@@ -2260,6 +2614,53 @@
         ],
         "title": "ChangeRoleRequest"
       },
+      "CompletionView": {
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "completion_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Completion Id"
+          },
+          "confirmed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Confirmed At"
+          },
+          "status": {
+            "type": "string",
+            "const": "ready",
+            "title": "Status",
+            "default": "ready"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "completion_id",
+          "confirmed_at"
+        ],
+        "title": "CompletionView"
+      },
+      "ConfirmReviewRequest": {
+        "properties": {
+          "expected": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "confirmed_preview": {
+            "type": "boolean",
+            "title": "Confirmed Preview"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected",
+          "confirmed_preview"
+        ],
+        "title": "ConfirmReviewRequest"
+      },
       "ConflictResponse": {
         "properties": {
           "code": {
@@ -2282,6 +2683,65 @@
           "current_version"
         ],
         "title": "ConflictResponse"
+      },
+      "CopyAckRequest": {
+        "properties": {
+          "expected": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Event Id"
+          },
+          "completion_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Completion Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected",
+          "event_id",
+          "completion_id"
+        ],
+        "title": "CopyAckRequest"
+      },
+      "CopyPayloadRequest": {
+        "properties": {
+          "expected": {
+            "$ref": "#/components/schemas/VersionRef"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected"
+        ],
+        "title": "CopyPayloadRequest"
+      },
+      "CopyPayloadView": {
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "completion_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Completion Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "completion_id",
+          "text"
+        ],
+        "title": "CopyPayloadView"
       },
       "CreateDraftRequest": {
         "properties": {
@@ -2506,6 +2966,44 @@
           "truncated"
         ],
         "title": "ExactMatchesView"
+      },
+      "ExportEventView": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Event Id"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Recorded At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_id",
+          "recorded_at"
+        ],
+        "title": "ExportEventView"
+      },
+      "ExportRequest": {
+        "properties": {
+          "expected": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Event Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected",
+          "event_id"
+        ],
+        "title": "ExportRequest"
       },
       "FindingCategory": {
         "type": "string",
@@ -2856,6 +3354,77 @@
         ],
         "title": "NewFindingRequest"
       },
+      "PreviewView": {
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "incomplete",
+              "conflict"
+            ],
+            "title": "Status"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "mappings": {
+            "items": {
+              "$ref": "#/components/schemas/SpanMappingView"
+            },
+            "type": "array",
+            "title": "Mappings"
+          },
+          "unresolved_finding_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Unresolved Finding Ids"
+          },
+          "overlaps": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Overlaps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "status",
+          "text",
+          "mappings",
+          "unresolved_finding_ids",
+          "overlaps"
+        ],
+        "title": "PreviewView"
+      },
       "RecoveryCompletion": {
         "properties": {
           "email": {
@@ -2926,6 +3495,58 @@
           "expected"
         ],
         "title": "RemoveFindingRequest"
+      },
+      "ReviewSummaryView": {
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "confirmed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Confirmed At"
+          },
+          "last_output_generated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Output Generated At"
+          },
+          "finding_count": {
+            "type": "integer",
+            "title": "Finding Count"
+          },
+          "counts_by_category": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts By Category"
+          },
+          "counts_by_action": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts By Action"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "confirmed_at",
+          "last_output_generated_at",
+          "finding_count",
+          "counts_by_category",
+          "counts_by_action"
+        ],
+        "title": "ReviewSummaryView"
       },
       "ReviseFindingRequest": {
         "properties": {
@@ -3266,6 +3887,39 @@
           "phone_region"
         ],
         "title": "SourceView"
+      },
+      "SpanMappingView": {
+        "properties": {
+          "finding_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Finding Id"
+          },
+          "source_span": {
+            "$ref": "#/components/schemas/SourceSpan"
+          },
+          "preview_span": {
+            "$ref": "#/components/schemas/SourceSpan"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DecisionAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "finding_id",
+          "source_span",
+          "preview_span",
+          "action"
+        ],
+        "title": "SpanMappingView"
       },
       "SuggestionView": {
         "properties": {

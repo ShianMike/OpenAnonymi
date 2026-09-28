@@ -14,6 +14,11 @@ export type CreateDraftRequest = components['schemas']['CreateDraftRequest']
 export type ScanView = components['schemas']['ScanView']
 export type ScanSettingsView = components['schemas']['ScanSettingsView']
 export type FindingsView = components['schemas']['FindingsView']
+export type PreviewView = components['schemas']['PreviewView']
+export type CompletionView = components['schemas']['CompletionView']
+export type ReviewSummaryView = components['schemas']['ReviewSummaryView']
+export type CopyPayloadView = components['schemas']['CopyPayloadView']
+export type ExportEventView = components['schemas']['ExportEventView']
 export type ExactMatchesView = components['schemas']['ExactMatchesView']
 export type SourceSpan = components['schemas']['SourceSpan']
 export type FindingCategory = components['schemas']['FindingCategory']
@@ -292,6 +297,12 @@ export function getFindings(
   return get<FindingsView>(`/documents/${encodeURIComponent(documentId)}/findings`, signal)
 }
 
+export function getPreview(
+  documentId: string, signal?: AbortSignal,
+): Promise<PreviewView> {
+  return get<PreviewView>(`/documents/${encodeURIComponent(documentId)}/preview`, signal)
+}
+
 export function addManualFinding(
   documentId: string, expected: VersionRef, span: SourceSpan,
   category: FindingCategory, csrfToken: string,
@@ -378,4 +389,56 @@ export function undoReviewEdit(
     `/documents/${encodeURIComponent(documentId)}/review/undo`,
     { expected }, csrfToken,
   )
+}
+
+export function confirmReview(
+  documentId: string, expected: VersionRef, csrfToken: string,
+): Promise<CompletionView> {
+  return post<CompletionView>(
+    `/documents/${encodeURIComponent(documentId)}/complete`,
+    { expected, confirmed_preview: true }, csrfToken,
+  )
+}
+
+export function getReviewSummary(
+  documentId: string, signal?: AbortSignal,
+): Promise<ReviewSummaryView> {
+  return get<ReviewSummaryView>(`/documents/${encodeURIComponent(documentId)}/summary`, signal)
+}
+
+export function getCopyPayload(
+  documentId: string, expected: VersionRef, csrfToken: string,
+): Promise<CopyPayloadView> {
+  return post<CopyPayloadView>(
+    `/documents/${encodeURIComponent(documentId)}/exports/copy-payload`,
+    { expected }, csrfToken,
+  )
+}
+
+export function recordCopySuccess(
+  documentId: string, expected: VersionRef, completionId: string,
+  eventId: string, csrfToken: string,
+): Promise<ExportEventView> {
+  return post<ExportEventView>(
+    `/documents/${encodeURIComponent(documentId)}/exports/copy-success`,
+    { expected, completion_id: completionId, event_id: eventId }, csrfToken,
+  )
+}
+
+export async function downloadReviewedTxt(
+  documentId: string, expected: VersionRef, eventId: string, csrfToken: string,
+): Promise<Blob> {
+  const response = await fetch(`/api/v1/documents/${encodeURIComponent(documentId)}/exports/txt`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers: {
+      Accept: 'text/plain',
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken,
+    },
+    body: JSON.stringify({ expected, event_id: eventId }),
+  })
+  await requireSuccess(response)
+  return response.blob()
 }
