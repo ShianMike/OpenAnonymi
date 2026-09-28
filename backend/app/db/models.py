@@ -129,6 +129,9 @@ class Document(Base):
         String(300), nullable=False, server_default="email,phone"
     )
     phone_region: Mapped[str] = mapped_column(String(2), nullable=False, server_default="US")
+    preset_id: Mapped[UUID | None] = mapped_column(PostgreSQLUUID(as_uuid=True))
+    preset_version: Mapped[int | None] = mapped_column(Integer)
+    preferred_action: Mapped[str] = mapped_column(String(8), nullable=False, server_default="label")
     created_at: Mapped[datetime] = timestamp_column()
     updated_at: Mapped[datetime] = timestamp_column()
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -156,6 +159,12 @@ class Document(Base):
         ),
         CheckConstraint("decision_version >= 0", name="nonnegative_decision_version"),
         CheckConstraint("settings_version >= 1", name="positive_settings_version"),
+        CheckConstraint(
+            "(preset_id IS NULL AND preset_version IS NULL) OR "
+            "(preset_id IS NOT NULL AND preset_version >= 1)",
+            name="valid_document_preset_snapshot",
+        ),
+        CheckConstraint("preferred_action IN ('label', 'redact')", name="valid_preferred_action"),
         CheckConstraint("expires_at > created_at", name="expiry_after_creation"),
         CheckConstraint(
             "(title_ciphertext IS NULL AND title_key_id IS NULL) OR "
@@ -418,6 +427,7 @@ class Preset(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     categories: Mapped[str] = mapped_column(String(300), nullable=False)
     phone_region: Mapped[str] = mapped_column(String(2), nullable=False)
+    preferred_action: Mapped[str] = mapped_column(String(8), nullable=False, server_default="label")
     version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     is_default: Mapped[bool] = mapped_column(nullable=False, server_default="false")
     created_at: Mapped[datetime] = timestamp_column()
@@ -425,6 +435,7 @@ class Preset(Base):
     __table_args__ = (
         UniqueConstraint("workspace_id", "name", name="uq_presets_workspace_name"),
         CheckConstraint("version > 0", name="positive_version"),
+        CheckConstraint("preferred_action IN ('label', 'redact')", name="valid_preferred_action"),
     )
 
 

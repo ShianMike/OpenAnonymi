@@ -22,9 +22,10 @@ class WorkspaceAccessDenied(RuntimeError):
     pass
 
 
-def owned_document(
-    session: Session, document_id: UUID, actor_id: UUID, now: datetime, *, lock: bool = False
+def owned_document_record(
+    session: Session, document_id: UUID, actor_id: UUID, *, lock: bool = False
 ) -> Document:
+    """Authorize an owner without assuming protected content is still available."""
     statement = (
         select(Document)
         .join(
@@ -47,6 +48,13 @@ def owned_document(
     document = session.scalar(statement)
     if document is None:
         raise DocumentNotFound("Document not found.")
+    return document
+
+
+def owned_document(
+    session: Session, document_id: UUID, actor_id: UUID, now: datetime, *, lock: bool = False
+) -> Document:
+    document = owned_document_record(session, document_id, actor_id, lock=lock)
     if (
         document.deleted_at is not None
         or document.status in (DocumentStatus.EXPIRED, DocumentStatus.DELETED)

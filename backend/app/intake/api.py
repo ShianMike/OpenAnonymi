@@ -36,6 +36,7 @@ from app.db.repository import (
 )
 from app.errors import ApiError
 from app.intake.validation import SourceValidationError, validate_txt_file
+from app.workspace.presets import PresetNotFound
 
 
 class SourceView(BaseModel):
@@ -46,6 +47,9 @@ class SourceView(BaseModel):
     title: str | None
     categories: list[FindingCategory]
     phone_region: str
+    preset_id: UUID | None
+    preset_version: int | None
+    preferred_action: str
 
 
 class IntakeDefaultsView(BaseModel):
@@ -63,6 +67,7 @@ class CreateDraftRequest(BaseModel):
     )
     phone_region: str = Field(default="PH", min_length=2, max_length=2)
     retention_days: int | None = Field(default=None, ge=1, le=30)
+    preset_id: UUID | None = None
 
 
 class EditSourceRequest(BaseModel):
@@ -85,6 +90,9 @@ def _source_view(source: LoadedSource) -> SourceView:
         title=source.title,
         categories=list(source.categories),
         phone_region=source.phone_region,
+        preset_id=source.preset_id,
+        preset_version=source.preset_version,
+        preferred_action=source.preferred_action,
     )
 
 
@@ -190,9 +198,12 @@ def create_intake_router(engine: Engine) -> APIRouter:
                     requested_expiry=(now + timedelta(days=body.retention_days))
                     if body.retention_days is not None
                     else None,
+                    preset_id=body.preset_id,
                 )
         except DocumentNotFound:
             raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
+        except PresetNotFound:
+            raise ApiError(404, "preset_not_found", "Preset not found.") from None
         except (SourceValidationError, StorageValidationError) as exc:
             raise _input_error(exc) from None
         return _saved_view(saved)
@@ -212,6 +223,7 @@ def create_intake_router(engine: Engine) -> APIRouter:
         categories: Annotated[str, Form()] = "email,phone",
         phone_region: Annotated[str, Form(min_length=2, max_length=2)] = "PH",
         retention_days: Annotated[int | None, Form(ge=1, le=30)] = None,
+        preset_id: Annotated[UUID | None, Form()] = None,
     ) -> SavedDraftView:
         # FastAPI has already parsed the multipart body. Reject extra file parts and
         # bound the bytes read from the uploaded file before decoding.
@@ -253,9 +265,12 @@ def create_intake_router(engine: Engine) -> APIRouter:
                     requested_expiry=(now + timedelta(days=retention_days))
                     if retention_days is not None
                     else None,
+                    preset_id=preset_id,
                 )
         except DocumentNotFound:
             raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
+        except PresetNotFound:
+            raise ApiError(404, "preset_not_found", "Preset not found.") from None
         except (SourceValidationError, StorageValidationError) as exc:
             raise _input_error(exc) from None
         return _saved_view(saved)

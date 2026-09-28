@@ -1,6 +1,7 @@
 """FastAPI application factory."""
 
-from contextlib import asynccontextmanager
+import asyncio
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, Response
 from fastapi.exceptions import RequestValidationError
@@ -12,6 +13,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.accounts.admin_api import create_admin_router
 from app.accounts.api import create_auth_router
 from app.accounts.recovery import RecoveryMailer, SmtpRecoveryMailer
+from app.cleanup.api import create_cleanup_router
+from app.cleanup.runner import periodic_cleanup
 from app.config import Settings, load_settings
 from app.contracts import ErrorResponse, HealthResponse, ServiceMetadata, service_metadata
 from app.detection.api import create_detection_router
@@ -21,6 +24,8 @@ from app.groups.api import create_groups_router
 from app.intake.api import create_intake_router
 from app.reviews.api import create_reviews_router
 from app.transformations.api import create_transform_router
+from app.workspace.api import create_workspace_router
+from app.workspace.presets_api import create_presets_router
 
 
 def create_app(
@@ -39,9 +44,20 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
-        yield
-        if owned_engine:
-            engine.dispose()
+        cleanup_task = (
+            asyncio.create_task(periodic_cleanup(engine))
+            if settings.environment != "test"
+            else None
+        )
+        try:
+            yield
+        finally:
+            if cleanup_task is not None:
+                cleanup_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await cleanup_task
+            if owned_engine:
+                engine.dispose()
 
     app = FastAPI(title="OpenAnonymi API", version="0.1.0", lifespan=lifespan)
     app.state.settings = settings
@@ -66,6 +82,9 @@ def create_app(
     app.include_router(create_transform_router(engine))
     app.include_router(create_reviews_router(engine))
     app.include_router(create_exports_router(engine))
+    app.include_router(create_workspace_router(engine))
+    app.include_router(create_presets_router(engine))
+    app.include_router(create_cleanup_router(engine))
 
     @app.middleware("http")
     async def prevent_api_caching(request, call_next):

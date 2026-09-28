@@ -17,9 +17,11 @@ from app.accounts.access import (
 )
 from app.contracts import DocumentStatus, FindingCategory, SourceSpan, VersionRef
 from app.db.crypto import KeyRing, ProtectedValue
-from app.db.models import Document, Finding, SourceRevision
+from app.db.models import Document, Finding, Preset, SourceRevision
 from app.intake.validation import validate_source
 from app.lifecycle import require_transition
+from app.workspace.activity import record_event
+from app.workspace.presets import PresetNotFound
 
 
 class StorageValidationError(ValueError):
@@ -48,6 +50,9 @@ class LoadedSource:
     title: str | None
     categories: tuple[FindingCategory, ...]
     phone_region: str
+    preset_id: UUID | None
+    preset_version: int | None
+    preferred_action: str
 
 
 def _version(document: Document) -> VersionRef:
@@ -73,6 +78,7 @@ def create_document(
     keys: KeyRing,
     now: datetime,
     requested_expiry: datetime | None = None,
+    preset_id: UUID | None = None,
 ) -> SavedDocument:
     validated = validate_source(source)
     if now.tzinfo is None:
@@ -91,6 +97,17 @@ def create_document(
             workspace = active_workspace(session, workspace_id, owner_id)
         except WorkspaceAccessDenied:
             raise DocumentNotFound("Workspace not found.") from None
+        selected_preset = None
+        if preset_id is not None:
+            selected_preset = session.scalar(
+                select(Preset).where(Preset.id == preset_id, Preset.workspace_id == workspace_id)
+            )
+            if selected_preset is None:
+                raise PresetNotFound("Preset not found.")
+            categories = {
+                FindingCategory(value) for value in selected_preset.categories.split(",") if value
+            }
+            phone_region = selected_preset.phone_region
         max_expiry = now + timedelta(days=workspace.content_retention_days)
         expiry = requested_expiry or max_expiry
         if expiry <= now or expiry > max_expiry:
@@ -108,6 +125,9 @@ def create_document(
             settings_version=1,
             category_settings=",".join(sorted(category.value for category in categories)),
             phone_region=phone_region.upper(),
+            preset_id=selected_preset.id if selected_preset else None,
+            preset_version=selected_preset.version if selected_preset else None,
+            preferred_action=selected_preset.preferred_action if selected_preset else "label",
             created_at=now,
             updated_at=now,
             expires_at=expiry,
@@ -128,6 +148,14 @@ def create_document(
         session.flush()
         document.current_revision_id = revision.id
         session.flush()
+        record_event(
+            session,
+            workspace_id=workspace_id,
+            actor_id=owner_id,
+            document_id=document.id,
+            event_code="document_created",
+            now=now,
+        )
         saved = SavedDocument(_version(document), expiry, DocumentStatus.DRAFT)
     return saved
 
@@ -162,6 +190,9 @@ def load_current_source(
         title,
         categories,
         document.phone_region,
+        document.preset_id,
+        document.preset_version,
+        document.preferred_action,
     )
 
 
@@ -206,6 +237,14 @@ def append_source_revision(
         document.status = DocumentStatus.DRAFT
         document.updated_at = now
         session.flush()
+        record_event(
+            session,
+            workspace_id=document.workspace_id,
+            actor_id=actor_id,
+            document_id=document.id,
+            event_code="source_revised",
+            now=now,
+        )
         saved = SavedDocument(_version(document), document.expires_at, DocumentStatus.DRAFT)
     return saved
 

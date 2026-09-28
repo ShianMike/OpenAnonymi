@@ -18,6 +18,7 @@ from app.db.labels import allocate_group_locked
 from app.db.models import Decision, Document, EntityGroup, Finding, ScanRun, SourceRevision
 from app.db.repository import VersionConflict
 from app.lifecycle import require_transition
+from app.workspace.activity import record_event
 
 
 class FindingNotFound(LookupError):
@@ -614,6 +615,14 @@ def decide_findings(
             decision.decided_at = now
         session.flush()
         snapshot = _snapshot(session, _version(document))
+        record_event(
+            session,
+            workspace_id=document.workspace_id,
+            actor_id=actor_id,
+            document_id=document.id,
+            event_code="review_decision_saved",
+            now=now,
+        )
     _remember_undo(document_id, actor_id, version, snapshot.version, before)
     return snapshot
 

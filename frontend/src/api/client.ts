@@ -17,6 +17,12 @@ export type FindingsView = components['schemas']['FindingsView']
 export type PreviewView = components['schemas']['PreviewView']
 export type CompletionView = components['schemas']['CompletionView']
 export type ReviewSummaryView = components['schemas']['ReviewSummaryView']
+export type DocumentIndexView = components['schemas']['DocumentIndexView']
+export type OverviewView = components['schemas']['OverviewView']
+export type DeletedView = components['schemas']['DeletedView']
+export type ActivityView = components['schemas']['ActivityView']
+export type PresetView = components['schemas']['PresetView']
+export type PresetInput = components['schemas']['PresetInput']
 export type CopyPayloadView = components['schemas']['CopyPayloadView']
 export type ExportEventView = components['schemas']['ExportEventView']
 export type ExactMatchesView = components['schemas']['ExactMatchesView']
@@ -169,6 +175,59 @@ export function getWorkspaceSettings(
   return get<WorkspaceSettingsView>(`/workspaces/${encodeURIComponent(workspaceId)}/settings`, signal)
 }
 
+export function getWorkspaceDocuments(
+  workspaceId: string, signal?: AbortSignal,
+): Promise<DocumentIndexView[]> {
+  return get<DocumentIndexView[]>(`/workspaces/${encodeURIComponent(workspaceId)}/documents`, signal)
+}
+
+export function getWorkspaceOverview(
+  workspaceId: string, signal?: AbortSignal,
+): Promise<OverviewView> {
+  return get<OverviewView>(`/workspaces/${encodeURIComponent(workspaceId)}/overview`, signal)
+}
+
+export function getWorkspaceActivity(
+  workspaceId: string, signal?: AbortSignal,
+): Promise<ActivityView> {
+  return get<ActivityView>(`/workspaces/${encodeURIComponent(workspaceId)}/activity`, signal)
+}
+
+export function getWorkspacePresets(
+  workspaceId: string, signal?: AbortSignal,
+): Promise<PresetView[]> {
+  return get<PresetView[]>(`/workspaces/${encodeURIComponent(workspaceId)}/presets`, signal)
+}
+
+export function createWorkspacePreset(
+  workspaceId: string, value: PresetInput, csrfToken: string,
+): Promise<PresetView> {
+  return post<PresetView>(
+    `/workspaces/${encodeURIComponent(workspaceId)}/presets`, value, csrfToken,
+  )
+}
+
+export function updateWorkspacePreset(
+  workspaceId: string, presetId: string, value: PresetInput,
+  expectedVersion: number, csrfToken: string,
+): Promise<PresetView> {
+  return sendJson<PresetView>(
+    'PUT', `/workspaces/${encodeURIComponent(workspaceId)}/presets/${encodeURIComponent(presetId)}`,
+    { ...value, expected_version: expectedVersion }, csrfToken,
+  )
+}
+
+export async function deleteDocument(documentId: string, csrfToken: string): Promise<DeletedView> {
+  const response = await fetch(`/api/v1/documents/${encodeURIComponent(documentId)}`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers: { Accept: 'application/json', 'X-CSRF-Token': csrfToken },
+  })
+  await requireSuccess(response)
+  return response.json() as Promise<DeletedView>
+}
+
 export function getMembers(workspaceId: string, signal?: AbortSignal): Promise<MemberView[]> {
   return get<MemberView[]>(`/workspaces/${encodeURIComponent(workspaceId)}/members`, signal)
 }
@@ -236,7 +295,7 @@ export function createPastedDraft(
 
 export async function createFileDraft(
   workspaceId: string, file: File, title: string, categories: string[],
-  phoneRegion: string, retentionDays: number, csrfToken: string,
+  phoneRegion: string, retentionDays: number, csrfToken: string, presetId?: string,
 ): Promise<SavedDraftView> {
   const form = new FormData()
   form.append('workspace_id', workspaceId)
@@ -245,6 +304,7 @@ export async function createFileDraft(
   form.append('categories', categories.join(','))
   form.append('phone_region', phoneRegion)
   form.append('retention_days', String(retentionDays))
+  if (presetId) form.append('preset_id', presetId)
   const response = await fetch('/api/v1/documents/from-file', {
     method: 'POST',
     credentials: 'same-origin',

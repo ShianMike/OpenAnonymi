@@ -553,6 +553,109 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Documents Route */
+        get: operations["documents_route_api_v1_workspaces__workspace_id__documents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Overview Route */
+        get: operations["overview_route_api_v1_workspaces__workspace_id__overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Activity Route */
+        get: operations["activity_route_api_v1_workspaces__workspace_id__activity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Presets Route */
+        get: operations["presets_route_api_v1_workspaces__workspace_id__presets_get"];
+        put?: never;
+        /** Create Preset Route */
+        post: operations["create_preset_route_api_v1_workspaces__workspace_id__presets_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/presets/{preset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Preset Route */
+        put: operations["update_preset_route_api_v1_workspaces__workspace_id__presets__preset_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Route */
+        delete: operations["delete_route_api_v1_documents__document_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health/live": {
         parameters: {
             query?: never;
@@ -608,6 +711,41 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ActivityEntryView */
+        ActivityEntryView: {
+            /** Event Code */
+            event_code: string;
+            /** Outcome */
+            outcome: string;
+            /** Document Id */
+            document_id: string | null;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+        };
+        /** ActivityView */
+        ActivityView: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Since
+             * Format: date-time
+             */
+            since: string;
+            /** Own Events */
+            own_events: components["schemas"]["ActivityEntryView"][];
+            /** Own Total */
+            own_total: number;
+            /** Workspace Counts */
+            workspace_counts: {
+                [key: string]: number;
+            } | null;
+        };
         /** Body_create_file_draft_route_api_v1_documents_from_file_post */
         Body_create_file_draft_route_api_v1_documents_from_file_post: {
             /**
@@ -631,6 +769,8 @@ export interface components {
             phone_region: string;
             /** Retention Days */
             retention_days?: number | null;
+            /** Preset Id */
+            preset_id?: string | null;
         };
         /** ChangeRoleRequest */
         ChangeRoleRequest: {
@@ -726,6 +866,8 @@ export interface components {
             phone_region: string;
             /** Retention Days */
             retention_days?: number | null;
+            /** Preset Id */
+            preset_id?: string | null;
         };
         /**
          * DecisionAction
@@ -745,6 +887,47 @@ export interface components {
             group_scope: boolean;
             /** Affected Finding Ids */
             affected_finding_ids: string[];
+        };
+        /** DeletedView */
+        DeletedView: {
+            /**
+             * Status
+             * @default deleted
+             * @constant
+             */
+            status: "deleted";
+        };
+        /** DocumentIndexView */
+        DocumentIndexView: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string | null;
+            status: components["schemas"]["DocumentStatus"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Current Revision Id */
+            current_revision_id: string | null;
+            /** Finding Count */
+            finding_count: number;
+            /** Decided Count */
+            decided_count: number;
         };
         /**
          * DocumentStatus
@@ -923,6 +1106,67 @@ export interface components {
             expected: components["schemas"]["VersionRef"];
             span: components["schemas"]["SourceSpan"];
             category: components["schemas"]["FindingCategory"];
+        };
+        /** OverviewView */
+        OverviewView: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Own Total */
+            own_total: number;
+            /** Own Created Last 30 Days */
+            own_created_last_30_days: number;
+            /** Own By Status */
+            own_by_status: {
+                [key: string]: number;
+            };
+            /** Workspace Total */
+            workspace_total: number | null;
+        };
+        /** PresetInput */
+        PresetInput: {
+            /** Name */
+            name: string;
+            /** Categories */
+            categories?: components["schemas"]["FindingCategory"][];
+            /** Phone Region */
+            phone_region: string;
+            /**
+             * Preferred Action
+             * @default label
+             * @enum {string}
+             */
+            preferred_action: "label" | "redact";
+            /**
+             * Is Default
+             * @default false
+             */
+            is_default: boolean;
+        };
+        /** PresetView */
+        PresetView: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Categories */
+            categories: components["schemas"]["FindingCategory"][];
+            /** Phone Region */
+            phone_region: string;
+            /**
+             * Preferred Action
+             * @enum {string}
+             */
+            preferred_action: "label" | "redact";
+            /** Version */
+            version: number;
+            /** Is Default */
+            is_default: boolean;
         };
         /** PreviewView */
         PreviewView: {
@@ -1113,6 +1357,12 @@ export interface components {
             categories: components["schemas"]["FindingCategory"][];
             /** Phone Region */
             phone_region: string;
+            /** Preset Id */
+            preset_id: string | null;
+            /** Preset Version */
+            preset_version: number | null;
+            /** Preferred Action */
+            preferred_action: string;
         };
         /** SpanMappingView */
         SpanMappingView: {
@@ -1140,6 +1390,28 @@ export interface components {
             rule_version: string;
             /** Reason */
             reason: string;
+        };
+        /** UpdatePresetInput */
+        UpdatePresetInput: {
+            /** Name */
+            name: string;
+            /** Categories */
+            categories?: components["schemas"]["FindingCategory"][];
+            /** Phone Region */
+            phone_region: string;
+            /**
+             * Preferred Action
+             * @default label
+             * @enum {string}
+             */
+            preferred_action: "label" | "redact";
+            /**
+             * Is Default
+             * @default false
+             */
+            is_default: boolean;
+            /** Expected Version */
+            expected_version: number;
         };
         /** UpdateWorkspaceSettingsRequest */
         UpdateWorkspaceSettingsRequest: {
@@ -3005,6 +3277,322 @@ export interface operations {
                 };
                 content: {
                     "text/plain": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    documents_route_api_v1_workspaces__workspace_id__documents_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentIndexView"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    overview_route_api_v1_workspaces__workspace_id__overview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OverviewView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    activity_route_api_v1_workspaces__workspace_id__activity_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    presets_route_api_v1_workspaces__workspace_id__presets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetView"][];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_preset_route_api_v1_workspaces__workspace_id__presets_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PresetInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_preset_route_api_v1_workspaces__workspace_id__presets__preset_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                preset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePresetInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_route_api_v1_documents__document_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Validation Error */

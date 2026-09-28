@@ -16,6 +16,7 @@ from app.groups.service import _version
 from app.lifecycle import require_transition
 from app.reviews.service import CompletionRejected, current_completion
 from app.transformations.service import build_current_preview
+from app.workspace.activity import record_event
 
 
 class ExportConflict(ValueError):
@@ -97,6 +98,14 @@ def _record_event(
         occurred_at=now,
     )
     session.add(event)
+    record_event(
+        session,
+        workspace_id=document.workspace_id,
+        actor_id=actor_id,
+        document_id=document.id,
+        event_code="output_copied" if format == "copy" else "output_generated",
+        now=now,
+    )
     if document.status == DocumentStatus.READY:
         require_transition(DocumentStatus(document.status), DocumentStatus.EXPORTED)
         document.status = DocumentStatus.EXPORTED

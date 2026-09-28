@@ -3,7 +3,7 @@
 import hashlib
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, select, update
@@ -15,6 +15,7 @@ from app.accounts.security import hash_password, normalize_email
 from app.contracts import WorkspaceRole
 from app.db.models import Membership, RecoveryToken, User, Workspace
 from app.db.models import Session as StoredSession
+from app.workspace.activity import record_event
 
 
 class MemberNotFound(RuntimeError):
@@ -137,6 +138,14 @@ def update_workspace_settings(
         workspace.content_retention_days = content_retention_days
         workspace.activity_retention_days = activity_retention_days
         workspace.settings_version += 1
+        record_event(
+            session,
+            workspace_id=workspace_id,
+            actor_id=actor_id,
+            document_id=None,
+            event_code="workspace_settings_changed",
+            now=datetime.now(UTC),
+        )
         session.flush()
         result = _workspace_record(workspace)
     return result
@@ -157,7 +166,16 @@ def change_member_role(
             raise MemberNotFound("Member not found.")
         if membership.role == WorkspaceRole.ADMINISTRATOR and role != WorkspaceRole.ADMINISTRATOR:
             _ensure_other_administrator(session, workspace_id, user_id)
-        membership.role = role.value
+        if membership.role != role.value:
+            membership.role = role.value
+            record_event(
+                session,
+                workspace_id=workspace_id,
+                actor_id=actor_id,
+                document_id=None,
+                event_code="member_role_changed",
+                now=datetime.now(UTC),
+            )
         session.flush()
         result = _member_record(membership, user)
     return result
@@ -178,6 +196,14 @@ def revoke_member(
                 .where(StoredSession.user_id == user_id, StoredSession.revoked_at.is_(None))
                 .values(revoked_at=now)
             )
+            record_event(
+                session,
+                workspace_id=workspace_id,
+                actor_id=actor_id,
+                document_id=None,
+                event_code="member_revoked",
+                now=now,
+            )
         session.flush()
         result = _member_record(membership, user)
     return result
@@ -191,7 +217,16 @@ def restore_member(
         membership, user = _target(session, workspace_id, user_id)
         if user.disabled_at is not None:
             raise MemberNotFound("Member not found.")
-        membership.revoked_at = None
+        if membership.revoked_at is not None:
+            membership.revoked_at = None
+            record_event(
+                session,
+                workspace_id=workspace_id,
+                actor_id=actor_id,
+                document_id=None,
+                event_code="member_restored",
+                now=datetime.now(UTC),
+            )
         session.flush()
         result = _member_record(membership, user)
     return result
@@ -238,5 +273,13 @@ def invite_member(
         session.add_all([membership, token])
         session.flush()
         mailer.send_invitation_code(user.email, code)
+        record_event(
+            session,
+            workspace_id=workspace_id,
+            actor_id=actor_id,
+            document_id=None,
+            event_code="member_invited",
+            now=now,
+        )
         result = _member_record(membership, user)
     return result

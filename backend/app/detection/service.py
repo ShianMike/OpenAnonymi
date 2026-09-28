@@ -16,6 +16,7 @@ from app.db.models import Document, Finding, ScanRun, SourceRevision
 from app.db.repository import VersionConflict
 from app.detection.rules import DETECTOR_VERSION, DetectionLimitError, detect_suggestions
 from app.lifecycle import require_transition
+from app.workspace.activity import record_event
 
 ScanStatus = Literal["not_started", "scanning", "completed", "failed", "superseded"]
 SCAN_LEASE = timedelta(minutes=2)
@@ -143,6 +144,14 @@ def change_scan_settings(
         document.status = DocumentStatus.DRAFT
         document.updated_at = now
         session.flush()
+        record_event(
+            session,
+            workspace_id=document.workspace_id,
+            actor_id=actor_id,
+            document_id=document.id,
+            event_code="scan_settings_changed",
+            now=now,
+        )
         return _version(document)
 
 
@@ -171,6 +180,15 @@ def _finish_failed(
             require_transition(DocumentStatus(document.status), DocumentStatus.FAILED)
             document.status = DocumentStatus.FAILED
             document.updated_at = now
+            record_event(
+                session,
+                workspace_id=document.workspace_id,
+                actor_id=actor_id,
+                document_id=document.id,
+                event_code="scan_failed",
+                now=now,
+                outcome="failed",
+            )
     except (DocumentNotFound, ContentUnavailable):
         _supersede_run(engine, run_id, attempt_count)
         raise
@@ -320,6 +338,14 @@ def scan_document(
                 document.status = DocumentStatus.NEEDS_REVIEW
                 document.updated_at = datetime.now(UTC)
                 session.flush()
+                record_event(
+                    session,
+                    workspace_id=document.workspace_id,
+                    actor_id=actor_id,
+                    document_id=document.id,
+                    event_code="scan_completed",
+                    now=datetime.now(UTC),
+                )
                 return _snapshot(session, _version(document), run)
     except (DocumentNotFound, ContentUnavailable):
         _supersede_run(engine, run_id, attempt_count)

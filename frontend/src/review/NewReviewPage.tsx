@@ -1,14 +1,14 @@
 import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  createFileDraft, createPastedDraft, getIntakeDefaults, type IntakeDefaultsView,
-  type SessionView,
+  createFileDraft, createPastedDraft, getIntakeDefaults, getWorkspacePresets,
+  type IntakeDefaultsView, type PresetView, type SessionView,
 } from '../api/client'
 
 type Defaults =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
-  | { kind: 'ready'; value: IntakeDefaultsView }
+  | { kind: 'ready'; value: IntakeDefaultsView; presets: PresetView[] }
 
 function messageFrom(error: unknown): string {
   return error instanceof Error ? error.message : 'The request could not be completed.'
@@ -34,6 +34,7 @@ export function NewReviewPage({ session }: { session: SessionView }) {
   const [emailEnabled, setEmailEnabled] = useState(true)
   const [phoneEnabled, setPhoneEnabled] = useState(true)
   const [phoneRegion, setPhoneRegion] = useState('PH')
+  const [presetId, setPresetId] = useState('')
   const [retentionDays, setRetentionDays] = useState(7)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -41,10 +42,18 @@ export function NewReviewPage({ session }: { session: SessionView }) {
   useEffect(() => {
     if (!workspaceId) return
     const controller = new AbortController()
-    getIntakeDefaults(workspaceId, controller.signal).then((value) => {
+    Promise.all([
+      getIntakeDefaults(workspaceId, controller.signal),
+      getWorkspacePresets(workspaceId, controller.signal),
+    ]).then(([value, presets]) => {
       if (controller.signal.aborted) return
-      setDefaults({ kind: 'ready', value })
+      setDefaults({ kind: 'ready', value, presets })
       setRetentionDays(value.content_retention_days)
+      const initial = presets.find((preset) => preset.is_default)
+      setPresetId(initial?.id ?? '')
+      setEmailEnabled(initial?.categories.includes('email') ?? true)
+      setPhoneEnabled(initial?.categories.includes('phone') ?? true)
+      setPhoneRegion(initial?.phone_region ?? 'PH')
     }).catch((cause: unknown) => {
       if (!controller.signal.aborted) setDefaults({ kind: 'error', message: messageFrom(cause) })
     })
@@ -99,10 +108,11 @@ export function NewReviewPage({ session }: { session: SessionView }) {
           categories: categories as Array<'email' | 'phone'>,
           phone_region: phoneRegion,
           retention_days: retentionDays,
+          preset_id: presetId || null,
         }, session.csrf_token)
         : await createFileDraft(
           workspaceId, file as File, title.trim(), categories, phoneRegion,
-          retentionDays, session.csrf_token,
+          retentionDays, session.csrf_token, presetId || undefined,
         )
       navigate(`/documents/${saved.version.document_id}/edit`)
     } catch (cause: unknown) {
@@ -180,13 +190,36 @@ export function NewReviewPage({ session }: { session: SessionView }) {
         <p>The uploaded filename is never used as the document title or storage name.</p>
         <fieldset>
           <legend>Automatic suggestions</legend>
+          {defaults.kind === 'ready' && defaults.presets.length > 0 && (
+            <>
+              <label htmlFor="intake-preset">Rules preset</label>{' '}
+              <select id="intake-preset" value={presetId} onChange={(event) => {
+                const id = event.target.value
+                setPresetId(id)
+                const preset = defaults.presets.find((item) => item.id === id)
+                if (preset) {
+                  setEmailEnabled(preset.categories.includes('email'))
+                  setPhoneEnabled(preset.categories.includes('phone'))
+                  setPhoneRegion(preset.phone_region)
+                }
+              }}>
+                <option value="">Custom settings</option>
+                {defaults.presets.map((preset) => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.name}{preset.is_default ? ' — workspace default' : ''} (v{preset.version})
+                  </option>
+                ))}
+              </select>
+              {presetId && <p>The chosen preset sets categories, phone region, and a preferred review action. You will still decide each finding.</p>}
+            </>
+          )}
           <label><input type="checkbox" checked={emailEnabled}
-            onChange={(event) => setEmailEnabled(event.target.checked)} />Email addresses</label>{' '}
+            onChange={(event) => setEmailEnabled(event.target.checked)} disabled={!!presetId} />Email addresses</label>{' '}
           <label><input type="checkbox" checked={phoneEnabled}
-            onChange={(event) => setPhoneEnabled(event.target.checked)} />Phone numbers</label>{' '}
+            onChange={(event) => setPhoneEnabled(event.target.checked)} disabled={!!presetId} />Phone numbers</label>{' '}
           <label htmlFor="phone-region">Phone region</label>{' '}
           <select id="phone-region" value={phoneRegion}
-            onChange={(event) => setPhoneRegion(event.target.value)}>
+            onChange={(event) => setPhoneRegion(event.target.value)} disabled={!!presetId}>
             <option value="PH">Philippines</option>
             <option value="US">United States</option>
             <option value="GB">United Kingdom</option>

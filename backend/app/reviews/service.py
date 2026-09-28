@@ -17,6 +17,7 @@ from app.db.repository import VersionConflict
 from app.groups.service import _snapshot, _version
 from app.lifecycle import require_transition
 from app.transformations.service import build_current_preview
+from app.workspace.activity import record_event
 
 
 class CompletionRejected(ValueError):
@@ -122,6 +123,14 @@ def confirm_review(
         require_transition(DocumentStatus(document.status), DocumentStatus.READY)
         document.status = DocumentStatus.READY
         document.updated_at = now
+        record_event(
+            session,
+            workspace_id=document.workspace_id,
+            actor_id=actor_id,
+            document_id=document.id,
+            event_code="review_completed",
+            now=now,
+        )
         session.flush()
         return CompletionSnapshot(version, completion.id, completion.confirmed_at)
 

@@ -679,6 +679,9 @@ export function EditDraftPage({ session }: { session: SessionView }) {
           <p>Status: {state.saved.status}. Expires: {new Date(state.saved.expires_at).toLocaleString()}.</p>
           <p>Suggestions: {state.saved.categories.join(', ') || 'none'}; phone region: {state.saved.phone_region}.</p>
           <p>Source revision: {state.saved.version.source_revision_id}</p>
+          {state.saved.preset_id && (
+            <p>Started with Rules preset version {state.saved.preset_version}. Preferred action: {state.saved.preferred_action}. Preset changes do not update this review.</p>
+          )}
           {error && <p role="alert">{error}</p>}
           {notice && <p role="status">{notice}</p>}
           <form onSubmit={save}>
@@ -963,6 +966,7 @@ export function EditDraftPage({ session }: { session: SessionView }) {
                         onClick={() => void changeReview('decision', item.finding_id, { action })}
                         disabled={dirty || settingsDirty || findingPending || conflict}>
                         {action === 'keep' ? 'Keep' : action === 'label' ? 'Label' : 'Redact'} this
+                        {action === state.saved.preferred_action ? ' (preferred)' : ''}
                       </button>
                     ))}{' '}
                     {item.group_id && findings.findings.filter(
