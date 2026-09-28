@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import {
   getWorkspaceOverview, type OverviewView, type SessionView,
 } from '../api/client'
+import { PageHeader } from '../ui/PageHeader'
+import { StatusBadge } from '../ui/StatusBadge'
 
 type Data = { kind: 'loading' } | { kind: 'error'; message: string } |
   { kind: 'ready'; value: OverviewView }
@@ -28,23 +30,24 @@ export function OverviewPage({ session }: { session: SessionView }) {
 
   return (
     <section aria-labelledby="overview-title">
-      <h1 id="overview-title">Overview</h1>
+      <PageHeader title="Overview" titleId="overview-title"
+        description="Your review work and recent progress in this workspace."
+        action={<Link className="button-primary" to="/new">New review</Link>} />
       {session.memberships.length > 1 && (
-        <>
-          <label htmlFor="overview-workspace">Workspace</label>{' '}
+        <div className="workspace-picker">
+          <label htmlFor="overview-workspace">Workspace</label>
           <select id="overview-workspace" value={workspaceId} onChange={(event) => {
             setWorkspaceId(event.target.value)
             setData({ kind: 'loading' })
           }}>
             {session.memberships.map((membership, index) => (
               <option key={membership.workspace_id} value={membership.workspace_id}>
-                Workspace {index + 1}
+                {membership.workspace_name || `Workspace ${index + 1}`}
               </option>
             ))}
           </select>
-        </>
+        </div>
       )}
-      <p><Link to="/new">New review</Link></p>
       {data.kind === 'loading' && <p role="status">Loading your review counts…</p>}
       {data.kind === 'error' && (
         <div role="alert">
@@ -57,23 +60,42 @@ export function OverviewPage({ session }: { session: SessionView }) {
       )}
       {data.kind === 'ready' && (
         <>
-          <p>Counts for your documents in this workspace, excluding deleted documents.
-            {' '}As of {new Date(data.value.as_of).toLocaleString()}.</p>
-          <p>{data.value.own_total} total review(s); {' '}
-            {data.value.own_created_last_30_days} created in the last 30 days.</p>
-          <h2>Your review statuses</h2>
-          {Object.keys(data.value.own_by_status).length === 0 ? (
-            <p>No reviews yet.</p>
-          ) : (
-            <ul>{Object.entries(data.value.own_by_status).map(([status, count]) => (
-              <li key={status}>{status.replaceAll('_', ' ')}: {count}</li>
-            ))}</ul>
-          )}
-          {data.value.workspace_total !== null && (
-            <p>Workspace total across all members: {data.value.workspace_total} review(s),
-              excluding deleted documents. Member titles and content are not included.</p>
-          )}
-          <p><Link to="/documents">Open your documents</Link></p>
+          <p className="data-scope">Your non-deleted documents as of {' '}
+            {new Date(data.value.as_of).toLocaleString()}.</p>
+          <div className="overview-metrics">
+            <article className="metric-card">
+              <span>Your reviews</span><strong>{data.value.own_total.toLocaleString()}</strong>
+              <small>All active documents</small>
+            </article>
+            <article className="metric-card">
+              <span>Created recently</span>
+              <strong>{data.value.own_created_last_30_days.toLocaleString()}</strong>
+              <small>Last 30 days</small>
+            </article>
+            {data.value.workspace_total !== null && (
+              <article className="metric-card">
+                <span>Workspace total</span>
+                <strong>{data.value.workspace_total.toLocaleString()}</strong>
+                <small>All members, counts only</small>
+              </article>
+            )}
+          </div>
+          <section className="surface-panel" aria-labelledby="overview-status-heading">
+            <div className="section-heading"><div>
+              <h2 id="overview-status-heading">Review statuses</h2>
+              <p>See where your documents need attention.</p>
+            </div><Link to="/documents">View documents</Link></div>
+            {Object.keys(data.value.own_by_status).length === 0 ? (
+              <div className="empty-state"><strong>No reviews yet</strong>
+                <p>Start with pasted text or a UTF-8 TXT file, then review every finding.</p>
+                <Link to="/new">Create your first review</Link>
+              </div>
+            ) : (
+              <ul className="status-list">{Object.entries(data.value.own_by_status).map(([status, count]) => (
+                <li key={status}><StatusBadge status={status} /><strong>{count.toLocaleString()}</strong></li>
+              ))}</ul>
+            )}
+          </section>
         </>
       )}
     </section>

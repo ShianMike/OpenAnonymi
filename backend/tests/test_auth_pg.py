@@ -89,7 +89,11 @@ def test_sign_in_session_recovery_and_protected_sign_out(auth_site):
     assert token
     assert signed_in.json()["user_id"] == str(member_id)
     assert signed_in.json()["memberships"] == [
-        {"workspace_id": str(workspace_id), "role": "member"}
+        {
+            "workspace_id": str(workspace_id),
+            "role": "member",
+            "workspace_name": "Auth test workspace",
+        }
     ]
     assert "httponly" in signed_in.headers["set-cookie"].lower()
     assert "samesite=lax" in signed_in.headers["set-cookie"].lower()
@@ -101,6 +105,7 @@ def test_sign_in_session_recovery_and_protected_sign_out(auth_site):
         assert len(stored.csrf_hash) == 32
 
     reloaded = client.get("/api/v1/auth/session")
+    assert reloaded.json()["memberships"][0]["workspace_name"] == "Auth test workspace"
     assert reloaded.status_code == 200
     csrf = signed_in.json()["csrf_token"]
     assert reloaded.json()["csrf_token"] == csrf

@@ -13,7 +13,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.contracts import WorkspaceRole
-from app.db.models import Membership, User
+from app.db.models import Membership, User, Workspace
 from app.db.models import Session as StoredSession
 
 SESSION_TTL = timedelta(hours=12)
@@ -35,6 +35,7 @@ class InvalidSession(RuntimeError):
 class ActiveMembership:
     workspace_id: UUID
     role: WorkspaceRole
+    workspace_name: str
 
 
 @dataclass(frozen=True)
@@ -89,12 +90,16 @@ def _csrf_token(token: str) -> str:
 
 
 def _memberships(session: Session, user_id: UUID) -> tuple[ActiveMembership, ...]:
-    rows = session.scalars(
-        select(Membership)
+    rows = session.execute(
+        select(Membership, Workspace.name)
+        .join(Workspace, Workspace.id == Membership.workspace_id)
         .where(Membership.user_id == user_id, Membership.revoked_at.is_(None))
         .order_by(Membership.workspace_id)
     ).all()
-    return tuple(ActiveMembership(row.workspace_id, WorkspaceRole(row.role)) for row in rows)
+    return tuple(
+        ActiveMembership(membership.workspace_id, WorkspaceRole(membership.role), name)
+        for membership, name in rows
+    )
 
 
 def sign_in(session: Session, *, email: str, password: str, now: datetime) -> IssuedSession:

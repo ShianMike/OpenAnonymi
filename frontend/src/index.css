@@ -1,10 +1,56 @@
+@font-face {
+  font-family: Figtree;
+  src: url('./assets/fonts/Figtree-variable.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+}
+
 :root {
-  font-family: system-ui, sans-serif;
-  color: #222;
-  background: #fff;
+  font-family: Figtree, 'Segoe UI', system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  font-synthesis: none;
+  color: #1c2937;
+  background: #f4f6f9;
+  --page: #f4f6f9;
+  --surface: #fff;
+  --surface-subtle: #f8fafc;
+  --line: #d9e1e9;
+  --line-strong: #b9c6d5;
+  --text: #1c2937;
+  --muted: #58697b;
+  --blue: #1765c1;
+  --blue-strong: #0e519f;
+  --blue-tint: #eaf3ff;
+  --orange: #df7541;
+  --danger: #a73a3a;
+  --danger-tint: #fff1f0;
+  --focus: #1765c1;
+  --radius-sm: 7px;
+  --radius: 11px;
+  --shadow: 0 2px 12px rgb(20 42 69 / 5%);
 }
 
 * { box-sizing: border-box; }
-body { margin: 0; }
-button { font: inherit; cursor: pointer; }
-button:focus-visible, a:focus-visible { outline: 2px solid #174ea6; outline-offset: 2px; }
+html { min-width: 320px; }
+body { margin: 0; min-width: 320px; }
+button, input, select, textarea { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .58; }
+a { color: var(--blue-strong); text-underline-offset: 2px; }
+a:hover { color: var(--blue); }
+:is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+::selection { background: #bbd9ff; color: #10253e; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}

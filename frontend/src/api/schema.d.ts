@@ -1179,6 +1179,8 @@ export interface components {
              */
             workspace_id: string;
             role: components["schemas"]["WorkspaceRole"];
+            /** Workspace Name */
+            workspace_name: string;
         };
         /** MergeRequest */
         MergeRequest: {

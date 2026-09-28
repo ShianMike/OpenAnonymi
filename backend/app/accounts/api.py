@@ -44,6 +44,7 @@ class SignInRequest(BaseModel):
 class MembershipView(BaseModel):
     workspace_id: UUID
     role: WorkspaceRole
+    workspace_name: str
 
 
 class SessionView(BaseModel):
@@ -80,7 +81,11 @@ def _view(identity: SessionIdentity) -> SessionView:
         expires_at=identity.expires_at,
         csrf_token=identity.csrf_token,
         memberships=[
-            MembershipView(workspace_id=item.workspace_id, role=item.role)
+            MembershipView(
+                workspace_id=item.workspace_id,
+                role=item.role,
+                workspace_name=item.workspace_name,
+            )
             for item in identity.memberships
         ],
     )

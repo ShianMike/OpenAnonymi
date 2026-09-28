@@ -4,6 +4,7 @@ import {
   createFileDraft, createPastedDraft, getIntakeDefaults, getWorkspacePresets,
   type IntakeDefaultsView, type PresetView, type SessionView,
 } from '../api/client'
+import { PageHeader } from '../ui/PageHeader'
 
 type Defaults =
   | { kind: 'loading' }
@@ -130,9 +131,9 @@ export function NewReviewPage({ session }: { session: SessionView }) {
       file !== null && !fileLoading && fileError === null && fileText.trim().length > 0)
 
   return (
-    <section>
-      <h1>New review</h1>
-      <p>Save a private draft before finding and reviewing possible sensitive information.</p>
+    <section aria-labelledby="new-review-title">
+      <PageHeader title="New review" titleId="new-review-title"
+        description="Save a private draft before finding and reviewing possible sensitive information." />
       {error && <p role="alert">{error}</p>}
       {defaults.kind === 'loading' && <p role="status">Loading workspace limits…</p>}
       {defaults.kind === 'error' && (

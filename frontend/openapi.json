@@ -4162,12 +4162,17 @@
           },
           "role": {
             "$ref": "#/components/schemas/WorkspaceRole"
+          },
+          "workspace_name": {
+            "type": "string",
+            "title": "Workspace Name"
           }
         },
         "type": "object",
         "required": [
           "workspace_id",
-          "role"
+          "role",
+          "workspace_name"
         ],
         "title": "MembershipView"
       },

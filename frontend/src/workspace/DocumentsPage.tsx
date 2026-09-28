@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import {
   deleteDocument, getWorkspaceDocuments, type DocumentIndexView, type SessionView,
 } from '../api/client'
+import { PageHeader } from '../ui/PageHeader'
+import { StatusBadge } from '../ui/StatusBadge'
 
 type Data = { kind: 'loading' } | { kind: 'error'; message: string } |
   { kind: 'ready'; items: DocumentIndexView[] }
@@ -68,24 +70,25 @@ export function DocumentsPage({ session }: { session: SessionView }) {
 
   return (
     <section aria-labelledby="documents-title">
-      <h1 id="documents-title">Documents</h1>
-      <p>Your saved reviews in this workspace. Expired content cannot be reopened.</p>
+      <PageHeader title="Documents" titleId="documents-title"
+        description="Find and resume your saved reviews. Expired content cannot be reopened."
+        action={<Link className="button-primary" to="/new">New review</Link>} />
       {actionError && <p role="alert">{actionError}</p>}
       {notice && <p role="status">{notice}</p>}
       {session.memberships.length > 1 && (
-        <>
-          <label htmlFor="documents-workspace">Workspace</label>{' '}
+        <div className="workspace-picker">
+          <label htmlFor="documents-workspace">Workspace</label>
           <select id="documents-workspace" value={workspaceId} onChange={(event) => {
             setWorkspaceId(event.target.value)
             setData({ kind: 'loading' })
           }}>
             {session.memberships.map((membership, index) => (
               <option key={membership.workspace_id} value={membership.workspace_id}>
-                Workspace {index + 1}
+                {membership.workspace_name || `Workspace ${index + 1}`}
               </option>
             ))}
           </select>
-        </>
+        </div>
       )}
       {data.kind === 'loading' && <p role="status">Loading documents…</p>}
       {data.kind === 'error' && (
@@ -99,33 +102,38 @@ export function DocumentsPage({ session }: { session: SessionView }) {
       )}
       {data.kind === 'ready' && (
         <>
-          <div>
-            <label htmlFor="document-search">Search titles</label>{' '}
+          <div className="document-toolbar surface-panel">
+            <div className="field-stack"><label htmlFor="document-search">Search titles</label>
             <input id="document-search" type="search" value={search}
-              onChange={(event) => setSearch(event.target.value)} />{' '}
-            <label htmlFor="document-status">Status</label>{' '}
+              onChange={(event) => setSearch(event.target.value)} /></div>
+            <div className="field-stack"><label htmlFor="document-status">Status</label>
             <select id="document-status" value={status}
               onChange={(event) => setStatus(event.target.value)}>
               <option value="all">All statuses</option>
               {['draft', 'scanning', 'needs_review', 'ready', 'exported', 'failed', 'expired']
                 .map((value) => <option key={value} value={value}>{value.replaceAll('_', ' ')}</option>)}
-            </select>{' '}
-            <label htmlFor="document-sort">Sort</label>{' '}
+            </select></div>
+            <div className="field-stack"><label htmlFor="document-sort">Sort</label>
             <select id="document-sort" value={sort}
               onChange={(event) => setSort(event.target.value as Sort)}>
               <option value="newest">Newest first</option>
               <option value="oldest">Oldest first</option>
               <option value="expiring">Expiring first</option>
               <option value="title">Title</option>
-            </select>{' '}
+            </select></div>
             <button type="button" onClick={() => {
               setData({ kind: 'loading' })
               setAttempt((value) => value + 1)
             }}>Refresh</button>
           </div>
-          <p role="status">Showing {visible.length} of {data.items.length} documents.</p>
-          {visible.length === 0 ? <p>No documents match these filters.</p> : (
-            <table>
+          <p role="status" className="data-scope">Showing {visible.length} of {data.items.length} documents.</p>
+          {visible.length === 0 ? <div className="empty-state surface-panel">
+            <strong>{data.items.length === 0 ? 'No reviews yet' : 'No matching documents'}</strong>
+            <p>{data.items.length === 0 ? 'Create a review to see it here.' :
+              'Adjust the search or status filter to see other reviews.'}</p>
+            {data.items.length === 0 && <Link to="/new">Create a review</Link>}
+          </div> : (
+            <div className="table-shell" role="region" aria-label="Document list" tabIndex={0}><table>
               <thead><tr>
                 <th scope="col">Document</th><th scope="col">Status</th>
                 <th scope="col">Review progress</th><th scope="col">Created</th>
@@ -135,7 +143,7 @@ export function DocumentsPage({ session }: { session: SessionView }) {
               <tbody>{visible.map((item) => (
                 <tr key={item.id}>
                   <th scope="row">{item.title || `Review ${item.id}`}</th>
-                  <td>{item.status.replaceAll('_', ' ')}</td>
+                  <td><StatusBadge status={item.status} /></td>
                   <td>{item.decided_count} of {item.finding_count} findings decided</td>
                   <td>{new Date(item.created_at).toLocaleString()}</td>
                   <td>{new Date(item.updated_at).toLocaleString()}</td>
@@ -150,7 +158,7 @@ export function DocumentsPage({ session }: { session: SessionView }) {
                   </td>
                 </tr>
               ))}</tbody>
-            </table>
+            </table></div>
           )}
         </>
       )}

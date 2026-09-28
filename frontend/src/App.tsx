@@ -1,5 +1,9 @@
-import { useEffect, useState } from 'react'
-import { NavLink, Route, Routes } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import {
+  Activity, ChevronRight, FilePlus2, Files, LayoutDashboard,
+  LogOut, Menu, Settings2, ShieldCheck, SlidersHorizontal, X,
+} from 'lucide-react'
 import { SignInPage } from './accounts/SignInPage'
 import { SettingsPage } from './accounts/SettingsPage'
 import { EditDraftPage } from './review/EditDraftPage'
@@ -15,12 +19,12 @@ import {
 import './App.css'
 
 const pages = [
-  { path: '/', name: 'Overview' },
-  { path: '/new', name: 'New review' },
-  { path: '/documents', name: 'Documents' },
-  { path: '/rules', name: 'Rules' },
-  { path: '/activity', name: 'Activity' },
-  { path: '/settings', name: 'Settings' },
+  { path: '/', name: 'Overview', icon: LayoutDashboard },
+  { path: '/new', name: 'New review', icon: FilePlus2 },
+  { path: '/documents', name: 'Documents', icon: Files },
+  { path: '/rules', name: 'Rules', icon: SlidersHorizontal },
+  { path: '/activity', name: 'Activity', icon: Activity },
+  { path: '/settings', name: 'Settings', icon: Settings2 },
 ]
 
 type Authentication =
@@ -39,11 +43,33 @@ function PendingPage({ title }: { title: string }) {
 }
 
 function App() {
+  const { pathname } = useLocation()
   const [authentication, setAuthentication] = useState<Authentication>({ kind: 'checking' })
   const [sessionAttempt, setSessionAttempt] = useState(0)
   const [signOutError, setSignOutError] = useState<string | null>(null)
   const [signOutPending, setSignOutPending] = useState(false)
   const [signInNotice, setSignInNotice] = useState<string | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const navRef = useRef<HTMLElement>(null)
+  const mainRef = useRef<HTMLElement>(null)
+  const previousPathRef = useRef(pathname)
+
+  const activePage = pages.find((page) => page.path === pathname)
+  const pageTitle = activePage?.name ??
+    (pathname.endsWith('/history') ? 'Review history' :
+      pathname.endsWith('/edit') ? 'Review workspace' : 'Page not found')
+
+  useEffect(() => {
+    if (previousPathRef.current !== pathname) {
+      previousPathRef.current = pathname
+      mainRef.current?.focus()
+    }
+  }, [pathname])
+
+  useEffect(() => {
+    if (menuOpen) navRef.current?.querySelector('a')?.focus()
+  }, [menuOpen])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -93,8 +119,9 @@ function App() {
   }
   if (authentication.kind === 'signed-out') {
     return (
-      <div className="app">
-        <header className="app-header"><strong>OpenAnonymi</strong><span>Privacy review</span></header>
+      <div className="app auth-shell">
+        <header className="auth-brand"><span className="brand-mark" aria-hidden="true">O</span>
+          <strong>OpenAnonymi</strong><span>Privacy review</span></header>
         {signInNotice && <p role="status">{signInNotice}</p>}
         <SignInPage onSignedIn={(session) => {
           setSignInNotice(null)
@@ -103,26 +130,69 @@ function App() {
       </div>
     )
   }
+  const currentWorkspace = authentication.session.memberships.length === 1
+    ? authentication.session.memberships[0] : null
+  const workspaceLabel = currentWorkspace?.workspace_name ??
+    `${authentication.session.memberships.length} workspaces`
   return (
-    <div className="app">
-      <header className="app-header">
-        <strong>OpenAnonymi</strong>
-        <span>Privacy review</span>
-        <span>Signed in as {authentication.session.email}</span>
-        <button type="button" onClick={handleSignOut} disabled={signOutPending}>
-          {signOutPending ? 'Signing out…' : 'Sign out'}
-        </button>
-      </header>
-      {signOutError && <p role="alert">{signOutError}</p>}
-      <div className="app-body">
-        <nav aria-label="Main navigation">
+    <div className="app app-shell">
+      <a className="skip-link" href="#main-content">Skip to content</a>
+      <aside className={`app-sidebar${menuOpen ? ' is-open' : ''}`} id="app-sidebar"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && menuOpen) {
+            setMenuOpen(false)
+            menuButtonRef.current?.focus()
+          }
+        }}>
+        <div className="sidebar-brand"><span className="brand-mark" aria-hidden="true">O</span>
+          <span><strong>OpenAnonymi</strong><small>Privacy review</small></span></div>
+        <div className="workspace-context">
+          <span className="eyebrow">Workspace</span>
+          <strong title={workspaceLabel}>
+            {workspaceLabel}
+          </strong>
+          <span>{currentWorkspace
+            ? currentWorkspace.role === 'administrator' ? 'Administrator' : 'Member'
+            : 'Choose a workspace on each page'}</span>
+        </div>
+        <nav className="app-nav" aria-label="Main navigation" ref={navRef}>
+          <span className="nav-heading">Workspace</span>
           {pages.map((page) => (
-            <NavLink key={page.path} to={page.path} end={page.path === '/'}>
+            <NavLink key={page.path} to={page.path} end={page.path === '/'}
+              onClick={() => setMenuOpen(false)}>
+              <page.icon size={17} strokeWidth={1.9} aria-hidden="true" />
               {page.name}
             </NavLink>
           ))}
         </nav>
-        <main id="main-content">
+        <div className="sidebar-footer"><ShieldCheck size={16} aria-hidden="true" />
+          <span>Review before sharing</span></div>
+      </aside>
+      <div className="app-workarea">
+        <header className="app-topbar">
+          <button className="menu-toggle icon-button" type="button" ref={menuButtonRef}
+            aria-label={menuOpen ? 'Close navigation' : 'Open navigation'}
+            aria-controls="app-sidebar" aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((value) => !value)}>
+            {menuOpen ? <X size={19} aria-hidden="true" /> : <Menu size={19} aria-hidden="true" />}
+          </button>
+          <div className="breadcrumbs" aria-label="Current page">
+            <span>{workspaceLabel}</span>
+            <ChevronRight size={15} aria-hidden="true" />
+            <strong>{pageTitle}</strong>
+          </div>
+          <div className="topbar-account"><span title={authentication.session.email}>
+            {authentication.session.email}</span>
+            <button className="text-button" type="button" aria-label="Sign out"
+              onClick={handleSignOut}
+              disabled={signOutPending}>
+              <LogOut size={16} aria-hidden="true" />
+              {signOutPending ? 'Signing out…' : 'Sign out'}
+            </button>
+          </div>
+        </header>
+        {signOutError && <p role="alert" className="topbar-alert">{signOutError}</p>}
+        <main id="main-content" ref={mainRef} tabIndex={-1}>
           <Routes>
             <Route path="/" element={<OverviewPage session={authentication.session} />} />
             <Route path="/new" element={<NewReviewPage session={authentication.session} />} />
@@ -136,9 +206,6 @@ function App() {
                 setSignInNotice('Password changed. Sign in again with your new password.')
                 setAuthentication({ kind: 'signed-out' })
               }} />} />
-            {pages.slice(1).filter((page) => !['/new', '/documents', '/rules', '/activity', '/settings'].includes(page.path)).map((page) => (
-              <Route key={page.path} path={page.path} element={<PendingPage title={page.name} />} />
-            ))}
             <Route path="*" element={<PendingPage title="Page not found" />} />
           </Routes>
         </main>
