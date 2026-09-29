@@ -165,7 +165,7 @@ export function NewReviewPage({ session, onUnsavedChange }: {
         {session.memberships.length > 1 && (
           <>
             <label htmlFor="intake-workspace">Workspace</label>{' '}
-            <select id="intake-workspace" value={workspaceId}
+            <select id="intake-workspace" value={workspaceId} disabled={pending}
               onChange={(event) => {
                 setDefaults({ kind: 'loading' })
                 setWorkspaceId(event.target.value)
@@ -181,20 +181,20 @@ export function NewReviewPage({ session, onUnsavedChange }: {
         <fieldset>
           <legend>Source</legend>
           <label><input type="radio" name="source-mode" checked={mode === 'paste'}
-            onChange={() => setMode('paste')} />Paste text</label>{' '}
+            onChange={() => setMode('paste')} disabled={pending} />Paste text</label>{' '}
           <label><input type="radio" name="source-mode" checked={mode === 'file'}
-            onChange={() => setMode('file')} />UTF-8 TXT file</label>
+            onChange={() => setMode('file')} disabled={pending} />UTF-8 TXT file</label>
           {mode === 'paste' ? (
             <>
               <label htmlFor="source-text" className="block-label">Text to review</label>
               <textarea id="source-text" className="source-editor" value={source}
-                onChange={(event) => setSource(event.target.value)} required />
+                onChange={(event) => setSource(event.target.value)} required disabled={pending} />
             </>
           ) : (
             <>
               <label htmlFor="source-file" className="block-label">Choose one .txt file</label>
               <input id="source-file" type="file" accept=".txt,text/plain"
-                onChange={(event) => void chooseFile(event)} required />
+                onChange={(event) => void chooseFile(event)} required disabled={pending} />
               {fileLoading && <p role="status">Reading file text…</p>}
               {fileError && <p role="alert">{fileError}</p>}
               {fileText && (
@@ -209,14 +209,14 @@ export function NewReviewPage({ session, onUnsavedChange }: {
         </fieldset>
         <label className="block-label" htmlFor="draft-title">Optional title</label>{' '}
         <input id="draft-title" type="text" maxLength={200} value={title}
-          onChange={(event) => setTitle(event.target.value)} />
+          onChange={(event) => setTitle(event.target.value)} disabled={pending} />
         {mode === 'file' && <p>The uploaded filename is never used as the document title or storage name.</p>}
         <fieldset>
           <legend>Automatic suggestions</legend>
           {defaults.kind === 'ready' && defaults.presets.length > 0 && (
             <>
               <label htmlFor="intake-preset">Rules preset</label>{' '}
-              <select id="intake-preset" value={presetId} onChange={(event) => {
+              <select id="intake-preset" value={presetId} disabled={pending} onChange={(event) => {
                 const id = event.target.value
                 setPresetId(id)
                 const preset = defaults.presets.find((item) => item.id === id)
@@ -237,12 +237,12 @@ export function NewReviewPage({ session, onUnsavedChange }: {
             </>
           )}
           <label><input type="checkbox" checked={emailEnabled}
-            onChange={(event) => setEmailEnabled(event.target.checked)} disabled={!!presetId} />Email addresses</label>{' '}
+            onChange={(event) => setEmailEnabled(event.target.checked)} disabled={!!presetId || pending} />Email addresses</label>{' '}
           <label><input type="checkbox" checked={phoneEnabled}
-            onChange={(event) => setPhoneEnabled(event.target.checked)} disabled={!!presetId} />Phone numbers</label>{' '}
+            onChange={(event) => setPhoneEnabled(event.target.checked)} disabled={!!presetId || pending} />Phone numbers</label>{' '}
           <label htmlFor="phone-region">Phone region</label>{' '}
           <select id="phone-region" value={phoneRegion}
-            onChange={(event) => setPhoneRegion(event.target.value)} disabled={!!presetId}>
+            onChange={(event) => setPhoneRegion(event.target.value)} disabled={!!presetId || pending}>
             <option value="PH">Philippines</option>
             <option value="US">United States</option>
             <option value="GB">United Kingdom</option>
@@ -255,7 +255,7 @@ export function NewReviewPage({ session, onUnsavedChange }: {
           <>
             <label className="block-label" htmlFor="retention-days">Keep draft for</label>{' '}
             <select id="retention-days" value={retentionDays}
-              onChange={(event) => setRetentionDays(Number(event.target.value))}>
+              onChange={(event) => setRetentionDays(Number(event.target.value))} disabled={pending}>
               {Array.from({ length: defaults.value.content_retention_days }, (_item, index) => index + 1)
                 .map((days) => <option key={days} value={days}>{days} day{days > 1 ? 's' : ''}</option>)}
             </select>
