@@ -34,6 +34,7 @@ from app.accounts.security import (
 )
 from app.config import Settings
 from app.contracts import ErrorResponse, WorkspaceRole
+from app.edge import attempt_key, scope_client_address
 from app.errors import ApiError
 
 
@@ -100,7 +101,11 @@ def _view(identity: SessionIdentity) -> SessionView:
 
 
 class AttemptLimiter:
-    """Conservative per-process IP budget until deployment-wide limits are configured."""
+    """Conservative per-process IP budget until deployment-wide limits are configured.
+
+    State lives in this process only. Run exactly one worker and one instance; extra
+    workers or replicas each get their own budget, and a restart resets it.
+    """
 
     def __init__(self, maximum: int = 8, window_seconds: int = 300) -> None:
         self.maximum = maximum
@@ -126,6 +131,40 @@ class AttemptLimiter:
                 return False
             attempts.append(now)
             return True
+
+
+def request_client_ip(request: Request) -> str:
+    """Attempt-limit key: the first trusted X-Forwarded-For hop, else the socket peer."""
+    settings: Settings = request.app.state.settings
+    return attempt_key(scope_client_address(request.scope, settings.trusted_proxy_hops))
+
+
+def _session_cookie(value: str, *, max_age: int, settings: Settings) -> str:
+    """Build the session cookie so issuing and clearing always use identical attributes.
+
+    Production serves the website and the API from different sites, so the cookie must be
+    SameSite=None and Secure. Partitioned (CHIPS) keys it to the website's top-level site,
+    which keeps it usable where unpartitioned third-party cookies are blocked. Starlette
+    only emits Partitioned on Python 3.14+, so the header is formatted here.
+    """
+    attributes = [f"{COOKIE_NAME}={value}", f"Max-Age={max_age}", f"Path={COOKIE_PATH}"]
+    if max_age == 0:
+        attributes.append("Expires=Thu, 01 Jan 1970 00:00:00 GMT")
+    attributes.append("HttpOnly")
+    if settings.environment == "production":
+        attributes.extend(("Secure", "SameSite=None", "Partitioned"))
+    else:
+        attributes.append("SameSite=Lax")
+    return "; ".join(attributes)
+
+
+def set_session_cookie(response: Response, token: str, settings: Settings) -> None:
+    max_age = int(SESSION_TTL.total_seconds())
+    response.headers.append("set-cookie", _session_cookie(token, max_age=max_age, settings=settings))
+
+
+def clear_session_cookie(response: Response, settings: Settings) -> None:
+    response.headers.append("set-cookie", _session_cookie("", max_age=0, settings=settings))
 
 
 def require_mutation_origin(request: Request) -> None:
@@ -166,7 +205,7 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
     )
     def sign_in_route(body: SignInRequest, request: Request, response: Response) -> SessionView:
         require_mutation_origin(request)
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = request_client_ip(request)
         if not limiter.take(client_ip):
             raise ApiError(429, "sign_in_limited", "Too many sign-in attempts. Try again later.")
         try:
@@ -181,15 +220,7 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
             raise ApiError(
                 401, "invalid_credentials", "Email or password was not accepted."
             ) from None
-        response.set_cookie(
-            COOKIE_NAME,
-            issued.token,
-            max_age=int(SESSION_TTL.total_seconds()),
-            path=COOKIE_PATH,
-            secure=settings.environment == "production",
-            httponly=True,
-            samesite="lax",
-        )
+        set_session_cookie(response, issued.token, settings)
         return _view(issued.identity)
 
     @router.post(
@@ -206,7 +237,7 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
                 "registration_closed",
                 "Account creation is closed. Contact your workspace administrator.",
             )
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = request_client_ip(request)
         if not registration_limiter.take(client_ip):
             raise ApiError(
                 429, "registration_limited", "Too many account creation attempts. Try again later."
@@ -228,15 +259,7 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
             ) from None
         except ValueError as exc:
             raise ApiError(422, "invalid_registration", str(exc)) from None
-        response.set_cookie(
-            COOKIE_NAME,
-            issued.token,
-            max_age=int(SESSION_TTL.total_seconds()),
-            path=COOKIE_PATH,
-            secure=settings.environment == "production",
-            httponly=True,
-            samesite="lax",
-        )
+        set_session_cookie(response, issued.token, settings)
         return _view(issued.identity)
 
     @router.get(
@@ -263,7 +286,7 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
             except InvalidSession:
                 raise ApiError(401, "sign_in_required", "Sign in to continue.") from None
         response = Response(status_code=204)
-        response.delete_cookie(COOKIE_NAME, path=COOKIE_PATH)
+        clear_session_cookie(response, settings)
         return response
 
     @router.post(
@@ -291,7 +314,7 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
         except ValueError as exc:
             raise ApiError(422, "invalid_password", str(exc)) from None
         response = Response(status_code=204)
-        response.delete_cookie(COOKIE_NAME, path=COOKIE_PATH)
+        clear_session_cookie(response, settings)
         return response
 
     @router.post(
@@ -305,7 +328,7 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
         mailer = request.app.state.recovery_mailer
         if mailer is None:
             raise ApiError(503, "recovery_unavailable", "Account recovery is not configured.")
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = request_client_ip(request)
         if not recovery_request_limiter.take(client_ip):
             raise ApiError(429, "recovery_limited", "Too many recovery requests. Try again later.")
         try:
@@ -324,7 +347,7 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
     )
     def recovery_complete_route(body: RecoveryCompletion, request: Request) -> Response:
         require_mutation_origin(request)
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = request_client_ip(request)
         if not recovery_completion_limiter.take(client_ip):
             raise ApiError(429, "recovery_limited", "Too many recovery attempts. Try again later.")
         try:
@@ -341,7 +364,7 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
                 400, "invalid_recovery_code", "The recovery code is invalid or expired."
             ) from None
         response = Response(status_code=204)
-        response.delete_cookie(COOKIE_NAME, path=COOKIE_PATH)
+        clear_session_cookie(response, settings)
         return response
 
     return router

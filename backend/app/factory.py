@@ -20,6 +20,13 @@ from app.config import Settings, load_settings
 from app.contracts import ErrorResponse, HealthResponse, ServiceMetadata, service_metadata
 from app.custom_rules.api import create_custom_rules_router
 from app.detection.api import create_detection_router
+from app.edge import (
+    AccessLogMiddleware,
+    RequestBodyLimitMiddleware,
+    RequestTooLarge,
+    SecurityHeadersMiddleware,
+    request_too_large_handler,
+)
 from app.errors import ApiError, api_error_handler, validation_error_handler
 from app.exports.api import create_exports_router
 from app.groups.api import create_groups_router
@@ -44,7 +51,7 @@ def create_app(
         settings.database_url,
         pool_pre_ping=True,
         hide_parameters=True,
-        connect_args={"connect_timeout": 2},
+        connect_args={"connect_timeout": settings.database_connect_timeout},
     )
 
     @asynccontextmanager
@@ -64,21 +71,31 @@ def create_app(
             if owned_engine:
                 engine.dispose()
 
-    app = FastAPI(title="OpenAnonymi API", version="0.1.0", lifespan=lifespan)
+    production = settings.environment == "production"
+    # Interactive docs and the public schema are development aids only.
+    docs = {} if not production else {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    app = FastAPI(title="OpenAnonymi API", version="0.1.0", lifespan=lifespan, **docs)
     app.state.settings = settings
     app.state.engine = engine
     app.state.recovery_mailer = recovery_mailer or (
         SmtpRecoveryMailer(settings) if settings.smtp_host else None
     )
+    # Added innermost first. The body limit sits inside CORS so a 413 still carries CORS
+    # headers the website can read; security headers and the access log wrap everything.
+    app.add_middleware(RequestBodyLimitMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.allowed_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Content-Type", "X-CSRF-Token"],
+        max_age=600,
     )
+    app.add_middleware(SecurityHeadersMiddleware, strict_transport=production)
+    app.add_middleware(AccessLogMiddleware, trusted_proxy_hops=settings.trusted_proxy_hops)
     app.add_exception_handler(ApiError, api_error_handler)
     app.add_exception_handler(RequestValidationError, validation_error_handler)
+    app.add_exception_handler(RequestTooLarge, request_too_large_handler)
     app.include_router(create_auth_router(engine, settings))
     app.include_router(create_admin_router(engine))
     app.include_router(create_intake_router(engine))
@@ -95,13 +112,6 @@ def create_app(
     app.include_router(create_workspace_router(engine))
     app.include_router(create_presets_router(engine))
     app.include_router(create_cleanup_router(engine))
-
-    @app.middleware("http")
-    async def prevent_api_caching(request, call_next):
-        response = await call_next(request)
-        if request.url.path.startswith("/api/"):
-            response.headers["Cache-Control"] = "no-store"
-        return response
 
     @app.get("/api/v1/health/live", response_model=HealthResponse)
     def live() -> HealthResponse:

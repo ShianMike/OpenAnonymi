@@ -1,3 +1,4 @@
+import { API_CREDENTIALS, apiUrl } from '../api/base'
 import { trackedRequest } from '../api/requestActivity'
 import type { components } from '../api/schema'
 import { get, requireSuccess, sendJson } from '../api/client'
@@ -26,8 +27,8 @@ export function saveRecovery(workspaceId: string, id: string, version: number,
 }
 
 export async function deleteRecovery(workspaceId: string, id: string, version: number, csrf: string) {
-  return trackedRequest(`/api/v1${base(workspaceId)}/${encodeURIComponent(id)}?expected_version=${version}`, {
-    method: 'DELETE', credentials: 'same-origin', cache: 'no-store',
+  return trackedRequest(apiUrl(`${base(workspaceId)}/${encodeURIComponent(id)}?expected_version=${version}`), {
+    method: 'DELETE', credentials: API_CREDENTIALS, cache: 'no-store',
     headers: { 'X-CSRF-Token': csrf },
   }, async (response) => {
     await requireSuccess(response)

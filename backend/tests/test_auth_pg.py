@@ -173,7 +173,8 @@ def test_production_cookie_is_secure_and_foreign_origin_cannot_sign_in(auth_site
         content_keys={"synthetic": Fernet.generate_key().decode()},
         _env_file=None,
     )
-    with TestClient(create_app(settings, engine=engine)) as production_client:
+    app = create_app(settings, engine=engine)
+    with TestClient(app, base_url="https://testserver") as production_client:
         denied = production_client.post(
             "/api/v1/auth/sign-in",
             json={"email": "member-a@example.invalid", "password": PASSWORD},
@@ -186,7 +187,26 @@ def test_production_cookie_is_secure_and_foreign_origin_cannot_sign_in(auth_site
             headers={"Origin": origin},
         )
         assert signed_in.status_code == 200
-        assert "secure" in signed_in.headers["set-cookie"].lower()
+        issued = signed_in.headers["set-cookie"].lower()
+        for attribute in (
+            "httponly",
+            "secure",
+            "samesite=none",
+            "partitioned",
+            "path=/api/v1",
+            "max-age=43200",
+        ):
+            assert attribute in issued
+        assert production_client.get("/api/v1/auth/session").status_code == 200
+        signed_out = production_client.post(
+            "/api/v1/auth/sign-out",
+            headers={"Origin": origin, "X-CSRF-Token": signed_in.json()["csrf_token"]},
+        )
+        assert signed_out.status_code == 204
+        cleared = signed_out.headers["set-cookie"].lower()
+        for attribute in ("max-age=0", "path=/api/v1", "secure", "samesite=none", "partitioned"):
+            assert attribute in cleared
+        assert production_client.get("/api/v1/auth/session").status_code == 401
 
 
 class CapturingMailer:

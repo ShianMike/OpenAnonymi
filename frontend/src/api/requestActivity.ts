@@ -49,10 +49,16 @@ export function requestLabel(path: string, method: string) {
   return read ? 'Loading workspace data' : 'Saving your changes'
 }
 
+/** Pathname only, so an absolute API origin or query string never affects the label. */
+export function requestPath(url: string) {
+  try { return new URL(url, 'http://relative.invalid').pathname }
+  catch { return url.split(/[?#]/)[0] }
+}
+
 /** Keep the operation active through response consumption, including an export's bytes. */
 export async function trackedRequest<T>(input: RequestInfo | URL, init: RequestInit, consume: (response: Response) => Promise<T>): Promise<T> {
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-  const path = url.split('?')[0]
+  const path = requestPath(url)
   if (path.includes('/health/') || path.endsWith('/meta')) return consume(await fetch(input, init))
   const id = ++sequence
   const method = init?.method ?? (input instanceof Request ? input.method : 'GET')

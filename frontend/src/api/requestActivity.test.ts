@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
-import { requestLabel, requestSnapshot, subscribeRequests, trackedRequest } from './requestActivity'
+import { requestLabel, requestPath, requestSnapshot, subscribeRequests, trackedRequest } from './requestActivity'
 
 afterEach(() => { vi.unstubAllGlobals(); expect(requestSnapshot()).toEqual([]) })
 
@@ -46,5 +46,21 @@ it('names actual operations and ignores readiness checks', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}')))
   await trackedRequest('/api/v1/health/ready', {}, response => response.json())
   expect(listener).not.toHaveBeenCalled()
+  unsubscribe()
+})
+
+it('labels an absolute cross-origin API URL by its path only', async () => {
+  const api = 'https://recovery-api.example.invalid/api/v1'
+  expect(requestPath(`${api}/documents/id/scan?x=1#y`)).toBe('/api/v1/documents/id/scan')
+  expect(requestPath('/api/v1/documents?private=1')).toBe('/api/v1/documents')
+  expect(requestLabel(requestPath(`${api}/documents/id/scan`), 'POST')).toBe('Checking for sensitive details')
+  const listener = vi.fn()
+  const unsubscribe = subscribeRequests(listener)
+  vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => new Response('{}')))
+  await trackedRequest(`${api}/health/ready`, {}, response => response.json())
+  await trackedRequest(`${api}/meta`, {}, response => response.json())
+  expect(listener).not.toHaveBeenCalled()
+  await trackedRequest(`${api}/documents`, {}, response => response.json())
+  expect(listener).toHaveBeenCalledTimes(2)
   unsubscribe()
 })

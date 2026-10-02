@@ -1,3 +1,4 @@
+import { API_CREDENTIALS, apiUrl } from './base'
 import { trackedRequest } from './requestActivity'
 import type { components } from './schema'
 
@@ -65,9 +66,9 @@ function isErrorResponse(value: unknown): value is ErrorResponse {
 }
 
 export async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
-  return trackedRequest(`/api/v1${path}`, {
+  return trackedRequest(apiUrl(path), {
     method: 'GET',
-    credentials: 'same-origin',
+    credentials: API_CREDENTIALS,
     cache: 'no-store',
     signal,
     headers: { Accept: 'application/json' },
@@ -98,9 +99,9 @@ export async function requireSuccess(response: Response): Promise<void> {
 export async function sendJson<T>(
   method: 'POST' | 'PATCH' | 'PUT', path: string, body?: object, csrfToken?: string,
 ): Promise<T> {
-  return trackedRequest(`/api/v1${path}`, {
+  return trackedRequest(apiUrl(path), {
     method,
-    credentials: 'same-origin',
+    credentials: API_CREDENTIALS,
     cache: 'no-store',
     headers: {
       Accept: 'application/json',
@@ -127,8 +128,8 @@ export function getLiveness(signal?: AbortSignal): Promise<HealthResponse> {
 }
 
 export async function getReadiness(signal?: AbortSignal): Promise<HealthResponse> {
-  return trackedRequest('/api/v1/health/ready', {
-    credentials: 'same-origin',
+  return trackedRequest(apiUrl('/health/ready'), {
+    credentials: API_CREDENTIALS,
     cache: 'no-store',
     signal,
   }, async (response) => {
@@ -152,9 +153,9 @@ export function signUp(email: string, password: string, workspaceName: string): 
 }
 
 export async function signOut(csrfToken: string): Promise<void> {
-  return trackedRequest('/api/v1/auth/sign-out', {
+  return trackedRequest(apiUrl('/auth/sign-out'), {
     method: 'POST',
-    credentials: 'same-origin',
+    credentials: API_CREDENTIALS,
     cache: 'no-store',
     headers: { 'X-CSRF-Token': csrfToken },
   }, async (response) => {
@@ -165,9 +166,9 @@ export async function signOut(csrfToken: string): Promise<void> {
 export async function changePassword(
   currentPassword: string, newPassword: string, csrfToken: string,
 ): Promise<void> {
-  return trackedRequest('/api/v1/auth/change-password', {
+  return trackedRequest(apiUrl('/auth/change-password'), {
     method: 'POST',
-    credentials: 'same-origin',
+    credentials: API_CREDENTIALS,
     cache: 'no-store',
     headers: {
       'Content-Type': 'application/json',
@@ -187,9 +188,9 @@ export function requestRecovery(email: string): Promise<RecoveryMessage> {
 export async function completeRecovery(
   email: string, code: string, newPassword: string,
 ): Promise<void> {
-  return trackedRequest('/api/v1/auth/recovery/complete', {
+  return trackedRequest(apiUrl('/auth/recovery/complete'), {
     method: 'POST',
-    credentials: 'same-origin',
+    credentials: API_CREDENTIALS,
     cache: 'no-store',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ email, code, new_password: newPassword }),
@@ -256,9 +257,9 @@ export function updateWorkspacePreset(
 }
 
 export async function deleteDocument(documentId: string, csrfToken: string): Promise<DeletedView> {
-  return trackedRequest(`/api/v1/documents/${encodeURIComponent(documentId)}`, {
+  return trackedRequest(apiUrl(`/documents/${encodeURIComponent(documentId)}`), {
     method: 'DELETE',
-    credentials: 'same-origin',
+    credentials: API_CREDENTIALS,
     cache: 'no-store',
     headers: { Accept: 'application/json', 'X-CSRF-Token': csrfToken },
   }, async (response) => {
@@ -344,9 +345,9 @@ export async function createFileDraft(
   form.append('phone_region', phoneRegion)
   form.append('retention_days', String(retentionDays))
   if (presetId) form.append('preset_id', presetId)
-  return trackedRequest('/api/v1/documents/from-file', {
+  return trackedRequest(apiUrl('/documents/from-file'), {
     method: 'POST',
-    credentials: 'same-origin',
+    credentials: API_CREDENTIALS,
     cache: 'no-store',
     headers: { 'X-CSRF-Token': csrfToken, Accept: 'application/json' },
     body: form,
@@ -528,9 +529,9 @@ export function recordCopySuccess(
 export async function downloadReviewedTxt(
   documentId: string, expected: VersionRef, eventId: string, csrfToken: string,
 ): Promise<Blob> {
-  return trackedRequest(`/api/v1/documents/${encodeURIComponent(documentId)}/exports/txt`, {
+  return trackedRequest(apiUrl(`/documents/${encodeURIComponent(documentId)}/exports/txt`), {
     method: 'POST',
-    credentials: 'same-origin',
+    credentials: API_CREDENTIALS,
     cache: 'no-store',
     headers: {
       Accept: 'text/plain',

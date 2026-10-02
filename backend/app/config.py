@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     smtp_username: str | None = None
     smtp_password: SecretStr | None = Field(default=None, repr=False)
     smtp_from: str | None = None
+    # Proxies in front of the app that append to X-Forwarded-For. Zero trusts no header.
+    trusted_proxy_hops: int = Field(default=0, ge=0, le=5)
+    # libpq connect timeout in seconds; managed databases that suspend may need longer.
+    database_connect_timeout: int = Field(default=2, ge=2, le=60)
 
     @field_validator("database_url")
     @classmethod

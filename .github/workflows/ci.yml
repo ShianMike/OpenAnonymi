@@ -1,0 +1,170 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Disposable CI database only. The fixtures accept loopback ports 5433 or 5434.
+  PRIVACY_REVIEW_TEST_DATABASE_URL: postgresql+psycopg://postgres:ci-only-password@127.0.0.1:5433/review_test
+
+jobs:
+  backend:
+    name: Backend (PostgreSQL 17)
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: review_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: "0.10.6"
+          working-directory: backend
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install locked dependencies
+        run: uv sync --locked
+      - name: Ruff
+        run: uv run --locked ruff check app tests migrations
+      - name: Migrations render as offline SQL
+        env:
+          PRIVACY_REVIEW_DATABASE_URL: postgresql+psycopg://schema:schema@localhost/schema
+          PRIVACY_REVIEW_ALLOWED_ORIGINS: '["http://localhost:5173"]'
+          PRIVACY_REVIEW_ENVIRONMENT: test
+        run: uv run --locked alembic upgrade head --sql > "$RUNNER_TEMP/migrations.sql"
+      - name: Apply migrations 0001-0009
+        env:
+          PRIVACY_REVIEW_DATABASE_URL: ${{ env.PRIVACY_REVIEW_TEST_DATABASE_URL }}
+          PRIVACY_REVIEW_ALLOWED_ORIGINS: '["http://localhost:5173"]'
+          PRIVACY_REVIEW_ENVIRONMENT: test
+        run: uv run --locked alembic upgrade head
+      - name: Tests
+        run: uv run --locked pytest -q
+      - name: OpenAPI schema matches frontend/openapi.json
+        run: |
+          uv run --locked python -m app.export_openapi ../frontend/openapi.json
+          git diff --exit-code -- ../frontend/openapi.json
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run test
+      - run: npm run lint
+      - run: npm run build
+      - name: Generated API types match openapi.json
+        run: |
+          npm run typegen
+          git diff --exit-code -- src/api/schema.d.ts
+
+  container:
+    name: Backend container smoke test
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: review_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build image
+        run: docker build --pull -t openanonymi-api:ci backend
+      - name: Image runs as a non-root user
+        run: test "$(docker run --rm --entrypoint id openanonymi-api:ci -u)" != "0"
+      - name: Start in production mode
+        run: |
+          key="$(docker run --rm --entrypoint python openanonymi-api:ci -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
+          echo "::add-mask::$key"
+          docker run -d --name api --network host \
+            --health-interval=5s --health-start-period=5s \
+            -e PORT=8080 \
+            -e PRIVACY_REVIEW_DATABASE_URL="$PRIVACY_REVIEW_TEST_DATABASE_URL" \
+            -e PRIVACY_REVIEW_ALLOWED_ORIGINS='["https://app.example.invalid"]' \
+            -e PRIVACY_REVIEW_ACTIVE_KEY_ID=ci \
+            -e PRIVACY_REVIEW_CONTENT_KEYS="{\"ci\":\"$key\"}" \
+            -e PRIVACY_REVIEW_TRUSTED_PROXY_HOPS=1 \
+            openanonymi-api:ci
+      - name: Wait for the Docker health check
+        run: |
+          for _ in $(seq 1 60); do
+            status="$(docker inspect --format '{{.State.Health.Status}}' api)"
+            [ "$status" = healthy ] && break
+            [ "$(docker inspect --format '{{.State.Running}}' api)" = true ] || break
+            sleep 2
+          done
+          docker logs api
+          test "$status" = healthy
+      - name: Health, headers, CORS, cookie, logs and worker count
+        run: |
+          set -eu
+          base=http://127.0.0.1:8080/api/v1
+          origin=https://app.example.invalid
+          curl -fsS "$base/health/live" | grep -q '"ok"'
+          curl -fsS "$base/health/ready" | grep -q '"ok"'
+          headers="$(curl -fsS -D - -o /dev/null "$base/meta?probe=synthetic-query")"
+          echo "$headers" | grep -qi '^strict-transport-security: max-age=63072000'
+          echo "$headers" | grep -qi '^x-content-type-options: nosniff'
+          echo "$headers" | grep -qi '^cache-control: no-store'
+          if echo "$headers" | grep -qi '^server:'; then exit 1; fi
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/docs)" = 404
+          preflight="$(curl -fsS -D - -o /dev/null -X OPTIONS "$base/auth/sign-in" \
+            -H "Origin: $origin" -H 'Access-Control-Request-Method: POST' \
+            -H 'Access-Control-Request-Headers: content-type,x-csrf-token')"
+          echo "$preflight" | grep -qi "^access-control-allow-origin: $origin"
+          echo "$preflight" | grep -qi '^access-control-allow-credentials: true'
+          cookie="$(curl -fsS -D - -o /dev/null -X POST "$base/auth/sign-up" \
+            -H "Origin: $origin" -H 'Content-Type: application/json' \
+            --data '{"email":"ci-smoke@example.invalid","password":"synthetic-ci-password","workspace_name":"CI smoke"}' \
+            | grep -i '^set-cookie:')"
+          for attribute in HttpOnly Secure SameSite=None Partitioned Path=/api/v1 Max-Age=43200; do
+            echo "$cookie" | grep -qi -- "$attribute"
+          done
+          docker logs api 2>&1 | grep -q '"GET /api/v1/meta" 200'
+          if docker logs api 2>&1 | grep -q 'synthetic-query'; then exit 1; fi
+          test "$(docker top api | grep -c 'uvicorn app.main:app')" -eq 1

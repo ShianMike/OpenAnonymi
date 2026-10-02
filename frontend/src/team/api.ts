@@ -1,3 +1,4 @@
+import { API_CREDENTIALS, apiUrl } from '../api/base'
 import { trackedRequest } from '../api/requestActivity'
 import { get, requireSuccess, sendJson, type VersionRef } from '../api/client'
 import type { components } from '../api/schema'
@@ -15,8 +16,8 @@ export const getComments = (document: string, finding: string, signal?: AbortSig
 export const postComment = (document: string, finding: string, expected: VersionRef, id: string, text: string, csrf: string) =>
   sendJson<CommentView>('POST', `/documents/${document}/findings/${finding}/comments`, { id, expected, text }, csrf)
 export async function removeComment(document: string, comment: string, csrf: string) {
-  return trackedRequest(`/api/v1/documents/${document}/comments/${comment}`, { method: 'DELETE',
-    credentials: 'same-origin', cache: 'no-store', headers: { 'X-CSRF-Token': csrf } }, async (response) => {
+  return trackedRequest(apiUrl(`/documents/${document}/comments/${comment}`), { method: 'DELETE',
+    credentials: API_CREDENTIALS, cache: 'no-store', headers: { 'X-CSRF-Token': csrf } }, async (response) => {
     await requireSuccess(response)
   })
 }
