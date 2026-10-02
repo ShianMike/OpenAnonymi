@@ -5,6 +5,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.engine import Engine
@@ -15,7 +16,6 @@ from app.accounts.access import WorkspaceAccessDenied, active_workspace
 from app.accounts.api import current_identity, mutation_identity
 from app.accounts.security import SessionIdentity
 from app.contracts import (
-    MAX_UTF8_BYTES,
     ConflictResponse,
     DocumentStatus,
     ErrorResponse,
@@ -35,11 +35,14 @@ from app.db.repository import (
     load_current_source,
 )
 from app.errors import ApiError
-from app.intake.validation import SourceValidationError, validate_txt_file
+from app.intake.imports import MAX_FILE_BYTES, extract_import
+from app.intake.validation import SourceValidationError
 from app.workspace.presets import PresetNotFound
 
 
 class SourceView(BaseModel):
+    workspace_id: UUID
+    can_edit: bool
     version: VersionRef
     text: str
     expires_at: datetime
@@ -83,6 +86,8 @@ class SavedDraftView(BaseModel):
 
 def _source_view(source: LoadedSource) -> SourceView:
     return SourceView(
+        workspace_id=source.workspace_id,
+        can_edit=source.can_edit,
         version=source.version,
         text=source.text,
         expires_at=source.expires_at,
@@ -109,8 +114,19 @@ def _keys(request: Request) -> KeyRing:
 
 def _categories(values: list[FindingCategory]) -> set[FindingCategory]:
     categories = set(values)
-    if not categories.issubset({FindingCategory.EMAIL, FindingCategory.PHONE}):
-        raise ApiError(422, "invalid_categories", "Choose email and/or phone suggestions.")
+    if not categories.issubset(
+        {
+            FindingCategory.EMAIL,
+            FindingCategory.PHONE,
+            FindingCategory.PERSON,
+            FindingCategory.ORGANIZATION,
+            FindingCategory.LOCATION,
+            FindingCategory.IDENTIFIER,
+        }
+    ):
+        raise ApiError(
+            422, "invalid_categories", "Choose supported automatic suggestion categories."
+        )
     return categories
 
 
@@ -233,12 +249,17 @@ def create_intake_router(engine: Engine) -> APIRouter:
             or sum(isinstance(value, StarletteUploadFile) for _name, value in form.multi_items())
             != 1
         ):
-            raise ApiError(422, "invalid_file", "Choose exactly one UTF-8 .txt file.")
-        if file.size is not None and file.size > MAX_UTF8_BYTES:
-            raise ApiError(422, "invalid_file", "File exceeds the 1 MiB UTF-8 limit.")
-        raw = await file.read(MAX_UTF8_BYTES + 1)
+            raise ApiError(422, "invalid_file", "Choose exactly one TXT, PDF or Word DOCX file.")
         try:
-            validated = validate_txt_file(file.filename, raw)
+            with Session(engine) as session:
+                active_workspace(session, workspace_id, identity.user_id)
+        except WorkspaceAccessDenied:
+            raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
+        if file.size is not None and file.size > MAX_FILE_BYTES:
+            raise ApiError(422, "invalid_file", "File exceeds the 8 MiB import limit.")
+        raw = await file.read(MAX_FILE_BYTES + 1)
+        try:
+            validated = (await run_in_threadpool(extract_import, file.filename, raw)).source
             parsed_categories = [
                 FindingCategory(value.strip()) for value in categories.split(",") if value.strip()
             ]
@@ -246,7 +267,7 @@ def create_intake_router(engine: Engine) -> APIRouter:
             if isinstance(exc, SourceValidationError):
                 raise _input_error(exc) from None
             raise ApiError(
-                422, "invalid_categories", "Choose email and/or phone suggestions."
+                422, "invalid_categories", "Choose supported automatic suggestion categories."
             ) from None
         keys = _keys(request)
         now = datetime.now(UTC)

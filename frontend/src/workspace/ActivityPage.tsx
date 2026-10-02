@@ -1,92 +1,112 @@
 import { useEffect, useState } from 'react'
-import { getWorkspaceActivity, type ActivityView, type SessionView } from '../api/client'
+import { RotateCw } from 'lucide-react'
+import { GlassSelect } from '../ui/GlassSelect'
+import {
+  getWorkspaceActivity,
+  getWorkspaceDocuments,
+  type ActivityView,
+  type SessionView,
+} from '../api/client'
 import { PageHeader } from '../ui/PageHeader'
-import { eventName } from './events'
+import { LoadingState } from '../loading/LoadingState'
+import { InlineNotice } from '../ui/WorkspaceControls'
+import { ActivityFeed } from './activity/ActivityFeed'
+import { ActivitySummary } from './activity/ActivitySummary'
+import type { DocumentMap } from './activity/activityPresentation'
+import './activity/activity.css'
 
-type Data = { kind: 'loading' } | { kind: 'error'; message: string } |
-  { kind: 'ready'; value: ActivityView }
+type Data =
+  | { kind: 'loading' }
+  | { kind: 'error'; message: string }
+  | { kind: 'ready'; value: ActivityView; documents: DocumentMap }
 
 export function ActivityPage({ session }: { session: SessionView }) {
   const [workspaceId, setWorkspaceId] = useState(session.memberships[0]?.workspace_id ?? '')
   const [data, setData] = useState<Data>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
-
   useEffect(() => {
     if (!workspaceId) return
     const controller = new AbortController()
-    getWorkspaceActivity(workspaceId, controller.signal).then((value) => {
-      if (!controller.signal.aborted) setData({ kind: 'ready', value })
-    }).catch((cause: unknown) => {
-      if (!controller.signal.aborted) setData({
-        kind: 'error',
-        message: cause instanceof Error ? cause.message : 'Activity could not be loaded.',
+    Promise.allSettled([
+      getWorkspaceActivity(workspaceId, controller.signal),
+      getWorkspaceDocuments(workspaceId, controller.signal),
+    ]).then(([activity, documents]) => {
+      if (controller.signal.aborted) return
+      if (activity.status === 'rejected') {
+        setData({
+          kind: 'error',
+          message:
+            activity.reason instanceof Error ? activity.reason.message : 'Activity could not be loaded.',
+        })
+        return
+      }
+      setData({
+        kind: 'ready',
+        value: activity.value,
+        documents:
+          documents.status === 'fulfilled'
+            ? Object.fromEntries(documents.value.map((item) => [item.id, item]))
+            : {},
       })
     })
     return () => controller.abort()
   }, [workspaceId, attempt])
-
+  const reload = () => {
+    setData({ kind: 'loading' })
+    setAttempt((value) => value + 1)
+  }
   return (
-    <section aria-labelledby="activity-title">
-      <PageHeader title="Activity" titleId="activity-title"
-        description="Recent review events in this workspace. Activity records contain no document text." />
+    <section className="activity-page" aria-labelledby="activity-title">
+      <PageHeader
+        title="Activity"
+        titleId="activity-title"
+        description="Follow the work. A clear history of your reviews and workspace activity."
+        action={
+          <button className="quiet-button" type="button" disabled={data.kind === 'loading'} onClick={reload}>
+            <RotateCw size={15} aria-hidden="true" /> Refresh
+          </button>
+        }
+      />
       {session.memberships.length > 1 && (
         <div className="workspace-picker">
-          <label htmlFor="activity-workspace">Workspace</label>{' '}
-          <select id="activity-workspace" value={workspaceId} onChange={(event) => {
-            setWorkspaceId(event.target.value)
-            setData({ kind: 'loading' })
-          }}>
+          <label htmlFor="activity-workspace">Workspace</label>
+          <GlassSelect
+            id="activity-workspace"
+            value={workspaceId}
+            onValueChange={(value) => {
+              setWorkspaceId(value)
+              setData({ kind: 'loading' })
+            }}
+          >
             {session.memberships.map((membership, index) => (
               <option key={membership.workspace_id} value={membership.workspace_id}>
                 {membership.workspace_name || `Workspace ${index + 1}`}
               </option>
             ))}
-          </select>
+          </GlassSelect>
         </div>
       )}
-      {data.kind === 'loading' && <p role="status">Loading activity…</p>}
+      {data.kind === 'loading' && (
+        <LoadingState label="Loading activity…" description="Bringing your workspace history into view." />
+      )}
       {data.kind === 'error' && (
-        <div role="alert">
+        <InlineNotice error>
           <p>{data.message}</p>
-          <button type="button" onClick={() => {
-            setData({ kind: 'loading' })
-            setAttempt((value) => value + 1)
-          }}>Retry activity</button>
-        </div>
+          <button type="button" onClick={reload}>
+            Retry activity
+          </button>
+        </InlineNotice>
       )}
       {data.kind === 'ready' && (
-        <>
-          <p className="data-scope">Your activity from {new Date(data.value.since).toLocaleString()} to {' '}
-            {new Date(data.value.as_of).toLocaleString()}. Showing the latest {' '}
-            {data.value.own_events.length} of {data.value.own_total} event(s).</p>
-          {data.value.own_events.length === 0 ?
-            <div className="empty-state surface-panel"><strong>No activity in this period</strong>
-              <p>Events appear here as you work on reviews.</p></div> : (
-            <div className="table-shell activity-table" role="region" aria-label="Recent activity" tabIndex={0}>
-              <table><thead><tr><th scope="col">Event</th><th scope="col">Outcome</th>
-                <th scope="col">When</th><th scope="col">Review</th></tr></thead>
-                <tbody>{data.value.own_events.map((event, index) => (
-                  <tr key={`${event.occurred_at}-${index}`}>
-                    <th scope="row">{eventName(event.event_code)}</th>
-                    <td><span className="mobile-cell-label">Outcome</span>{event.outcome}</td>
-                    <td><span className="mobile-cell-label">When</span>{new Date(event.occurred_at).toLocaleString()}</td>
-                    <td><span className="mobile-cell-label">Review</span>{event.document_id ? event.document_id.slice(0, 8) : '—'}</td>
-                  </tr>
-                ))}</tbody></table>
-            </div>
-          )}
-          {data.value.workspace_counts && (
-            <section className="surface-panel" aria-labelledby="activity-workspace-counts">
-              <h2 id="activity-workspace-counts">Workspace event counts</h2>
-              <p>All members in the same 30-day period; counts only.</p>
-              {Object.keys(data.value.workspace_counts).length === 0 ? <p>No events.</p> : (
-                <ul>{Object.entries(data.value.workspace_counts).map(([code, count]) => (
-                  <li key={code}>{eventName(code)}: {count}</li>
-                ))}</ul>
-              )}
-            </section>
-          )}
-        </>
+        <div className="activity-layout">
+          <ActivityFeed
+            key={workspaceId}
+            value={data.value}
+            documents={data.documents}
+            workspaceId={workspaceId}
+          />
+          <ActivitySummary value={data.value} />
+        </div>
       )}
     </section>
   )

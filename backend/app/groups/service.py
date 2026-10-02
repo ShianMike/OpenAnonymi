@@ -11,7 +11,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from app.accounts.access import ContentUnavailable, owned_document
+from app.accounts.access import ContentUnavailable, review_document
 from app.contracts import DecisionAction, DocumentStatus, FindingCategory, SourceSpan, VersionRef
 from app.db.crypto import KeyRing, ProtectedValue
 from app.db.labels import allocate_group_locked
@@ -233,14 +233,14 @@ def load_findings(
     engine: Engine, *, document_id: UUID, actor_id: UUID, now: datetime
 ) -> FindingsSnapshot:
     with Session(engine) as session:
-        document = owned_document(session, document_id, actor_id, now)
+        document = review_document(session, document_id, actor_id, now)
         return _snapshot(session, _version(document))
 
 
 def _current_locked(
     session: Session, document_id: UUID, actor_id: UUID, expected: VersionRef, now: datetime
 ) -> tuple[Document, VersionRef]:
-    document = owned_document(session, document_id, actor_id, now, lock=True)
+    document = review_document(session, document_id, actor_id, now, lock=True)
     version = _version(document)
     if expected != version:
         raise VersionConflict(version)
@@ -282,7 +282,7 @@ def exact_matches(
 ) -> ExactMatches:
     """Offer offsets only; the owner explicitly chooses which occurrences to mark."""
     with Session(engine) as session:
-        document = owned_document(session, document_id, actor_id, now)
+        document = review_document(session, document_id, actor_id, now)
         version = _version(document)
         finding = _active_finding(session, version, finding_id)
         revision = session.get(SourceRevision, version.source_revision_id)

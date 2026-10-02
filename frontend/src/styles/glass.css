@@ -1,0 +1,121 @@
+/* The beam is a masked conic light, never a substitute for the focus indicator. */
+@property --beam-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes border-light {
+  to {
+    --beam-angle: 360deg;
+  }
+}
+input:not([type='checkbox'], [type='radio'], [type='file']),
+select,
+textarea {
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  background:
+    linear-gradient(145deg, var(--tone-field-start, #2b3330e8), var(--tone-field-end, #1e2522f5)) padding-box,
+    linear-gradient(125deg, var(--tone-line, #ffffff36), var(--tone-wash, #ffffff07) 44%, var(--tone-wash-strong, #ffffff12)) border-box;
+  box-shadow:
+    inset 0 1px 0 #ffffff06,
+    0 3px 9px var(--tone-shadow-medium, #00000015);
+  backdrop-filter: blur(18px);
+  min-height: 42px;
+  transition: box-shadow 180ms;
+}
+input:not([type='checkbox'], [type='radio'], [type='file']):focus,
+select:focus,
+textarea:focus {
+  background:
+    linear-gradient(145deg, var(--tone-field-start, #2b3530f5), var(--tone-field-end, #202924f5)) padding-box,
+    conic-gradient(from var(--beam-angle), var(--tone-beam-idle, #91c7ab33) 0% 55%, var(--tone-beam, #b4e6cc) 72%, var(--tone-beam-tip, #c8c0e0) 80%, var(--tone-beam-idle, #91c7ab33) 92%)
+      border-box;
+  animation: border-light 6s linear infinite;
+  box-shadow:
+    0 0 0 3px var(--tone-shadow-soft, #b4e6cc08),
+    inset 0 1px 0 #ffffff09;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--tone-muted, #94a198);
+  opacity: 1;
+}
+input:disabled,
+textarea:disabled,
+select:disabled {
+  opacity: 0.55;
+}
+select option {
+  background: var(--tone-field-end, #202623);
+  color: var(--text);
+}
+textarea[readonly] {
+  background:
+    linear-gradient(140deg, var(--tone-field-end, #222c26), var(--tone-field-end, #1b231e)) padding-box,
+    linear-gradient(125deg, var(--tone-line, #ffffff22), var(--tone-wash, #ffffff06)) border-box;
+}
+.glass-field {
+  position: relative;
+  min-width: 0;
+  width: 100%;
+}
+.glass-field input {
+  display: block;
+  width: 100%;
+  height: 50px;
+  padding: 0.75rem 0.95rem;
+}
+.glass-field--icon input {
+  padding-left: 2.75rem;
+}
+.glass-field-icon {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 1rem;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--tone-body, #a2b2a8);
+}
+.glass-field input.glass-password {
+  padding-right: 3rem;
+}
+.glass-field .password-toggle {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: var(--muted);
+  border: 0;
+  box-shadow: none;
+}
+.glass-field .password-toggle:hover {
+  background: var(--tone-wash-strong, #ffffff09);
+  color: var(--text);
+}
+.field-hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  input:focus,
+  select:focus,
+  textarea:focus {
+    --beam-angle: 210deg;
+  }
+}
+@media (forced-colors: active) {
+  input:not([type='checkbox'], [type='radio'], [type='file']),
+  select,
+  textarea {
+    border: 1px solid ButtonText;
+  }
+}

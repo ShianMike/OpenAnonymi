@@ -15,14 +15,19 @@ from app.accounts.api import create_auth_router
 from app.accounts.recovery import RecoveryMailer, SmtpRecoveryMailer
 from app.cleanup.api import create_cleanup_router
 from app.cleanup.runner import periodic_cleanup
+from app.comparison.api import create_comparison_router
 from app.config import Settings, load_settings
 from app.contracts import ErrorResponse, HealthResponse, ServiceMetadata, service_metadata
+from app.custom_rules.api import create_custom_rules_router
 from app.detection.api import create_detection_router
 from app.errors import ApiError, api_error_handler, validation_error_handler
 from app.exports.api import create_exports_router
 from app.groups.api import create_groups_router
 from app.intake.api import create_intake_router
+from app.intake.import_api import create_import_router
+from app.recovery.api import create_recovery_router
 from app.reviews.api import create_reviews_router
+from app.team_review.api import create_team_router
 from app.transformations.api import create_transform_router
 from app.workspace.api import create_workspace_router
 from app.workspace.presets_api import create_presets_router
@@ -77,6 +82,11 @@ def create_app(
     app.include_router(create_auth_router(engine, settings))
     app.include_router(create_admin_router(engine))
     app.include_router(create_intake_router(engine))
+    app.include_router(create_import_router(engine))
+    app.include_router(create_comparison_router(engine))
+    app.include_router(create_team_router(engine))
+    app.include_router(create_recovery_router(engine))
+    app.include_router(create_custom_rules_router(engine))
     app.include_router(create_detection_router(engine))
     app.include_router(create_groups_router(engine))
     app.include_router(create_transform_router(engine))

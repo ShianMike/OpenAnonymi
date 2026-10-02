@@ -1,0 +1,72 @@
+.glass-checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 48px;
+}
+.glass-checkbox-row .glass-checkbox-control {
+  display: grid;
+  place-items: center;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0;
+  margin: 13px 0 0;
+  border: 1px solid var(--tone-line-strong, #627469);
+  border-radius: 7px;
+  background: linear-gradient(140deg, var(--tone-wash-strong, #ffffff0d), var(--tone-wash, #ffffff03));
+  box-shadow: inset 0 1px 0 #ffffff0a;
+}
+.glass-checkbox-row .glass-checkbox-control[data-state='checked'] {
+  border-color: var(--blue);
+  color: var(--on-accent, #152a1e);
+  background: var(--blue);
+}
+.glass-checkbox-indicator {
+  display: grid;
+  place-items: center;
+}
+.glass-checkbox-row > label {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  min-height: 48px;
+  margin: 0;
+  padding: 10px 0;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 550;
+  line-height: 1.55;
+}
+.glass-checkbox-row label small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.79rem;
+  font-weight: 400;
+}
+.glass-checkbox-row[data-disabled] {
+  opacity: 0.6;
+}
+.glass-checkbox-row[data-disabled] label {
+  cursor: default;
+}
+.glass-checkbox-control:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+}
+@media (forced-colors: active) {
+  .glass-checkbox-row .glass-checkbox-control {
+    border-color: ButtonText;
+  }
+  .glass-checkbox-row .glass-checkbox-control[data-state='checked'] {
+    background: Highlight;
+    color: HighlightText;
+  }
+  .glass-checkbox-row[data-disabled] {
+    color: GrayText;
+    opacity: 1;
+  }
+}

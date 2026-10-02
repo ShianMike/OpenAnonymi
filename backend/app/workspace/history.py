@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from app.accounts.access import DocumentNotFound, owned_document_record
+from app.accounts.access import DocumentNotFound, review_document_record
 from app.contracts import DocumentStatus
 from app.db.models import AuditEvent, SourceRevision
 from app.workspace.activity import EVENT_CODES
@@ -17,6 +17,7 @@ from app.workspace.documents import _effective_status
 
 @dataclass(frozen=True)
 class RevisionHistoryEntry:
+    id: UUID
     number: int
     created_at: datetime
     is_current: bool
@@ -39,7 +40,7 @@ def load_document_history(
     engine: Engine, *, workspace_id: UUID, document_id: UUID, actor_id: UUID, now: datetime
 ) -> DocumentHistory:
     with Session(engine) as session:
-        document = owned_document_record(session, document_id, actor_id)
+        document = review_document_record(session, document_id, actor_id)
         if document.workspace_id != workspace_id:
             raise DocumentNotFound("Document not found.")
         revision_total = (
@@ -84,6 +85,7 @@ def load_document_history(
             deleted_at=document.deleted_at,
             revisions=[
                 RevisionHistoryEntry(
+                    id=revision_id,
                     number=number,
                     created_at=created_at,
                     is_current=revision_id == document.current_revision_id,

@@ -1,0 +1,21 @@
+.team-panel { padding: 22px; margin-block: 18px; min-width: 0; }
+.team-panel .panel-heading { margin-bottom: 16px; }
+.team-assignee { overflow-wrap: anywhere; margin-block: 16px 8px; }
+.team-approved { display: flex; align-items: center; gap: 8px; color: var(--blue-strong); font-size: .85rem; }
+.team-panel button:not([role='combobox']), .team-form button:not([role='combobox']) { border: 0; border-radius: 10px; padding: 11px 15px; min-height: 44px; color: var(--text); background: var(--surface-subtle); }
+.team-approval { display: grid; gap: 14px; margin-top: 16px; }
+.team-panel .team-approval > button, .team-panel button[type='submit'], .team-form > button[type='submit'] { background: var(--blue); color: var(--on-accent); }
+:is(.team-approval > button, .team-panel button[type='submit'], .team-form > button[type='submit']):hover:not(:disabled) { background: var(--blue-strong); color: var(--on-accent); }
+.team-form { display: grid; gap: 14px; margin-top: 24px; }
+.team-form .choice-switch { margin-block: 8px; }
+.team-discussion > summary { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: .9rem; }
+.team-discussion-body { margin-top: 22px; }
+.team-discussion-body label { display: block; font-size: .8rem; margin-block: 12px 8px; }
+.team-discussion-body textarea { min-height: 100px; }
+.team-discussion-body form > button { margin-top: 12px; }
+.team-comment-list { list-style: none; padding: 0; margin: 20px 0; }
+.team-comment-list li { padding: 15px; margin-bottom: 10px; border-radius: 12px; background: var(--surface-subtle); }
+.team-comment-list li > div { display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
+.team-comment-list time { font-size: .7rem; color: var(--muted); }
+.team-comment-list p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .9rem; }
+.team-comment-list button { font-size: .75rem; color: var(--muted); }

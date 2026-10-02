@@ -1,38 +1,47 @@
+import { LoadingState } from '../loading/LoadingState'
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { CheckCircle2, FileSearch, Plus } from 'lucide-react'
 import {
-  deleteDocument, getWorkspaceDocuments, type DocumentIndexView, type SessionView,
+  deleteDocument,
+  getWorkspaceDocuments,
+  type DocumentIndexView,
+  type SessionView,
 } from '../api/client'
 import { PageHeader } from '../ui/PageHeader'
-import { StatusBadge } from '../ui/StatusBadge'
+import { GlassSelect } from '../ui/GlassSelect'
+import { DocumentTable } from './documents/DocumentTable'
+import { DocumentFilters } from './documents/DocumentFilters'
+import { DocumentDeleteDialog } from './documents/DocumentDeleteDialog'
+import { documentLabel, matchesStatus, type DocumentSort } from './documents/documentPresentation'
+import './documents/documents.css'
 
-type Data = { kind: 'loading' } | { kind: 'error'; message: string } |
-  { kind: 'ready'; items: DocumentIndexView[] }
-type Sort = 'newest' | 'oldest' | 'expiring' | 'title'
-
-function documentLabel(item: DocumentIndexView): string {
-  return item.title || (item.status === 'expired' ? 'Expired review' : 'Untitled review')
-}
+type Data =
+  { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; items: DocumentIndexView[] }
+type Deletion = { item: DocumentIndexView; trigger: HTMLButtonElement | null }
 
 export function DocumentsPage({ session }: { session: SessionView }) {
-  const [workspaceId, setWorkspaceId] = useState(session.memberships[0]?.workspace_id ?? '')
+  const [params] = useSearchParams()
+  const [workspaceId, setWorkspaceId] = useState(() => session.memberships.find((item) => item.workspace_id === params.get('workspace'))?.workspace_id ?? session.memberships[0]?.workspace_id ?? '')
   const [data, setData] = useState<Data>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
-  const [sort, setSort] = useState<Sort>('newest')
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [confirmingId, setConfirmingId] = useState<string | null>(null)
+  const [sort, setSort] = useState<DocumentSort>('newest')
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshError, setRefreshError] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [confirmation, setConfirmation] = useState<Deletion | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const deleteTriggerRef = useRef<HTMLButtonElement>(null)
-  const confirmDeleteRef = useRef<HTMLButtonElement>(null)
+  const [now, setNow] = useState(() => Date.now())
+  const pageRef = useRef<HTMLElement>(null)
   const noticeRef = useRef<HTMLParagraphElement>(null)
 
   useEffect(() => {
-    if (confirmingId) confirmDeleteRef.current?.focus()
-  }, [confirmingId])
-
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000)
+    return () => window.clearInterval(timer)
+  }, [])
   useEffect(() => {
     if (notice) noticeRef.current?.focus()
   }, [notice])
@@ -40,168 +49,203 @@ export function DocumentsPage({ session }: { session: SessionView }) {
   useEffect(() => {
     if (!workspaceId) return
     const controller = new AbortController()
-    getWorkspaceDocuments(workspaceId, controller.signal).then((items) => {
-      if (!controller.signal.aborted) setData({ kind: 'ready', items })
-    }).catch((cause: unknown) => {
-      if (!controller.signal.aborted) setData({
-        kind: 'error',
-        message: cause instanceof Error ? cause.message : 'Documents could not be loaded.',
+    getWorkspaceDocuments(workspaceId, controller.signal)
+      .then((items) => {
+        if (!controller.signal.aborted) {
+          setData({ kind: 'ready', items })
+          setRefreshError(null)
+        }
       })
-    })
+      .catch((cause: unknown) => {
+        if (controller.signal.aborted) return
+        const message = cause instanceof Error ? cause.message : 'Documents could not be loaded.'
+        setRefreshError(message)
+        setData((current) => (current.kind === 'ready' ? current : { kind: 'error', message }))
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setRefreshing(false)
+      })
     return () => controller.abort()
   }, [workspaceId, attempt])
 
-  const visible = data.kind === 'ready' ? data.items.filter((item) =>
-    (status === 'all' || item.status === status) &&
-    (!search.trim() || documentLabel(item)
-      .toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())),
-  ).sort((left, right) => {
-    if (sort === 'title') {
-      return documentLabel(left).localeCompare(documentLabel(right))
-    }
-    if (sort === 'expiring') return left.expires_at.localeCompare(right.expires_at)
-    if (sort === 'oldest') return left.created_at.localeCompare(right.created_at)
-    return right.created_at.localeCompare(left.created_at)
-  }) : []
+  const visible =
+    data.kind === 'ready'
+      ? data.items
+          .filter(
+            (item) =>
+              matchesStatus(item, status) &&
+              (!search.trim() ||
+                documentLabel(item).toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())),
+          )
+          .sort((left, right) => {
+            if (sort === 'title') return documentLabel(left).localeCompare(documentLabel(right))
+            if (sort === 'expiring') return left.expires_at.localeCompare(right.expires_at)
+            if (sort === 'oldest') return left.created_at.localeCompare(right.created_at)
+            return right.created_at.localeCompare(left.created_at)
+          })
+      : []
 
-  async function removeDocument(item: DocumentIndexView) {
-    if (confirmingId !== item.id) return
-    setDeletingId(item.id)
+  async function removeDocument() {
+    if (!confirmation || deleting) return
+    setDeleting(true)
     setActionError(null)
     setNotice(null)
     try {
-      await deleteDocument(item.id, session.csrf_token)
-      setData((current) => current.kind === 'ready'
-        ? { kind: 'ready', items: current.items.filter((row) => row.id !== item.id) }
-        : current)
-      setConfirmingId(null)
+      await deleteDocument(confirmation.item.id, session.csrf_token)
+      setData((current) =>
+        current.kind === 'ready'
+          ? { kind: 'ready', items: current.items.filter((row) => row.id !== confirmation.item.id) }
+          : current,
+      )
+      setConfirmation(null)
       setNotice('Review deleted. Its stored content is scheduled for removal.')
     } catch (cause: unknown) {
       setActionError(cause instanceof Error ? cause.message : 'Review could not be deleted.')
     } finally {
-      setDeletingId(null)
+      setDeleting(false)
     }
   }
 
   function cancelDeletion() {
-    setConfirmingId(null)
-    deleteTriggerRef.current?.focus()
+    if (deleting) return
+    const trigger = confirmation?.trigger
+    setConfirmation(null)
+    setActionError(null)
+    requestAnimationFrame(() => trigger?.focus())
   }
 
   return (
-    <section aria-labelledby="documents-title">
-      <PageHeader title="Documents" titleId="documents-title"
-        description="Find and resume your saved reviews. Expired content cannot be reopened."
-        action={<Link className="button-primary" to="/new">New review</Link>} />
-      {actionError && <p role="alert">{actionError}</p>}
-      {notice && <p role="status" ref={noticeRef} tabIndex={-1}>{notice}</p>}
+    <section ref={pageRef} className="documents-page" aria-labelledby="documents-title">
+      <PageHeader
+        title="Documents"
+        titleId="documents-title"
+        description="A little care in every document. Pick up where you left off."
+        action={
+          <Link className="button-primary" to="/new">
+            <Plus size={17} aria-hidden="true" /> New review
+          </Link>
+        }
+      />
+      {notice && (
+        <p className="document-notice" role="status" ref={noticeRef} tabIndex={-1}>
+          <CheckCircle2 size={17} aria-hidden="true" />
+          {notice}
+        </p>
+      )}
       {session.memberships.length > 1 && (
         <div className="workspace-picker">
           <label htmlFor="documents-workspace">Workspace</label>
-          <select id="documents-workspace" value={workspaceId} onChange={(event) => {
-            setWorkspaceId(event.target.value)
-            setData({ kind: 'loading' })
-          }}>
+          <GlassSelect
+            id="documents-workspace"
+            value={workspaceId}
+            onValueChange={(value) => {
+              setWorkspaceId(value)
+              setData({ kind: 'loading' })
+              setRefreshError(null)
+            }}
+          >
             {session.memberships.map((membership, index) => (
               <option key={membership.workspace_id} value={membership.workspace_id}>
                 {membership.workspace_name || `Workspace ${index + 1}`}
               </option>
             ))}
-          </select>
+          </GlassSelect>
         </div>
       )}
-      {data.kind === 'loading' && <p role="status">Loading documents…</p>}
+      {data.kind === 'loading' && <LoadingState label="Loading documents…" description="Finding the reviews available in this workspace." />}
       {data.kind === 'error' && (
         <div role="alert">
           <p>{data.message}</p>
-          <button type="button" onClick={() => {
-            setData({ kind: 'loading' })
-            setAttempt((value) => value + 1)
-          }}>Retry documents</button>
+          <button
+            type="button"
+            onClick={() => {
+              setData({ kind: 'loading' })
+              setAttempt((value) => value + 1)
+            }}
+          >
+            Retry documents
+          </button>
         </div>
       )}
       {data.kind === 'ready' && (
-        <>
-          <div className="document-toolbar surface-panel">
-            <div className="field-stack"><label htmlFor="document-search">Search titles</label>
-            <input id="document-search" type="search" value={search}
-              onChange={(event) => setSearch(event.target.value)} /></div>
-            <div className="field-stack"><label htmlFor="document-status">Status</label>
-            <select id="document-status" value={status}
-              onChange={(event) => setStatus(event.target.value)}>
-              <option value="all">All statuses</option>
-              {['draft', 'scanning', 'needs_review', 'ready', 'exported', 'failed', 'expired']
-                .map((value) => <option key={value} value={value}>{value.replaceAll('_', ' ')}</option>)}
-            </select></div>
-            <div className="field-stack"><label htmlFor="document-sort">Sort</label>
-            <select id="document-sort" value={sort}
-              onChange={(event) => setSort(event.target.value as Sort)}>
-              <option value="newest">Newest first</option>
-              <option value="oldest">Oldest first</option>
-              <option value="expiring">Expiring first</option>
-              <option value="title">Title</option>
-            </select></div>
-            <button type="button" onClick={() => {
-              setData({ kind: 'loading' })
+        <div className="document-collection">
+          <DocumentFilters
+            items={data.items}
+            visibleCount={visible.length}
+            search={search}
+            status={status}
+            sort={sort}
+            refreshing={refreshing}
+            pageRef={pageRef}
+            onSearch={setSearch}
+            onStatus={setStatus}
+            onSort={setSort}
+            onRefresh={() => {
+              setRefreshing(true)
               setAttempt((value) => value + 1)
-            }}>Refresh</button>
-          </div>
-          <p role="status" className="data-scope">Showing {visible.length} of {data.items.length} documents.</p>
-          {visible.length === 0 ? <div className="empty-state surface-panel">
-            <strong>{data.items.length === 0 ? 'No reviews yet' : 'No matching documents'}</strong>
-            <p>{data.items.length === 0 ? 'Create a review to see it here.' :
-              'Adjust the search or status filter to see other reviews.'}</p>
-            {data.items.length === 0 && <Link to="/new">Create a review</Link>}
-          </div> : (
-            <div className="table-shell document-list-shell" role="region" aria-label="Document list" tabIndex={0}><table>
-              <thead><tr>
-                <th scope="col">Document</th><th scope="col">Status</th>
-                <th scope="col">Review progress</th><th scope="col">Created</th>
-                <th scope="col">Updated</th><th scope="col">Expires</th>
-                <th scope="col">Action</th>
-              </tr></thead>
-              <tbody>{visible.map((item) => (
-                <tr key={item.id}>
-                  <th scope="row">{documentLabel(item)}</th>
-                  <td><span className="mobile-cell-label">Status</span><StatusBadge status={item.status} /></td>
-                  <td><span className="mobile-cell-label">Review progress</span>{item.status === 'expired' ?
-                    'Unavailable' : `${item.decided_count} of ${item.finding_count} findings decided`}</td>
-                  <td><span className="mobile-cell-label">Created</span>{new Date(item.created_at).toLocaleString()}</td>
-                  <td><span className="mobile-cell-label">Updated</span>{new Date(item.updated_at).toLocaleString()}</td>
-                  <td><span className="mobile-cell-label">Expires</span>{new Date(item.expires_at).toLocaleString()}</td>
-                  <td className="document-row-actions">{item.status === 'expired' || item.status === 'deleted' ?
-                    'Unavailable' : <Link to={`/documents/${item.id}/edit`}>Open review</Link>}{' '}
-                    <Link to={`/workspaces/${workspaceId}/documents/${item.id}/history`}>History</Link>{' '}
-                    <button className="delete-trigger" type="button" onClick={(event) => {
-                      deleteTriggerRef.current = event.currentTarget
-                      if (confirmingId === item.id) cancelDeletion()
-                      else setConfirmingId(item.id)
-                    }}
-                      aria-expanded={confirmingId === item.id}
-                      disabled={deletingId !== null ||
-                        (confirmingId !== null && confirmingId !== item.id)}>
-                      {confirmingId === item.id ? 'Cancel deletion' : 'Delete'}
-                    </button>
-                    {confirmingId === item.id && (
-                      <div className="delete-confirmation" role="group"
-                        aria-label={`Confirm deletion of ${documentLabel(item)}`}>
-                        <p>Delete {documentLabel(item)}? Access ends now and stored content
-                          is removed by cleanup. This cannot be restored.</p>
-                        <button className="button-danger" ref={confirmDeleteRef} type="button"
-                          onClick={() => void removeDocument(item)} disabled={deletingId !== null}>
-                          {deletingId === item.id ? 'Deleting…' : 'Delete review'}
-                        </button>
-                        <button type="button" onClick={cancelDeletion} disabled={deletingId !== null}>
-                          Keep review
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}</tbody>
-            </table></div>
+            }}
+          />
+          {refreshError && (
+            <p className="document-refresh-error" role="alert">
+              {refreshError} Your last loaded list is still shown.
+            </p>
           )}
-        </>
+          {visible.length === 0 ? (
+            <div className="document-empty">
+              <span className="document-empty-icon">
+                <FileSearch size={27} strokeWidth={1.3} aria-hidden="true" />
+              </span>
+              <h2>{data.items.length === 0 ? 'Your reviews start here' : 'No documents found'}</h2>
+              <p>
+                {data.items.length === 0
+                  ? 'Add some text to create your first review.'
+                  : 'Try a different title or adjust your filters.'}
+              </p>
+              {data.items.length === 0 ? (
+                <Link className="button-primary" to="/new">
+                  Create a review
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch('')
+                    setStatus('all')
+                  }}
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
+          ) : (
+            <DocumentTable
+              items={visible}
+              workspaceId={workspaceId}
+              now={now}
+              onDelete={(item, trigger) => {
+                setActionError(null)
+                setConfirmation({ item, trigger })
+              }}
+            />
+          )}
+          {visible.length > 0 && (
+            <footer className="document-list-footer">
+              <span>
+                {visible.length} document{visible.length === 1 ? '' : 's'}
+              </span>
+              <span>Content is kept until its retention date.</span>
+            </footer>
+          )}
+        </div>
+      )}
+      {confirmation && (
+        <DocumentDeleteDialog
+          item={confirmation.item}
+          pending={deleting}
+          error={actionError}
+          onCancel={cancelDeletion}
+          onConfirm={() => void removeDocument()}
+        />
       )}
     </section>
   )

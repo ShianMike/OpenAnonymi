@@ -25,6 +25,7 @@ class DocumentStatus(StrEnum):
 class FindingCategory(StrEnum):
     PERSON = "person"
     ORGANIZATION = "organization"
+    LOCATION = "location"
     ADDRESS = "address"
     IDENTIFIER = "identifier"
     CUSTOM = "custom"

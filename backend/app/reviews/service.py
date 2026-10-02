@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from app.accounts.access import owned_document
+from app.accounts.access import owned_document, review_document
 from app.contracts import DocumentStatus, VersionRef
 from app.db.crypto import KeyRing
 from app.db.models import Document, ExportEvent, ReviewCompletion, ScanRun
@@ -139,7 +139,7 @@ def load_review_summary(
     engine: Engine, *, document_id: UUID, actor_id: UUID, now: datetime
 ) -> ReviewSummary:
     with Session(engine) as session, session.begin():
-        document = owned_document(session, document_id, actor_id, now, lock=True)
+        document = review_document(session, document_id, actor_id, now, lock=True)
         completion = current_completion(session, document)
         findings = _snapshot(session, _version(document))
         category_counts = Counter(item.category.value for item in findings.findings)

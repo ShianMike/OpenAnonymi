@@ -10,7 +10,10 @@ from sqlalchemy.orm import Session
 
 from app.accounts.access import owned_document_record
 from app.contracts import DocumentStatus
+from app.db.custom_rules import DocumentRuleSnapshot
 from app.db.models import AuditEvent, Document, LabelCounter, SourceRevision, Workspace
+from app.db.recovery import RecoverySnapshot
+from app.db.team_review import ReviewHandoff
 from app.workspace.activity import record_event
 
 
@@ -76,12 +79,20 @@ def purge_unavailable_content(
                     event_code="document_expired",
                     now=now,
                 )
+            session.execute(delete(ReviewHandoff).where(ReviewHandoff.document_id == document.id))
             document.current_revision_id = None
             document.title_ciphertext = None
             document.title_key_id = None
             session.flush()
             session.execute(delete(SourceRevision).where(SourceRevision.document_id == document.id))
             session.execute(delete(LabelCounter).where(LabelCounter.document_id == document.id))
+            session.execute(
+                delete(RecoverySnapshot).where(RecoverySnapshot.document_id == document.id)
+            )
+            session.execute(delete(DocumentRuleSnapshot).where(
+                DocumentRuleSnapshot.document_id == document.id))
+
+        session.execute(delete(RecoverySnapshot).where(RecoverySnapshot.expires_at <= now))
 
         activity_removed = 0
         for workspace in session.scalars(select(Workspace)).all():

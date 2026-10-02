@@ -1,0 +1,28 @@
+.reviewer-flow { display: flex; justify-content: space-between; flex-wrap: wrap; align-items: center; gap: 16px 28px; padding: 18px 22px; margin-block: -8px 22px; background: var(--blue-tint); border-radius: 17px; }
+.reviewer-flow-copy { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.reviewer-flow-copy > svg { color: var(--blue-strong); flex-shrink: 0; }
+.reviewer-flow-copy strong { font-size: .86rem; font-weight: 600; }
+.reviewer-flow-copy p { margin: 5px 0 0; color: var(--muted); font-size: .76rem; }
+.reviewer-flow ol { display: flex; flex-wrap: wrap; list-style: none; gap: 10px 18px; padding: 0; margin: 0; }
+.reviewer-flow li { display: flex; align-items: center; gap: 7px; font-size: .73rem; color: var(--muted); }
+.reviewer-flow li > span { display: grid; place-items: center; width: 23px; height: 23px; border-radius: 50%; color: var(--muted); background: var(--surface); flex-shrink: 0; font-size: .68rem; }
+.reviewer-flow li[data-state='current'] { color: var(--text); font-weight: 650; }
+.reviewer-flow li[data-state='current'] > span { background: var(--blue); color: var(--on-accent); }
+.reviewer-flow li[data-state='done'] > span { color: var(--blue-strong); }
+.reviewer-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 20px; }
+.reviewer-actions > :is(button, a.button-primary) { min-height: 44px; margin: 0; }
+.reviewer-actions > a:not(.button-primary) { color: var(--text); font-size: .8rem; text-underline-offset: 4px; padding-block: 12px; }
+.reviewer-completion .field-note { margin: 18px 0 0; }
+#review-handoff, #review-preview-tab { scroll-margin-top: 96px; }
+#review-handoff:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+.team-panel .team-read-output { margin-block: 8px 12px; }
+@media (max-width: 600px) {
+  .reviewer-flow { padding: 17px; }
+  .reviewer-flow-copy { align-items: start; }
+  .reviewer-flow ol { gap: 10px 12px; }
+  .reviewer-actions > :is(button, a.button-primary) { width: 100%; }
+}
+@media (forced-colors: active) {
+  .reviewer-flow { border: 1px solid CanvasText; }
+  .reviewer-flow li[aria-current='step'] > span { outline: 1px solid CanvasText; }
+}

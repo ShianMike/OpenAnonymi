@@ -3,10 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="/theme-init.js"></script>
+    <link rel="stylesheet" href="/startup.css" />
     <title>OpenAnonymi — Privacy review</title>
   </head>
   <body>
+    <div id="startup-loading" class="startup-loading">
+      <header class="startup-brand"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M5 15a11 11 0 0 1 22 0M9 24l1-10a6 6 0 0 1 12 0l-1 12M14 26l1-11m11 4-1 6M6 22l1-3M18 5a10 10 0 0 0-7 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg>OpenAnonymi.</header>
+      <main class="startup-center">
+        <div class="startup-eyebrow">A moment of care</div>
+        <div class="startup-card">
+          <div class="startup-heading">
+            <svg class="startup-mark" viewBox="0 0 64 64" fill="none" aria-hidden="true"><circle cx="32" cy="32" r="28" stroke="currentColor" opacity=".2" /><g class="startup-orbit"><path d="M7 18a28 28 0 0 1 23-14M57 46a28 28 0 0 1-23 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></g><path d="M22 16h15l8 8v24H20V16h2Zm15 0v8h8M26 31h12M26 37h12M26 43h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            <div role="status" aria-atomic="true"><h1>Opening OpenAnonymi…</h1><p id="startup-message">Preparing a little more privacy for your words.</p></div>
+          </div>
+          <div class="startup-placeholder" aria-hidden="true"><div><i></i><i></i></div><div><i></i><i></i></div></div>
+          <button id="startup-retry" class="startup-retry" type="button">Reload this page</button>
+          <noscript><p>JavaScript is needed to use the review workspace. Enable it, then reload.</p></noscript>
+        </div>
+        <p class="startup-note">Your review. Your call.</p>
+      </main>
+    </div>
     <div id="root"></div>
+    <script src="/startup.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

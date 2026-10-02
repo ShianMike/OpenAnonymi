@@ -50,8 +50,17 @@ def detect_suggestions(
     """Return stable code-point spans without approving any review action."""
     if len(source) > MAX_CODE_POINTS:
         raise DetectionLimitError("source_too_large")
-    if not categories.issubset({FindingCategory.EMAIL, FindingCategory.PHONE}):
-        raise ValueError("Only email and phone suggestions are supported.")
+    if not categories.issubset(
+        {
+            FindingCategory.EMAIL,
+            FindingCategory.PHONE,
+            FindingCategory.PERSON,
+            FindingCategory.ORGANIZATION,
+            FindingCategory.LOCATION,
+            FindingCategory.IDENTIFIER,
+        }
+    ):
+        raise ValueError("Choose supported automatic suggestion categories.")
     if phone_region not in phonenumbers.SUPPORTED_REGIONS:
         raise ValueError("Choose a supported phone region.")
 
@@ -108,4 +117,12 @@ def detect_suggestions(
                 ),
             )
 
+    from app.detection.identifiers import detect_identifiers
+    from app.detection.local_nlp import detect_entities
+
+    result.extend(detect_entities(source, categories))
+    if FindingCategory.IDENTIFIER in categories:
+        result.extend(detect_identifiers(source))
+    if len(result) > MAX_SUGGESTIONS:
+        raise DetectionLimitError("too_many_suggestions")
     return sorted(result, key=lambda item: (item.span.start, item.span.end, item.category.value))

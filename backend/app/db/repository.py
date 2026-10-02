@@ -14,6 +14,7 @@ from app.accounts.access import (
     WorkspaceAccessDenied,
     active_workspace,
     owned_document,
+    review_document,
 )
 from app.contracts import DocumentStatus, FindingCategory, SourceSpan, VersionRef
 from app.db.crypto import KeyRing, ProtectedValue
@@ -43,6 +44,8 @@ class SavedDocument:
 
 @dataclass(frozen=True)
 class LoadedSource:
+    workspace_id: UUID
+    can_edit: bool
     version: VersionRef
     text: str
     expires_at: datetime
@@ -147,6 +150,9 @@ def create_document(
         session.add(revision)
         session.flush()
         document.current_revision_id = revision.id
+        from app.custom_rules.service import snapshot_rules
+
+        snapshot_rules(session, document)
         session.flush()
         record_event(
             session,
@@ -163,7 +169,7 @@ def create_document(
 def load_current_source(
     session: Session, *, document_id: UUID, actor_id: UUID, keys: KeyRing, now: datetime
 ) -> LoadedSource:
-    document = owned_document(session, document_id, actor_id, now)
+    document = review_document(session, document_id, actor_id, now)
     version = _version(document)
     revision = session.scalar(
         select(SourceRevision).where(
@@ -183,6 +189,8 @@ def load_current_source(
         FindingCategory(value) for value in document.category_settings.split(",") if value
     )
     return LoadedSource(
+        document.workspace_id,
+        document.owner_id == actor_id,
         version,
         text,
         document.expires_at,

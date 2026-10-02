@@ -9,7 +9,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from app.accounts.access import active_workspace
+from app.accounts.access import active_workspace, review_document_statement
 from app.contracts import DocumentStatus, WorkspaceRole
 from app.db.crypto import KeyRing, ProtectedValue
 from app.db.models import Decision, Document, Finding, Membership
@@ -18,6 +18,7 @@ from app.db.models import Decision, Document, Finding, Membership
 @dataclass(frozen=True)
 class DocumentIndexEntry:
     id: UUID
+    is_owner: bool
     title: str | None
     status: DocumentStatus
     created_at: datetime
@@ -56,10 +57,9 @@ def list_documents(
     with Session(engine) as session:
         active_workspace(session, workspace_id, actor_id)
         documents = session.scalars(
-            select(Document)
+            review_document_statement(actor_id)
             .where(
                 Document.workspace_id == workspace_id,
-                Document.owner_id == actor_id,
                 Document.deleted_at.is_(None),
             )
             .order_by(Document.created_at.desc(), Document.id.desc())
@@ -106,6 +106,7 @@ def list_documents(
             result.append(
                 DocumentIndexEntry(
                     id=document.id,
+                    is_owner=document.owner_id == actor_id,
                     title=title,
                     status=status,
                     created_at=document.created_at,

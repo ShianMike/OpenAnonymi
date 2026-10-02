@@ -19,6 +19,7 @@ from app.accounts.recovery import (
     complete_recovery,
     request_recovery,
 )
+from app.accounts.registration import AccountUnavailable, register_account
 from app.accounts.security import (
     COOKIE_NAME,
     COOKIE_PATH,
@@ -39,6 +40,13 @@ from app.errors import ApiError
 class SignInRequest(BaseModel):
     email: str = Field(min_length=1, max_length=320)
     password: SecretStr = Field(min_length=1, max_length=1024)
+
+
+class SignUpRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    email: str = Field(min_length=3, max_length=320)
+    password: SecretStr = Field(min_length=12, max_length=1024)
+    workspace_name: str = Field(min_length=1, max_length=120)
 
 
 class MembershipView(BaseModel):
@@ -147,6 +155,7 @@ def mutation_identity(request: Request) -> SessionIdentity:
 def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
     router = APIRouter(prefix="/api/v1/auth", tags=["accounts"])
     limiter = AttemptLimiter()
+    registration_limiter = AttemptLimiter(maximum=3)
     recovery_request_limiter = AttemptLimiter(maximum=3)
     recovery_completion_limiter = AttemptLimiter()
 
@@ -172,6 +181,53 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
             raise ApiError(
                 401, "invalid_credentials", "Email or password was not accepted."
             ) from None
+        response.set_cookie(
+            COOKIE_NAME,
+            issued.token,
+            max_age=int(SESSION_TTL.total_seconds()),
+            path=COOKIE_PATH,
+            secure=settings.environment == "production",
+            httponly=True,
+            samesite="lax",
+        )
+        return _view(issued.identity)
+
+    @router.post(
+        "/sign-up",
+        status_code=201,
+        response_model=SessionView,
+        responses={409: {"model": ErrorResponse}, 429: {"model": ErrorResponse}},
+    )
+    def sign_up_route(body: SignUpRequest, request: Request, response: Response) -> SessionView:
+        require_mutation_origin(request)
+        if not settings.registration_enabled:
+            raise ApiError(
+                403,
+                "registration_closed",
+                "Account creation is closed. Contact your workspace administrator.",
+            )
+        client_ip = request.client.host if request.client else "unknown"
+        if not registration_limiter.take(client_ip):
+            raise ApiError(
+                429, "registration_limited", "Too many account creation attempts. Try again later."
+            )
+        try:
+            with Session(engine) as session:
+                issued = register_account(
+                    session,
+                    email=body.email,
+                    password=body.password.get_secret_value(),
+                    workspace_name=body.workspace_name,
+                    now=datetime.now(UTC),
+                )
+        except AccountUnavailable:
+            raise ApiError(
+                409,
+                "account_unavailable",
+                "This account could not be created. Try signing in or recovering your account.",
+            ) from None
+        except ValueError as exc:
+            raise ApiError(422, "invalid_registration", str(exc)) from None
         response.set_cookie(
             COOKIE_NAME,
             issued.token,

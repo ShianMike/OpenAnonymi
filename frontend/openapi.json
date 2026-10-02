@@ -66,6 +66,67 @@
         }
       }
     },
+    "/api/v1/auth/sign-up": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Sign Up Route",
+        "operationId": "sign_up_route_api_v1_auth_sign_up_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignUpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionView"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/session": {
       "get": {
         "tags": [
@@ -1291,6 +1352,1258 @@
               }
             },
             "description": "Not Found"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/import-preview": {
+      "post": {
+        "tags": [
+          "imports"
+        ],
+        "summary": "Preview Route",
+        "operationId": "preview_route_api_v1_documents_import_preview_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_preview_route_api_v1_documents_import_preview_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportPreview"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/compare": {
+      "get": {
+        "tags": [
+          "comparison"
+        ],
+        "summary": "Compare Route",
+        "operationId": "compare_route_api_v1_documents__document_id__compare_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Before"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "After"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparisonView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/handoff": {
+      "get": {
+        "tags": [
+          "team review"
+        ],
+        "summary": "Get Handoff",
+        "operationId": "get_handoff_api_v1_documents__document_id__handoff_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandoffView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "team review"
+        ],
+        "summary": "Put Handoff",
+        "operationId": "put_handoff_api_v1_documents__document_id__handoff_put",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HandoffInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandoffView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/teammates": {
+      "get": {
+        "tags": [
+          "team review"
+        ],
+        "summary": "Get Teammates",
+        "operationId": "get_teammates_api_v1_documents__document_id__teammates_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TeammateView"
+                  },
+                  "title": "Response Get Teammates Api V1 Documents  Document Id  Teammates Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/approval": {
+      "post": {
+        "tags": [
+          "team review"
+        ],
+        "summary": "Approval",
+        "operationId": "approval_api_v1_documents__document_id__approval_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HandoffView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/findings/{finding_id}/comments": {
+      "get": {
+        "tags": [
+          "team review"
+        ],
+        "summary": "Comments",
+        "operationId": "comments_api_v1_documents__document_id__findings__finding_id__comments_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "finding_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Finding Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CommentView"
+                  },
+                  "title": "Response Comments Api V1 Documents  Document Id  Findings  Finding Id  Comments Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "team review"
+        ],
+        "summary": "Comment",
+        "operationId": "comment_api_v1_documents__document_id__findings__finding_id__comments_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "finding_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Finding Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/comments/{comment_id}": {
+      "delete": {
+        "tags": [
+          "team review"
+        ],
+        "summary": "Remove",
+        "operationId": "remove_api_v1_documents__document_id__comments__comment_id__delete",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "comment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Comment Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/recovery": {
+      "get": {
+        "tags": [
+          "recovery"
+        ],
+        "summary": "List Route",
+        "operationId": "list_route_api_v1_workspaces__workspace_id__recovery_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "document_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecoveryMetadata"
+                  },
+                  "title": "Response List Route Api V1 Workspaces  Workspace Id  Recovery Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/recovery/{snapshot_id}": {
+      "get": {
+        "tags": [
+          "recovery"
+        ],
+        "summary": "Load Route",
+        "operationId": "load_route_api_v1_workspaces__workspace_id__recovery__snapshot_id__get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "snapshot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Snapshot Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "recovery"
+        ],
+        "summary": "Save Route",
+        "operationId": "save_route_api_v1_workspaces__workspace_id__recovery__snapshot_id__put",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "snapshot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Snapshot Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveryWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryMetadata"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "recovery"
+        ],
+        "summary": "Delete Route",
+        "operationId": "delete_route_api_v1_workspaces__workspace_id__recovery__snapshot_id__delete",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "snapshot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Snapshot Id"
+            }
+          },
+          {
+            "name": "expected_version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Expected Version"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/rules": {
+      "get": {
+        "tags": [
+          "custom rules"
+        ],
+        "summary": "List Route",
+        "operationId": "list_route_api_v1_workspaces__workspace_id__rules_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RuleView"
+                  },
+                  "title": "Response List Route Api V1 Workspaces  Workspace Id  Rules Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "custom rules"
+        ],
+        "summary": "Create Route",
+        "operationId": "create_route_api_v1_workspaces__workspace_id__rules_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuleInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuleView"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/rules/{rule_id}": {
+      "put": {
+        "tags": [
+          "custom rules"
+        ],
+        "summary": "Update Route",
+        "operationId": "update_route_api_v1_workspaces__workspace_id__rules__rule_id__put",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "rule_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rule Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuleUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuleView"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/rules/test": {
+      "post": {
+        "tags": [
+          "custom rules"
+        ],
+        "summary": "Test Route",
+        "operationId": "test_route_api_v1_workspaces__workspace_id__rules_test_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuleTestInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuleTestView"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/rules": {
+      "get": {
+        "tags": [
+          "custom rules"
+        ],
+        "summary": "Snapshot Route",
+        "operationId": "snapshot_route_api_v1_documents__document_id__rules_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuleSnapshotView"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "custom rules"
+        ],
+        "summary": "Refresh Route",
+        "operationId": "refresh_route_api_v1_documents__document_id__rules_put",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRulesInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuleSnapshotView"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
           },
           "410": {
             "content": {
@@ -3174,6 +4487,23 @@
         ],
         "title": "ActivityView"
       },
+      "ApprovalInput": {
+        "properties": {
+          "expected": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "confirmed_preview": {
+            "type": "boolean",
+            "title": "Confirmed Preview"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected",
+          "confirmed_preview"
+        ],
+        "title": "ApprovalInput"
+      },
       "Body_create_file_draft_route_api_v1_documents_from_file_post": {
         "properties": {
           "workspace_id": {
@@ -3243,6 +4573,26 @@
         ],
         "title": "Body_create_file_draft_route_api_v1_documents_from_file_post"
       },
+      "Body_preview_route_api_v1_documents_import_preview_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Workspace Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "workspace_id"
+        ],
+        "title": "Body_preview_route_api_v1_documents_import_preview_post"
+      },
       "ChangePasswordRequest": {
         "properties": {
           "current_password": {
@@ -3280,6 +4630,122 @@
           "role"
         ],
         "title": "ChangeRoleRequest"
+      },
+      "CommentInput": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "expected": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "expected",
+          "text"
+        ],
+        "title": "CommentInput"
+      },
+      "CommentView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "finding_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Finding Id"
+          },
+          "author_email": {
+            "type": "string",
+            "title": "Author Email"
+          },
+          "is_mine": {
+            "type": "boolean",
+            "title": "Is Mine"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "finding_id",
+          "author_email",
+          "is_mine",
+          "text",
+          "created_at"
+        ],
+        "title": "CommentView"
+      },
+      "ComparisonView": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Document Id"
+          },
+          "before": {
+            "$ref": "#/components/schemas/RevisionSide"
+          },
+          "after": {
+            "$ref": "#/components/schemas/RevisionSide"
+          },
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/DiffBlock"
+            },
+            "type": "array",
+            "title": "Blocks"
+          },
+          "changes": {
+            "type": "integer",
+            "title": "Changes"
+          },
+          "added_lines": {
+            "type": "integer",
+            "title": "Added Lines"
+          },
+          "removed_lines": {
+            "type": "integer",
+            "title": "Removed Lines"
+          },
+          "coarse": {
+            "type": "boolean",
+            "title": "Coarse"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "before",
+          "after",
+          "blocks",
+          "changes",
+          "added_lines",
+          "removed_lines",
+          "coarse"
+        ],
+        "title": "ComparisonView"
       },
       "CompletionView": {
         "properties": {
@@ -3543,6 +5009,61 @@
         "type": "object",
         "title": "DeletedView"
       },
+      "DiffBlock": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "left_text": {
+            "type": "string",
+            "title": "Left Text"
+          },
+          "right_text": {
+            "type": "string",
+            "title": "Right Text"
+          },
+          "left_start": {
+            "type": "integer",
+            "title": "Left Start"
+          },
+          "right_start": {
+            "type": "integer",
+            "title": "Right Start"
+          },
+          "left_lines": {
+            "type": "integer",
+            "title": "Left Lines"
+          },
+          "right_lines": {
+            "type": "integer",
+            "title": "Right Lines"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "left_text",
+          "right_text",
+          "left_start",
+          "right_start",
+          "left_lines",
+          "right_lines",
+          "change"
+        ],
+        "title": "DiffBlock"
+      },
       "DocumentHistoryView": {
         "properties": {
           "document_id": {
@@ -3619,6 +5140,10 @@
             "format": "uuid",
             "title": "Id"
           },
+          "is_owner": {
+            "type": "boolean",
+            "title": "Is Owner"
+          },
           "title": {
             "anyOf": [
               {
@@ -3672,6 +5197,7 @@
         "type": "object",
         "required": [
           "id",
+          "is_owner",
           "title",
           "status",
           "created_at",
@@ -3841,6 +5367,7 @@
         "enum": [
           "person",
           "organization",
+          "location",
           "address",
           "identifier",
           "custom",
@@ -4023,6 +5550,106 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "HandoffInput": {
+        "properties": {
+          "expected": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "reviewer_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewer Id"
+          },
+          "require_approval": {
+            "type": "boolean",
+            "title": "Require Approval"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected",
+          "reviewer_id",
+          "require_approval"
+        ],
+        "title": "HandoffInput"
+      },
+      "HandoffView": {
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "is_owner": {
+            "type": "boolean",
+            "title": "Is Owner"
+          },
+          "reviewer_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewer Id"
+          },
+          "reviewer_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewer Email"
+          },
+          "reviewer_active": {
+            "type": "boolean",
+            "title": "Reviewer Active"
+          },
+          "require_approval": {
+            "type": "boolean",
+            "title": "Require Approval"
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "generation": {
+            "type": "integer",
+            "title": "Generation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "is_owner",
+          "reviewer_id",
+          "reviewer_email",
+          "reviewer_active",
+          "require_approval",
+          "approved_at",
+          "generation"
+        ],
+        "title": "HandoffView"
+      },
       "HealthResponse": {
         "properties": {
           "status": {
@@ -4059,6 +5686,54 @@
           "occurred_at"
         ],
         "title": "HistoryEventView"
+      },
+      "ImportPreview": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "format": {
+            "type": "string",
+            "title": "Format"
+          },
+          "pages": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pages"
+          },
+          "code_points": {
+            "type": "integer",
+            "title": "Code Points"
+          },
+          "utf8_bytes": {
+            "type": "integer",
+            "title": "Utf8 Bytes"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "format",
+          "pages",
+          "code_points",
+          "utf8_bytes",
+          "notes"
+        ],
+        "title": "ImportPreview"
       },
       "IntakeDefaultsView": {
         "properties": {
@@ -4467,6 +6142,127 @@
         ],
         "title": "RecoveryMessage"
       },
+      "RecoveryMetadata": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Workspace Id"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "workspace_id",
+          "document_id",
+          "version",
+          "updated_at",
+          "expires_at"
+        ],
+        "title": "RecoveryMetadata"
+      },
+      "RecoveryPayload": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "maxLength": 100000,
+            "title": "Source"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/FindingCategory"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Categories"
+          },
+          "phone_region": {
+            "type": "string",
+            "maxLength": 2,
+            "minLength": 2,
+            "title": "Phone Region",
+            "default": "PH"
+          },
+          "retention_days": {
+            "type": "integer",
+            "maximum": 30.0,
+            "minimum": 1.0,
+            "title": "Retention Days",
+            "default": 7
+          },
+          "preset_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preset Id"
+          },
+          "base_version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source"
+        ],
+        "title": "RecoveryPayload"
+      },
       "RecoveryRequest": {
         "properties": {
           "email": {
@@ -4481,6 +6277,103 @@
           "email"
         ],
         "title": "RecoveryRequest"
+      },
+      "RecoveryView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Workspace Id"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/RecoveryPayload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "workspace_id",
+          "document_id",
+          "version",
+          "updated_at",
+          "expires_at",
+          "payload"
+        ],
+        "title": "RecoveryView"
+      },
+      "RecoveryWrite": {
+        "properties": {
+          "expected_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Version"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/RecoveryPayload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_version",
+          "payload"
+        ],
+        "title": "RecoveryWrite"
+      },
+      "RefreshRulesInput": {
+        "properties": {
+          "expected": {
+            "$ref": "#/components/schemas/VersionRef"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected"
+        ],
+        "title": "RefreshRulesInput"
       },
       "RemoveFindingRequest": {
         "properties": {
@@ -4568,6 +6461,11 @@
       },
       "RevisionHistoryView": {
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
           "number": {
             "type": "integer",
             "title": "Number"
@@ -4584,11 +6482,291 @@
         },
         "type": "object",
         "required": [
+          "id",
           "number",
           "created_at",
           "is_current"
         ],
         "title": "RevisionHistoryView"
+      },
+      "RevisionSide": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "number",
+          "created_at"
+        ],
+        "title": "RevisionSide"
+      },
+      "RuleInput": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "phrase",
+              "identifier"
+            ],
+            "title": "Kind",
+            "default": "phrase"
+          },
+          "expression": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Expression"
+          },
+          "category": {
+            "$ref": "#/components/schemas/FindingCategory",
+            "default": "custom"
+          },
+          "case_sensitive": {
+            "type": "boolean",
+            "title": "Case Sensitive",
+            "default": false
+          },
+          "whole_word": {
+            "type": "boolean",
+            "title": "Whole Word",
+            "default": true
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "expression"
+        ],
+        "title": "RuleInput"
+      },
+      "RuleSnapshotView": {
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/RuleView"
+            },
+            "type": "array",
+            "title": "Rules"
+          },
+          "update_available": {
+            "type": "boolean",
+            "title": "Update Available"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "rules",
+          "update_available"
+        ],
+        "title": "RuleSnapshotView"
+      },
+      "RuleTestInput": {
+        "properties": {
+          "rule": {
+            "$ref": "#/components/schemas/RuleInput"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 10000,
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rule",
+          "text"
+        ],
+        "title": "RuleTestInput"
+      },
+      "RuleTestMatch": {
+        "properties": {
+          "span": {
+            "$ref": "#/components/schemas/SourceSpan"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "span",
+          "text"
+        ],
+        "title": "RuleTestMatch"
+      },
+      "RuleTestView": {
+        "properties": {
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/RuleTestMatch"
+            },
+            "type": "array",
+            "title": "Matches"
+          },
+          "match_count": {
+            "type": "integer",
+            "title": "Match Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "matches",
+          "match_count"
+        ],
+        "title": "RuleTestView"
+      },
+      "RuleUpdate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "phrase",
+              "identifier"
+            ],
+            "title": "Kind",
+            "default": "phrase"
+          },
+          "expression": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Expression"
+          },
+          "category": {
+            "$ref": "#/components/schemas/FindingCategory",
+            "default": "custom"
+          },
+          "case_sensitive": {
+            "type": "boolean",
+            "title": "Case Sensitive",
+            "default": false
+          },
+          "whole_word": {
+            "type": "boolean",
+            "title": "Whole Word",
+            "default": true
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "expression",
+          "expected_version"
+        ],
+        "title": "RuleUpdate"
+      },
+      "RuleView": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "phrase",
+              "identifier"
+            ],
+            "title": "Kind",
+            "default": "phrase"
+          },
+          "expression": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Expression"
+          },
+          "category": {
+            "$ref": "#/components/schemas/FindingCategory",
+            "default": "custom"
+          },
+          "case_sensitive": {
+            "type": "boolean",
+            "title": "Case Sensitive",
+            "default": false
+          },
+          "whole_word": {
+            "type": "boolean",
+            "title": "Whole Word",
+            "default": true
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "expression",
+          "id",
+          "version",
+          "updated_at"
+        ],
+        "title": "RuleView"
       },
       "SavedDraftView": {
         "properties": {
@@ -4837,6 +7015,38 @@
         ],
         "title": "SignInRequest"
       },
+      "SignUpRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 12,
+            "format": "password",
+            "title": "Password",
+            "writeOnly": true
+          },
+          "workspace_name": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Workspace Name"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "email",
+          "password",
+          "workspace_name"
+        ],
+        "title": "SignUpRequest"
+      },
       "SourceSpan": {
         "properties": {
           "start": {
@@ -4860,6 +7070,15 @@
       },
       "SourceView": {
         "properties": {
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Workspace Id"
+          },
+          "can_edit": {
+            "type": "boolean",
+            "title": "Can Edit"
+          },
           "version": {
             "$ref": "#/components/schemas/VersionRef"
           },
@@ -4927,6 +7146,8 @@
         },
         "type": "object",
         "required": [
+          "workspace_id",
+          "can_edit",
           "version",
           "text",
           "expires_at",
@@ -5009,6 +7230,25 @@
           "reason"
         ],
         "title": "SuggestionView"
+      },
+      "TeammateView": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "email"
+        ],
+        "title": "TeammateView"
       },
       "UpdatePresetInput": {
         "properties": {

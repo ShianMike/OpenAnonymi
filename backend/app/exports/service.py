@@ -38,6 +38,9 @@ def _current_output(
     if version != expected:
         raise VersionConflict(version)
     completion = current_completion(session, document)
+    from app.team_review.service import require_second_approval
+
+    require_second_approval(session, document)
     preview = build_current_preview(session, document=document, keys=keys)
     if preview.status != "complete" or preview.text is None:
         raise CompletionRejected(
@@ -130,6 +133,9 @@ def record_copy_success(
         if version != expected:
             raise VersionConflict(version)
         completion = current_completion(session, document)
+        from app.team_review.service import require_second_approval
+
+        require_second_approval(session, document)
         if completion.id != completion_id:
             raise ExportConflict("The confirmed review changed before copy was recorded.")
         event = _record_event(

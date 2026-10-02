@@ -1,0 +1,8 @@
+.autosave-status { display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; padding: 12px 0; color: var(--muted); font-size: .8rem; }
+.autosave-status > span { display: inline-flex; align-items: center; gap: 7px; }
+.autosave-restored { color: var(--blue); }
+.autosave-error { flex-basis: 100%; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; color: var(--danger); }
+.autosave-error button { display: inline-flex; align-items: center; gap: 7px; }
+.autosave-copies { flex-basis: 100%; }
+.autosave-copies p { margin: 10px 0; }
+.autosave-copies button { margin: 4px 8px 4px 0; }

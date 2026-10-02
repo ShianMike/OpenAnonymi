@@ -9,7 +9,12 @@ from sqlalchemy import select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from app.accounts.access import ContentUnavailable, DocumentNotFound, owned_document
+from app.accounts.access import (
+    ContentUnavailable,
+    DocumentNotFound,
+    owned_document,
+    review_document,
+)
 from app.contracts import DocumentStatus, FindingCategory, SourceSpan, VersionRef
 from app.db.crypto import KeyRing, ProtectedValue
 from app.db.models import Document, Finding, ScanRun, SourceRevision
@@ -104,7 +109,7 @@ def load_scan_state(
     engine: Engine, *, document_id: UUID, actor_id: UUID, now: datetime
 ) -> ScanSnapshot:
     with Session(engine) as session, session.begin():
-        document = owned_document(session, document_id, actor_id, now, lock=True)
+        document = review_document(session, document_id, actor_id, now, lock=True)
         version = _version(document)
         run = _run_for_current(session, version, lock=True)
         if run is not None and run.status == "scanning" and now - run.started_at >= SCAN_LEASE:
@@ -137,8 +142,17 @@ def change_scan_settings(
     phone_region: str,
     now: datetime,
 ) -> VersionRef:
-    if not categories.issubset({FindingCategory.EMAIL, FindingCategory.PHONE}):
-        raise ValueError("Choose email and/or phone suggestions.")
+    if not categories.issubset(
+        {
+            FindingCategory.EMAIL,
+            FindingCategory.PHONE,
+            FindingCategory.PERSON,
+            FindingCategory.ORGANIZATION,
+            FindingCategory.LOCATION,
+            FindingCategory.IDENTIFIER,
+        }
+    ):
+        raise ValueError("Choose supported automatic suggestion categories.")
     # Detector validation is the single source for supported regions.
     from phonenumbers import SUPPORTED_REGIONS
 
@@ -155,7 +169,11 @@ def change_scan_settings(
             return current
         document.category_settings = encoded_categories
         document.phone_region = region
+        previous_settings = document.settings_version
         document.settings_version += 1
+        from app.custom_rules.service import copy_snapshot
+
+        copy_snapshot(session, document, previous_settings)
         document.decision_version += 1
         if document.status != DocumentStatus.DRAFT:
             require_transition(DocumentStatus(document.status), DocumentStatus.DRAFT)
@@ -258,6 +276,9 @@ def scan_document(
             FindingCategory(value) for value in document.category_settings.split(",") if value
         }
         region = document.phone_region
+        from app.custom_rules.service import load_snapshot
+
+        custom_rules = load_snapshot(session, document, keys)
         if run is None:
             run = ScanRun(
                 id=uuid4(),
@@ -288,6 +309,20 @@ def scan_document(
 
     try:
         detected = detect_suggestions(source, categories, region)
+        from app.custom_rules.matching import detect_custom
+
+        detected.extend(
+            detect_custom(source, [(rule.id, rule.version, rule) for rule in custom_rules])
+        )
+        unique = {}
+        for suggestion in detected:
+            unique.setdefault(
+                (suggestion.span.start, suggestion.span.end, suggestion.category), suggestion
+            )
+        detected = list(unique.values())
+        if len(detected) > 1_000:
+            raise DetectionLimitError("too_many_suggestions")
+        detected.sort(key=lambda item: (item.span.start, item.span.end, item.category.value))
     except DetectionLimitError as exc:
         stale = _finish_failed(
             engine,

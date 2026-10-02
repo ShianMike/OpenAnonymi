@@ -191,6 +191,9 @@ def revoke_member(
             if membership.role == WorkspaceRole.ADMINISTRATOR:
                 _ensure_other_administrator(session, workspace_id, user_id)
             membership.revoked_at = now
+            from app.team_review.comments import revoke_member_handoffs
+
+            revoke_member_handoffs(session, workspace_id, user_id, now)
             session.execute(
                 update(StoredSession)
                 .where(StoredSession.user_id == user_id, StoredSession.revoked_at.is_(None))

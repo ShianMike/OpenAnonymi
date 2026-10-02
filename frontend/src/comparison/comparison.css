@@ -1,0 +1,49 @@
+.revision-comparison { padding: 26px; margin-block: 24px; min-width: 0; }
+.comparison-picker { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 14px; margin-top: 22px; }
+.comparison-picker > div { min-width: 0; }
+.comparison-picker label { display: block; font-size: .8rem; margin-bottom: 8px; }
+.comparison-picker button[type=submit] { background: var(--blue); color: var(--on-accent); border: 0; border-radius: 12px; padding: 13px 18px; min-height: 44px; }
+.comparison-summary { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-block: 22px 14px; }
+.comparison-summary small { color: var(--muted); white-space: nowrap; }
+.comparison-navigation { display: flex; align-items: center; gap: 10px; font-size: .8rem; font-variant-numeric: tabular-nums; }
+.comparison-navigation button { display: grid; place-items: center; min-height: 40px; min-width: 40px; border: 0; border-radius: 10px; background: var(--surface-subtle); color: var(--text); }
+.comparison-scroll { max-height: 65svh; overflow: auto; border-radius: 14px; background: var(--page); scroll-padding-top: 46px; }
+.comparison-column-headings, .comparison-block { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.comparison-column-headings { position: sticky; top: 0; z-index: 1; background: var(--surface-subtle); font-size: .8rem; }
+.comparison-column-headings span { padding: 14px 18px; }
+.comparison-block > div { display: flex; gap: 12px; min-width: 0; padding: 16px 18px; }
+.comparison-block .comparison-after { border-left: 1px solid var(--line); }
+.comparison-block pre { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; margin: 0; font: inherit; font-size: .93rem; line-height: 1.7; tab-size: 4; }
+.comparison-line { flex-shrink: 0; color: var(--muted); font-size: .72rem; padding-top: 3px; font-variant-numeric: tabular-nums; }
+.comparison-empty { color: var(--muted); font-size: .8rem; font-style: italic; }
+.comparison-block[data-kind=replace] .comparison-before, .comparison-block[data-kind=delete] .comparison-before { background: var(--danger-tint); }
+.comparison-block[data-kind=replace] .comparison-after, .comparison-block[data-kind=insert] .comparison-after { background: var(--blue-tint); }
+.comparison-block[data-selected=true] { outline: 2px solid var(--focus); outline-offset: -2px; }
+.comparison-legend { display: flex; flex-wrap: wrap; gap: 18px; color: var(--muted); font-size: .75rem; }
+.comparison-legend span { display: flex; align-items: center; gap: 5px; }
+.comparison-legend span:first-child { color: var(--danger); }
+.comparison-legend span:nth-child(2) { color: var(--blue-strong); }
+.comparison-mobile-switch { display: none; }
+.history-meta { display: flex; flex-wrap: wrap; gap: 18px; margin-block: 24px; color: var(--muted); font-size: .85rem; }
+.history-meta > span { display: flex; align-items: center; gap: 8px; }
+.history-timeline { padding: 24px; margin-bottom: 22px; }
+.history-timeline ol { list-style: none; margin: 20px 0 0; padding: 0; }
+.history-timeline li { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.history-timeline li:last-child { border-bottom: 0; }
+.history-timeline time { color: var(--muted); font-size: .8rem; }
+@media (max-width: 760px) {
+  .revision-comparison, .history-timeline { padding: 20px 16px; }
+  .comparison-picker { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  .comparison-picker button[type=submit] { grid-column: 1 / -1; }
+  .comparison-mobile-switch { display: flex; gap: 8px; border: 0; padding: 0; margin-block: 16px; }
+  .comparison-mobile-switch label { flex: 1; position: relative; }
+  .comparison-mobile-switch input { position: absolute; opacity: 0; }
+  .comparison-mobile-switch span { display: block; padding: 12px 10px; border-radius: 10px; background: var(--surface-subtle); text-align: center; font-size: .8rem; }
+  .comparison-mobile-switch input:checked + span { background: var(--blue-tint); color: var(--blue-strong); }
+  .comparison-mobile-switch input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 3px; }
+  .comparison-column-headings { display: none; }
+  .comparison-block { grid-template-columns: minmax(0, 1fr); }
+  .comparison-scroll[data-side=before] .comparison-after, .comparison-scroll[data-side=after] .comparison-before { display: none; }
+  .comparison-block .comparison-after { border: 0; }
+  .comparison-scroll { scroll-padding-top: 0; }
+}

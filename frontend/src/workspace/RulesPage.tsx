@@ -1,170 +1,130 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { GlassSelect } from '../ui/GlassSelect'
+import { useEffect, useState } from 'react'
 import {
-  createWorkspacePreset, getWorkspacePresets, updateWorkspacePreset,
-  type PresetInput, type PresetView, type SessionView,
+  createWorkspacePreset,
+  getWorkspacePresets,
+  updateWorkspacePreset,
+  type PresetView,
+  type SessionView,
 } from '../api/client'
 import { PageHeader } from '../ui/PageHeader'
+import { Plus, ShieldCheck, SlidersHorizontal } from 'lucide-react'
+import { InlineNotice } from '../ui/WorkspaceControls'
+import { PresetDialog } from './rules/PresetDialog'
+import { PresetCard } from './rules/PresetCard'
+import { DetectionRules } from '../rules/DetectionRules'
+import { RulesEmptyState, RulesLoading, RulesSectionHeading } from '../rules/RulesSection'
+import './rules/rules.css'
 
-type Data = { kind: 'loading' } | { kind: 'error'; message: string } |
-  { kind: 'ready'; presets: PresetView[] }
-
-function PresetEditor({ preset, onSave }: {
-  preset?: PresetView
-  onSave: (value: PresetInput) => Promise<void>
-}) {
-  const fieldId = preset?.id ?? 'new'
-  const [name, setName] = useState(preset?.name ?? '')
-  const [email, setEmail] = useState(preset?.categories.includes('email') ?? true)
-  const [phone, setPhone] = useState(preset?.categories.includes('phone') ?? true)
-  const [phoneRegion, setPhoneRegion] = useState(preset?.phone_region ?? 'PH')
-  const [preferredAction, setPreferredAction] = useState<'label' | 'redact'>(
-    preset?.preferred_action ?? 'label',
-  )
-  const [isDefault, setIsDefault] = useState(preset?.is_default ?? false)
-  const [pending, setPending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  async function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setPending(true)
-    setError(null)
-    try {
-      await onSave({
-        name: name.trim(),
-        categories: [
-          ...(email ? ['email' as const] : []),
-          ...(phone ? ['phone' as const] : []),
-        ],
-        phone_region: phoneRegion,
-        preferred_action: preferredAction,
-        is_default: isDefault,
-      })
-      if (!preset) setName('')
-    } catch (cause: unknown) {
-      setError(cause instanceof Error ? cause.message : 'Preset could not be saved.')
-    } finally {
-      setPending(false)
-    }
-  }
-
-  return (
-    <form className="preset-form" onSubmit={(event) => void save(event)}>
-      {error && <p role="alert">{error}</p>}
-      <label htmlFor={`preset-name-${fieldId}`}>Preset name</label>{' '}
-      <input id={`preset-name-${fieldId}`} required maxLength={100} value={name}
-        onChange={(event) => setName(event.target.value)} />{' '}
-      <fieldset>
-        <legend>Automatic suggestions</legend>
-        <label><input type="checkbox" checked={email}
-          onChange={(event) => setEmail(event.target.checked)} />Email</label>{' '}
-        <label><input type="checkbox" checked={phone}
-          onChange={(event) => setPhone(event.target.checked)} />Phone</label>
-      </fieldset>
-      <label htmlFor={`preset-region-${fieldId}`}>Phone region</label>{' '}
-      <select id={`preset-region-${fieldId}`} value={phoneRegion}
-        onChange={(event) => setPhoneRegion(event.target.value)}>
-        <option value="PH">Philippines</option>
-        <option value="US">United States</option>
-        <option value="GB">United Kingdom</option>
-        <option value="CA">Canada</option>
-        <option value="AU">Australia</option>
-        <option value="IN">India</option>
-      </select>{' '}
-      <label htmlFor={`preset-action-${fieldId}`}>Preferred replacement action</label>{' '}
-      <select id={`preset-action-${fieldId}`} value={preferredAction}
-        onChange={(event) => setPreferredAction(event.target.value as 'label' | 'redact')}>
-        <option value="label">Label</option>
-        <option value="redact">Redact</option>
-      </select>{' '}
-      <label><input type="checkbox" checked={isDefault}
-        onChange={(event) => setIsDefault(event.target.checked)} />Workspace default</label>{' '}
-      <button type="submit" disabled={pending || !name.trim()}>
-        {pending ? 'Saving…' : preset ? 'Save preset' : 'Create preset'}
-      </button>
-    </form>
-  )
-}
+type Data =
+  { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; presets: PresetView[] }
 
 export function RulesPage({ session }: { session: SessionView }) {
   const [workspaceId, setWorkspaceId] = useState(session.memberships[0]?.workspace_id ?? '')
   const [data, setData] = useState<Data>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
   const [notice, setNotice] = useState<string | null>(null)
-  const administrator = session.memberships.some((item) =>
-    item.workspace_id === workspaceId && item.role === 'administrator')
+  const administrator = session.memberships.some(
+    (item) => item.workspace_id === workspaceId && item.role === 'administrator',
+  )
 
   useEffect(() => {
     if (!workspaceId) return
     const controller = new AbortController()
-    getWorkspacePresets(workspaceId, controller.signal).then((presets) => {
-      if (!controller.signal.aborted) setData({ kind: 'ready', presets })
-    }).catch((cause: unknown) => {
-      if (!controller.signal.aborted) setData({
-        kind: 'error', message: cause instanceof Error ? cause.message : 'Presets could not be loaded.',
+    getWorkspacePresets(workspaceId, controller.signal)
+      .then((presets) => {
+        if (!controller.signal.aborted) setData({ kind: 'ready', presets })
       })
-    })
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted)
+          setData({
+            kind: 'error',
+            message: cause instanceof Error ? cause.message : 'Presets could not be loaded.',
+          })
+      })
     return () => controller.abort()
   }, [workspaceId, attempt])
 
+  const create = administrator && data.kind === 'ready' && (
+    <PresetDialog
+      trigger={<button className="button-primary rules-add-button" type="button"><Plus size={16} aria-hidden="true" /> New preset</button>}
+      onSave={async (value) => {
+        await createWorkspacePreset(workspaceId, value, session.csrf_token)
+        setNotice('Preset created for this workspace.')
+        setAttempt((current) => current + 1)
+      }}
+    />
+  )
+
   return (
-    <section aria-labelledby="rules-title">
-      <PageHeader title="Rules" titleId="rules-title"
-        description="Presets set suggestions and a preferred action for new reviews. You still decide every finding." />
-      <p className="data-scope">Changes to a preset do not change reviews already saved.</p>
+    <section className="rules-page" aria-labelledby="rules-title">
+      <PageHeader
+        title="Rules"
+        titleId="rules-title"
+        description="A thoughtful starting point for every review."
+      />
       {session.memberships.length > 1 && (
         <div className="workspace-picker">
           <label htmlFor="rules-workspace">Workspace</label>{' '}
-          <select id="rules-workspace" value={workspaceId} onChange={(event) => {
-            setWorkspaceId(event.target.value)
-            setData({ kind: 'loading' })
-          }}>
+          <GlassSelect
+            id="rules-workspace"
+            value={workspaceId}
+            onValueChange={(value) => {
+              setWorkspaceId(value)
+              setData({ kind: 'loading' })
+              setNotice(null)
+            }}
+          >
             {session.memberships.map((item, index) => (
               <option key={item.workspace_id} value={item.workspace_id}>
                 {item.workspace_name || `Workspace ${index + 1}`}
               </option>
             ))}
-          </select>
+          </GlassSelect>
         </div>
       )}
-      {notice && <p role="status">{notice}</p>}
-      {data.kind === 'loading' && <p role="status">Loading presets…</p>}
-      {data.kind === 'error' && (
-        <div role="alert"><p>{data.message}</p>
-          <button type="button" onClick={() => setAttempt((value) => value + 1)}>Retry</button>
-        </div>
-      )}
-      {data.kind === 'ready' && (
-        <>
-          <h2>Available presets</h2>
-          {data.presets.length === 0 && <div className="empty-state surface-panel">
-            <strong>No presets yet</strong><p>Create one to reuse suggestion settings in new reviews.</p>
-          </div>}
-          <ul className="preset-list">{data.presets.map((preset) => (
-            <li className="surface-panel" key={preset.id}>
-              <h3>{preset.name}{preset.is_default ? ' — default' : ''}</h3>
-              <p>Version {preset.version}. Suggestions: {preset.categories.join(', ') || 'none'}; phone region {preset.phone_region}; preferred action {preset.preferred_action}.</p>
-              {administrator && <PresetEditor key={`${preset.id}-${preset.version}`}
-                preset={preset} onSave={async (value) => {
+      <section className="rules-section workspace-preset-section" aria-labelledby="workspace-presets-title">
+        <RulesSectionHeading id="workspace-presets-title" icon={SlidersHorizontal} title="Workspace presets"
+          description="Choose what to look for and how to handle it in a new review."
+          count={data.kind === 'ready' ? data.presets.length : undefined}
+          action={create} />
+        {notice && <InlineNotice>{notice}</InlineNotice>}
+        {data.kind === 'loading' && <RulesLoading label="Loading presets…" />}
+        {data.kind === 'error' && (
+          <InlineNotice error>{data.message} <button type="button" onClick={() => {
+            setData({ kind: 'loading' })
+            setAttempt((value) => value + 1)
+          }}>Retry presets</button></InlineNotice>
+        )}
+        {data.kind === 'ready' && <>
+          {data.presets.length === 0 && (
+            <RulesEmptyState title="Save a setup you'll use again"
+              description={administrator ? 'Bring your suggestion types, phone region, and preferred action together in one preset.' : 'Your administrator can create reusable settings for new reviews.'} />
+          )}
+          {data.presets.length > 0 && <ul className="rules-card-grid preset-card-grid">
+            {data.presets.map((preset) => (
+              <PresetCard
+                key={preset.id}
+                preset={preset}
+                administrator={administrator}
+                onSave={async (value) => {
                   await updateWorkspacePreset(
-                    workspaceId, preset.id, value, preset.version, session.csrf_token,
+                    workspaceId,
+                    preset.id,
+                    value,
+                    preset.version,
+                    session.csrf_token,
                   )
                   setNotice('Preset saved. Existing reviews kept their saved settings.')
                   setAttempt((current) => current + 1)
-                }} />}
-            </li>
-          ))}</ul>
-          {administrator && (
-            <section aria-labelledby="new-preset-title">
-              <h2 id="new-preset-title">New preset</h2>
-              <PresetEditor onSave={async (value) => {
-                await createWorkspacePreset(workspaceId, value, session.csrf_token)
-                setNotice('Preset created for this workspace.')
-                setAttempt((current) => current + 1)
-              }} />
-            </section>
-          )}
-        </>
-      )}
+                }}
+              />
+            ))}
+          </ul>}
+        </>}
+      </section>
+      <DetectionRules key={workspaceId} workspace={workspaceId} csrf={session.csrf_token} administrator={administrator} />
+      <p className="rules-footnote"><ShieldCheck size={16} aria-hidden="true" />Changes apply to new reviews. Saved reviews keep their settings, and you decide every finding.</p>
     </section>
   )
 }

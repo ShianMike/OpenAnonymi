@@ -1,0 +1,2 @@
+.resume-review-link { text-decoration: none; }
+.resume-review-link > span:not(.branch-active-dot) { flex: 1; min-width: 0; }

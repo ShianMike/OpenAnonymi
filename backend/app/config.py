@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     database_url: str = Field(repr=False)
     allowed_origins: list[str]
     environment: Literal["development", "test", "production"] = "development"
+    registration_enabled: bool = True
     active_key_id: str | None = None
     content_keys: dict[str, SecretStr] = Field(default_factory=dict, repr=False)
     smtp_host: str | None = None

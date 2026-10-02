@@ -1,0 +1,362 @@
+.not-found-page {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100svh - 145px);
+  padding: 25px 0 40px;
+  text-align: center;
+}
+.lost-compass-experience {
+  width: min(620px, 100%);
+}
+.lost-coordinates {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 15px;
+  color: var(--tone-muted, #869b90);
+  font-size: 0.63rem;
+  letter-spacing: 0.13em;
+  font-weight: 500;
+}
+.lost-figure {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 26px 0 20px;
+  isolation: isolate;
+}
+.lost-figure::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: -28px 10%;
+  background: radial-gradient(ellipse, var(--tone-accent-wash, #a9e3bb0f), transparent 70%);
+  pointer-events: none;
+}
+.lost-digit {
+  color: var(--tone-muted, #28382e);
+  background: linear-gradient(145deg, var(--tone-surface, #bfdbc6) 0%, var(--tone-surface, #688171) 40%, var(--tone-surface, #26372c) 74%);
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-size: clamp(110px, 13vw, 205px);
+  line-height: 1;
+  font-weight: 350;
+  letter-spacing: -0.075em;
+  padding-right: 0.075em;
+  user-select: none;
+}
+.lost-compass {
+  position: relative;
+  flex: 0 1 242px;
+  min-width: 0;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: linear-gradient(140deg, var(--tone-accent-wash-strong, #d5ffe31a), var(--tone-accent-wash, #d7ffdf03) 45%, var(--tone-overlay, #08130c91)), var(--tone-paper-glass, #17231bcc);
+  box-shadow:
+    inset 0 1px 1px var(--tone-shadow-medium, #d9f6df40),
+    inset 0 -1px 1px var(--tone-shadow-medium, #b2d4bf17),
+    0 20px 65px var(--tone-shadow-medium, #00000045);
+}
+.lost-compass::after {
+  content: '';
+  position: absolute;
+  inset: 7%;
+  border-radius: 50%;
+  box-shadow: inset 0 1px 18px var(--tone-shadow-soft, #b9eac90a);
+  background: linear-gradient(150deg, var(--tone-accent-wash, #e0ffe813), transparent 42%);
+  pointer-events: none;
+}
+.lost-compass-halo {
+  position: absolute;
+  inset: -8%;
+  border: 1px dashed var(--tone-hairline, #abc7b51a);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.lost-compass-dial {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+.lost-compass-dial circle {
+  fill: none;
+  stroke: var(--tone-hairline, #c3e1ce16);
+  stroke-width: 0.7;
+}
+.lost-compass-dial .lost-compass-inner {
+  stroke-dasharray: 1 5;
+}
+.lost-compass-dial line {
+  stroke: var(--tone-line, #afc9b744);
+  stroke-width: 0.7;
+}
+.lost-compass-dial line.major {
+  stroke: var(--tone-line-strong, #c9e5d085);
+  stroke-width: 1;
+}
+.lost-compass-dial text {
+  fill: var(--tone-muted, #8eaa98);
+  font-size: 9px;
+  text-anchor: middle;
+  font-weight: 500;
+}
+.lost-compass-dial text.north {
+  fill: var(--tone-accent-soft, #c2ead1);
+}
+.lost-compass-needle {
+  transform-origin: 120px 120px;
+  transition: transform 130ms ease-out;
+}
+.needle-north {
+  fill: var(--blue, #b4e6cc);
+  filter: drop-shadow(0 0 5px var(--tone-shadow-medium, #b4e6cc30));
+}
+.needle-south {
+  fill: var(--tone-muted, #597466);
+}
+.lost-compass-dial .lost-compass-pin {
+  fill: var(--tone-accent-soft, #cfebd7);
+  stroke: var(--tone-line-strong, #20352a);
+  stroke-width: 3;
+}
+.lost-compass[data-north='true'] {
+  box-shadow:
+    inset 0 1px 1px var(--tone-shadow-medium, #d9f6df40),
+    0 0 45px var(--tone-shadow-soft, #b4e6cc0a),
+    0 20px 65px var(--tone-shadow-medium, #00000045);
+}
+.lost-compass-controls {
+  max-width: 340px;
+  margin: 26px auto 34px;
+}
+.lost-compass-controls label {
+  color: var(--tone-body, #a2b6a9);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+.lost-bearing-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin: 4px auto 0;
+  width: 270px;
+  max-width: 100%;
+}
+.lost-bearing-row input[type='range'] {
+  appearance: none;
+  flex: 1;
+  width: 120px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
+  backdrop-filter: none;
+  cursor: pointer;
+  accent-color: var(--blue, #b4e6cc);
+}
+.lost-bearing-row input[type='range']:focus {
+  background: transparent;
+  box-shadow: none;
+  animation: none;
+}
+.lost-bearing-row input::-webkit-slider-runnable-track {
+  background: var(--tone-line, #39483e);
+  height: 3px;
+  border-radius: 9px;
+}
+.lost-bearing-row input::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4.5px;
+  background: var(--tone-accent-soft, #c1dec9);
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px var(--tone-shadow-soft, #b4e6cc0a);
+}
+.lost-bearing-row input::-moz-range-track {
+  background: var(--tone-line, #39483e);
+  height: 3px;
+  border-radius: 9px;
+}
+.lost-bearing-row input::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: var(--tone-accent-soft, #c1dec9);
+  border: 0;
+  border-radius: 50%;
+}
+.lost-bearing-row button {
+  flex-shrink: 0;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  font-size: 0.77rem;
+  color: var(--tone-body, #b0c6b8);
+  padding: 0 8px;
+}
+.lost-bearing-row button:hover:not(:disabled) {
+  background: var(--tone-accent-wash, #b4e6cc09);
+}
+.lost-bearing-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  margin: 0;
+  font-size: 0.71rem;
+  color: var(--tone-muted, #95a99c);
+}
+.lost-bearing-status > span {
+  width: 4px;
+  height: 4px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--tone-surface, #6b8373);
+}
+.lost-bearing-status > span.is-north {
+  background: var(--blue, #b4e6cc);
+  box-shadow: 0 0 8px var(--tone-shadow-deep, #b4e6cc70);
+}
+.not-found-eyebrow {
+  margin: 0 0 12px;
+  font-size: 0.67rem;
+  letter-spacing: 0.16em;
+  color: var(--tone-body, #b1c5b8);
+  font-weight: 500;
+}
+.not-found-copy h1 {
+  font-size: clamp(2rem, 4vw, 3.3rem);
+  font-weight: 500;
+  letter-spacing: -0.06em;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+.not-found-description {
+  margin: 18px 0 26px;
+  font-size: 0.93rem;
+  color: var(--muted, #a2b0a8);
+  line-height: 1.75;
+  text-wrap: pretty;
+}
+.not-found-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+.not-found-actions .button-primary {
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: 14px;
+  gap: 10px;
+}
+.not-found-documents {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  text-decoration: none;
+  font-size: 0.85rem;
+  color: var(--tone-body, #bacabe);
+  border-radius: 8px;
+}
+.not-found-documents:hover {
+  color: var(--tone-accent-soft, #dbefe2);
+}
+.not-found-footnote {
+  margin: 32px 0 0;
+  color: var(--tone-muted, #8b9d91);
+  font-size: 0.73rem;
+}
+.not-found-public {
+  min-height: 100svh;
+}
+.not-found-public > header {
+  padding: 22px 32px;
+}
+.not-found-public > header a {
+  text-decoration: none;
+}
+.not-found-public main {
+  padding-top: 0;
+}
+.not-found-public .not-found-page {
+  min-height: calc(100svh - 130px);
+}
+@media (max-width: 600px) {
+  .not-found-page {
+    padding: 30px 0 22px;
+    min-height: calc(100svh - 102px);
+  }
+  .lost-coordinates {
+    font-size: 0.54rem;
+    padding: 0;
+    letter-spacing: 0.08em;
+  }
+  .lost-figure {
+    gap: 4px;
+    margin: 30px 0 18px;
+  }
+  .lost-digit {
+    font-size: clamp(82px, 24vw, 140px);
+  }
+  .lost-compass {
+    flex-basis: 185px;
+  }
+  .lost-compass-controls {
+    margin-bottom: 24px;
+  }
+  .lost-bearing-status {
+    font-size: 0.67rem;
+  }
+  .not-found-description {
+    font-size: 0.88rem;
+    margin: 16px auto 22px;
+    max-width: 330px;
+  }
+  .not-found-break {
+    display: none;
+  }
+  .not-found-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .not-found-actions .button-primary {
+    min-height: 48px;
+  }
+  .not-found-footnote {
+    margin: 24px auto 0;
+    max-width: 260px;
+    line-height: 1.6;
+  }
+}
+@media (forced-colors: active) {
+  .lost-digit {
+    background: none;
+    color: CanvasText;
+    -webkit-text-fill-color: CanvasText;
+  }
+  .lost-compass {
+    border: 1px solid CanvasText;
+  }
+  .lost-compass-dial line,
+  .lost-compass-dial circle {
+    stroke: CanvasText;
+  }
+  .lost-compass-dial text,
+  .needle-north,
+  .needle-south {
+    fill: CanvasText;
+  }
+  .lost-bearing-row input[type='range'] {
+    appearance: auto;
+  }
+}

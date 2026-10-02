@@ -148,6 +148,12 @@ def create_detection_router(engine: Engine) -> APIRouter:
         except (ContentKeyUnavailable, ProtectedContentError):
             raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
         except ScanExecutionFailed as exc:
+            if exc.code == "local_model_unavailable":
+                raise ApiError(
+                    503,
+                    exc.code,
+                    "The local English model is unavailable. An administrator must install the model before scanning these categories.",
+                ) from None
             if exc.code in ("too_many_suggestions", "too_many_phone_candidates"):
                 raise ApiError(
                     422,

@@ -1,0 +1,83 @@
+.detection-rule-card {
+  display: flex;
+  flex-direction: column;
+  padding: 20px 22px 12px;
+  gap: 13px;
+}
+.rule-card-heading,
+.rule-kind,
+.rule-state {
+  display: flex;
+  align-items: center;
+}
+.rule-card-heading {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+}
+.rule-kind {
+  gap: 8px;
+  font-size: 0.78rem;
+}
+.rule-state {
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 7px;
+  font-size: 0.72rem;
+  background: var(--tone-wash-strong, #ffffff0b);
+  color: var(--muted);
+}
+.rule-state.is-enabled {
+  background: var(--tone-accent-wash, #b4e6cc0b);
+  color: var(--tone-accent-soft, #b8d6c3);
+}
+.rule-state > span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.detection-rule-card h3 {
+  margin: 0;
+  font-size: 1.14rem;
+  font-weight: 550;
+  text-wrap: balance;
+}
+.rule-expression {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--tone-accent-wash, #b4e6cc0b);
+  margin-bottom: 2px;
+}
+.rule-expression code {
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+  background: transparent;
+  padding: 0;
+  color: var(--text);
+}
+.detection-rule-card footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin-top: auto;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+}
+.detection-rule-card footer button {
+  font-size: 0.78rem;
+  padding-right: 0;
+}
+.rule-form { display: grid; gap: .75rem; }
+.rule-form .field-note { margin: -.3rem 0 .2rem; }
+.rule-test-result { padding: 1rem; border-radius: 14px; background: var(--surface-subtle); overflow-wrap: anywhere; }
+.rule-test-result ul { padding-left: 1rem; display: grid; gap: .5rem; }
+.rule-test-result small { margin-left: .75rem; color: var(--muted); }
+.review-workspace-rules { margin-top: 1.2rem; padding-top: 1.2rem; border-top: 1px solid var(--line); }
+.review-workspace-rules strong { font-size: .85rem; }
+
+.rule-test-result mark { background: var(--blue-tint); color: var(--blue-strong); border-radius: 4px; padding: .12rem .3rem; }

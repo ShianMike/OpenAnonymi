@@ -77,8 +77,8 @@ def save_preset(
     phone_region = phone_region.upper()
     if not name or len(name) > 100:
         raise ValueError("Choose a name of 1 to 100 characters.")
-    if not categories.issubset({FindingCategory.EMAIL, FindingCategory.PHONE}):
-        raise ValueError("Choose email and/or phone suggestions.")
+    if not categories.issubset({FindingCategory.EMAIL, FindingCategory.PHONE, FindingCategory.PERSON, FindingCategory.ORGANIZATION, FindingCategory.LOCATION, FindingCategory.IDENTIFIER}):
+        raise ValueError("Choose supported automatic suggestion categories.")
     if phone_region not in SUPPORTED_REGIONS:
         raise ValueError("Choose a supported phone region.")
     if preferred_action not in ("label", "redact"):

@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from app.accounts.access import ContentUnavailable, owned_document
+from app.accounts.access import ContentUnavailable, review_document
 from app.contracts import DecisionAction, VersionRef
 from app.db.crypto import KeyRing, ProtectedValue
 from app.db.models import Document, SourceRevision
@@ -39,7 +39,7 @@ def load_preview(
     now: datetime,
 ) -> PreviewSnapshot:
     with Session(engine) as session, session.begin():
-        document = owned_document(session, document_id, actor_id, now, lock=True)
+        document = review_document(session, document_id, actor_id, now, lock=True)
         return build_current_preview(session, document=document, keys=keys)
 
 

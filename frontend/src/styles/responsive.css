@@ -1,0 +1,134 @@
+@media (max-width: 600px) {
+  button,
+  .button-primary,
+  input:not([type='checkbox'], [type='radio'], [type='file']),
+  select {
+    min-height: 44px;
+  }
+  .app-topbar {
+    padding: 0 0.8rem;
+  }
+  main {
+    padding: 1rem;
+  }
+  main > section > section,
+  fieldset,
+  .surface-panel {
+    padding: 0.85rem;
+  }
+  .breadcrumbs span {
+    display: none;
+  }
+  .breadcrumbs svg {
+    display: none;
+  }
+  .topbar-account .text-button {
+    font-size: 0;
+    gap: 0;
+    padding: 0.4rem;
+  }
+  .topbar-account .text-button svg {
+    width: 18px;
+    height: 18px;
+  }
+  .page-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+  .overview-metrics {
+    grid-template-columns: 1fr;
+  }
+  .metric-card {
+    min-height: 0;
+  }
+  .section-heading {
+    align-items: start;
+    flex-direction: column;
+  }
+  .document-toolbar .field-stack {
+    width: 100%;
+  }
+  .document-toolbar button {
+    margin-left: 0;
+  }
+  .document-list-shell,
+  .activity-table {
+    overflow: visible;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+  }
+  .document-list-shell table,
+  .document-list-shell tbody,
+  .document-list-shell tr,
+  .document-list-shell th,
+  .document-list-shell td,
+  .activity-table table,
+  .activity-table tbody,
+  .activity-table tr,
+  .activity-table th,
+  .activity-table td {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+  .document-list-shell table,
+  .activity-table table {
+    background: transparent;
+  }
+  .document-list-shell thead,
+  .activity-table thead {
+    display: none;
+  }
+  .document-list-shell tr,
+  .activity-table tr {
+    margin-bottom: 0.8rem;
+    padding: 0.55rem 0.9rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+  .document-list-shell th,
+  .document-list-shell td,
+  .activity-table th,
+  .activity-table td {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.35rem 0.7rem;
+    padding: 0.4rem 0;
+    border: 0;
+  }
+  .document-list-shell th,
+  .activity-table th {
+    font-size: 1rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .document-list-shell .mobile-cell-label,
+  .activity-table .mobile-cell-label {
+    display: inline;
+    flex: 0 0 40%;
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 650;
+  }
+  .document-list-shell .document-row-actions {
+    display: block;
+    min-width: 0;
+    padding-top: 0.7rem;
+    border-top: 1px solid var(--line);
+  }
+  .document-list-shell .document-row-actions > * {
+    margin-bottom: 0.2rem;
+  }
+}
+@media (max-width: 600px) {
+  input:not([type='checkbox'], [type='radio']),
+  select,
+  textarea,
+  .review-layout .source-editor {
+    font-size: 16px;
+  }
+}

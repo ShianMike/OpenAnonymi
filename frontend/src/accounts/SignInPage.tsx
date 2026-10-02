@@ -1,118 +1,121 @@
-import { useState, type FormEvent } from 'react'
-import {
-  completeRecovery, requestRecovery, signIn, type SessionView,
-} from '../api/client'
+import { useEffect, useRef, useState } from 'react'
+import { ArrowLeft, LockKeyhole } from 'lucide-react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import type { SessionView } from '../api/client'
+import { Brand } from '../ui/Brand'
+import { AuthCredentials } from './AuthCredentials'
+import { RecoveryForm } from './RecoveryForm'
+import './auth.css'
 
-type Props = { onSignedIn: (session: SessionView) => void }
+type Mode = 'sign-in' | 'sign-up' | 'recovery'
 
-function messageFrom(error: unknown): string {
-  return error instanceof Error ? error.message : 'The request could not be completed.'
-}
+export function SignInPage({
+  onSignedIn,
+  notice,
+  initialMode = 'sign-in',
+}: {
+  onSignedIn: (session: SessionView, creatingAccount: boolean) => void
+  notice?: string | null
+  initialMode?: 'sign-in' | 'sign-up'
+}) {
+  const [mode, setMode] = useState<Mode>(initialMode)
+  const [localNotice, setLocalNotice] = useState<string | null>(null)
+  const heading = useRef<HTMLHeadingElement>(null)
+  const { pathname, search } = useLocation()
+  const navigate = useNavigate()
+  useEffect(() => { heading.current?.focus() }, [])
 
-export function SignInPage({ onSignedIn }: Props) {
-  const [mode, setMode] = useState<'sign-in' | 'recovery'>('sign-in')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [code, setCode] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [pending, setPending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
-
-  async function submitSignIn(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setPending(true)
-    setError(null)
-    try {
-      const session = await signIn(email, password)
-      setPassword('')
-      onSignedIn(session)
-    } catch (cause: unknown) {
-      setPassword('')
-      setError(messageFrom(cause))
-    } finally {
-      setPending(false)
+  function switchMode(next: Mode) {
+    setMode(next)
+    setLocalNotice(null)
+    if (next !== 'recovery' && (pathname === '/sign-in' || pathname === '/sign-up') && pathname !== `/${next}`) {
+      void navigate(`/${next}${search}`, { replace: true })
     }
-  }
-
-  async function sendCode(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setPending(true)
-    setError(null)
-    setNotice(null)
-    try {
-      const result = await requestRecovery(email)
-      setNotice(result.message)
-    } catch (cause: unknown) {
-      setError(messageFrom(cause))
-    } finally {
-      setPending(false)
-    }
-  }
-
-  async function resetPassword(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    setPending(true)
-    setError(null)
-    try {
-      await completeRecovery(email, code, newPassword)
-      setCode('')
-      setNewPassword('')
-      setMode('sign-in')
-      setNotice('Password changed. Sign in with your new password.')
-    } catch (cause: unknown) {
-      setError(messageFrom(cause))
-    } finally {
-      setPending(false)
-    }
+    requestAnimationFrame(() => heading.current?.focus())
   }
 
   return (
-    <main id="main-content" className="auth-page">
-      <h1>{mode === 'sign-in' ? 'Sign in' : 'Recover account'}</h1>
-      {error && <p role="alert">{error}</p>}
-      {notice && <p role="status">{notice}</p>}
-      {mode === 'sign-in' ? (
-        <>
-          <form onSubmit={submitSignIn}>
-            <label htmlFor="sign-in-email">Email</label>
-            <input id="sign-in-email" type="email" autoComplete="username" required
-              value={email} onChange={(event) => setEmail(event.target.value)} />
-            <label htmlFor="sign-in-password">Password</label>
-            <input id="sign-in-password" type="password" autoComplete="current-password" required
-              value={password} onChange={(event) => setPassword(event.target.value)} />
-            <button type="submit" disabled={pending}>{pending ? 'Signing in…' : 'Sign in'}</button>
-          </form>
-          <button type="button" onClick={() => {
-            setError(null)
-            setNotice(null)
-            setMode('recovery')
-          }}>Recover account</button>
-        </>
-      ) : (
-        <>
-          <p>Enter your account email to request a one-time code. Delivery must be configured by the workspace operator.</p>
-          <form onSubmit={sendCode}>
-            <label htmlFor="recovery-email">Account email</label>
-            <input id="recovery-email" type="email" autoComplete="email" required
-              value={email} onChange={(event) => setEmail(event.target.value)} />
-            <button type="submit" disabled={pending}>{pending ? 'Requesting…' : 'Request code'}</button>
-          </form>
-          <form onSubmit={resetPassword}>
-            <label htmlFor="recovery-code">Code from email</label>
-            <input id="recovery-code" type="text" autoComplete="one-time-code" required
-              value={code} onChange={(event) => setCode(event.target.value)} />
-            <label htmlFor="new-password">New password (at least 12 characters)</label>
-            <input id="new-password" type="password" autoComplete="new-password" minLength={12} required
-              value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
-            <button type="submit" disabled={pending}>{pending ? 'Changing…' : 'Change password'}</button>
-          </form>
-          <button type="button" onClick={() => {
-            setError(null)
-            setMode('sign-in')
-          }}>Back to sign in</button>
-        </>
-      )}
-    </main>
+    <div className="auth-shell">
+      <header className="auth-masthead">
+        <Link to="/welcome" aria-label="OpenAnonymi home"><Brand /></Link>
+        <span>YOUR WORDS. YOUR CONTROL.</span>
+      </header>
+      <main id="main-content" className="auth-stage">
+        <div className="auth-intro">
+          <span className="auth-kicker">
+            <span /> A little more private.
+          </span>
+          <p>
+            Share the story.
+            <br />
+            <span>Keep identities private.</span>
+          </p>
+        </div>
+        <section className="auth-card" aria-labelledby="auth-title">
+          <div className="auth-card-symbol">
+            <Brand compact />
+          </div>
+          <h1 id="auth-title" ref={heading} tabIndex={-1}>
+            {mode === 'sign-in'
+              ? 'Welcome back.'
+              : mode === 'sign-up'
+                ? 'Make space for privacy.'
+                : 'Let’s get you back in.'}
+          </h1>
+          <p className="auth-description">
+            {mode === 'sign-in'
+              ? 'Your next thoughtful review starts here.'
+              : mode === 'sign-up'
+                ? 'Create an account and a workspace of your own.'
+                : 'We’ll send a recovery code to your account email.'}
+          </p>
+          {(notice || localNotice) && (
+            <p role="status" className="auth-notice">
+              {localNotice || notice}
+            </p>
+          )}
+          {mode === 'recovery' ? (
+            <RecoveryForm
+              onComplete={() => {
+                switchMode('sign-in')
+                setLocalNotice('Password changed. Sign in with your new password.')
+              }}
+            />
+          ) : (
+            <AuthCredentials
+              key={mode}
+              mode={mode}
+              onSignedIn={(session) => onSignedIn(session, mode === 'sign-up')}
+              onRecover={() => switchMode('recovery')}
+            />
+          )}
+          <div className="auth-switch">
+            {mode === 'recovery' ? (
+              <button type="button" className="auth-link" onClick={() => switchMode('sign-in')}>
+                <ArrowLeft size={14} aria-hidden="true" /> Back to sign in
+              </button>
+            ) : (
+              <>
+                <span>{mode === 'sign-in' ? 'New to OpenAnonymi?' : 'Already have an account?'}</span>
+                <button
+                  type="button"
+                  className="auth-link"
+                  onClick={() => switchMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}
+                >
+                  {mode === 'sign-in' ? 'Create an account' : 'Sign in'} <span aria-hidden="true">↗</span>
+                </button>
+              </>
+            )}
+          </div>
+        </section>
+        <p className="auth-footnote">
+          <LockKeyhole size={13} aria-hidden="true" /> A private workspace. A considered review.
+        </p>
+      </main>
+      <footer className="auth-footer">
+        <span>OPENANONYMI / PRIVACY REVIEW</span>
+        <span>Decide what leaves the page.</span>
+      </footer>
+    </div>
   )
 }

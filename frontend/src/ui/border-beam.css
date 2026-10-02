@@ -1,0 +1,54 @@
+/* Mask the whole light layer, including its translucent pixels, to a 2px rim. */
+.border-beam {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  padding: 2px;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  opacity: 0;
+  transition: opacity 160ms ease-out;
+}
+@supports (offset-path: border-box) and (mask-composite: exclude) {
+  .border-beam {
+    display: block;
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+  }
+}
+.border-beam[data-active='true'] {
+  opacity: 1;
+}
+.border-beam-light {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 180px;
+  height: 180px;
+  background: radial-gradient(circle, var(--tone-beam-tip, #e3f8ec) 0%, var(--tone-beam, #b4e6cc) 18%, var(--tone-beam-tail, #83c4a278) 38%, transparent 70%);
+  offset-path: border-box;
+  offset-anchor: center;
+  offset-rotate: 0deg;
+  animation: rim-travel var(--beam-duration, 14s) linear infinite paused;
+}
+.border-beam[data-active='true'][data-in-view='true'] > .border-beam-light {
+  animation-play-state: running;
+}
+@keyframes rim-travel {
+  to {
+    offset-distance: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce), (forced-colors: active) {
+  .border-beam {
+    display: none;
+  }
+  .border-beam-light {
+    animation: none;
+  }
+}

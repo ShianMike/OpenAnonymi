@@ -221,7 +221,7 @@ class EntityGroup(Base):
         ),
         UniqueConstraint("document_id", "label", name="uq_entity_groups_document_label"),
         CheckConstraint(
-            "category IN ('person', 'organization', 'address', 'identifier', 'custom', 'email', 'phone')",
+            "category IN ('person', 'organization', 'address', 'identifier', 'custom', 'email', 'phone', 'location')",
             name="valid_category",
         ),
     )
@@ -325,7 +325,7 @@ class Finding(Base):
             name="automatic_finding_metadata",
         ),
         CheckConstraint(
-            "category IN ('person', 'organization', 'address', 'identifier', 'custom', 'email', 'phone')",
+            "category IN ('person', 'organization', 'address', 'identifier', 'custom', 'email', 'phone', 'location')",
             name="valid_category",
         ),
         Index("ix_findings_revision", "source_revision_id", "start_offset"),

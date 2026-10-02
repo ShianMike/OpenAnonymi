@@ -1,31 +1,42 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
-import {
-  Activity, ChevronRight, FilePlus2, Files, LayoutDashboard,
-  LogOut, Menu, Settings2, ShieldCheck, SlidersHorizontal, X,
-} from 'lucide-react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { matchPath, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { ChevronRight, LogOut, Menu, X } from 'lucide-react'
 import { SignInPage } from './accounts/SignInPage'
 import { SettingsPage } from './accounts/SettingsPage'
-import { EditDraftPage } from './review/EditDraftPage'
 import { NewReviewPage } from './review/NewReviewPage'
 import { ActivityPage } from './workspace/ActivityPage'
-import { DocumentsPage } from './workspace/DocumentsPage'
 import { OverviewPage } from './workspace/OverviewPage'
 import { RulesPage } from './workspace/RulesPage'
 import { HistoryPage } from './workspace/HistoryPage'
-import {
-  ApiRequestError, getSession, signOut, type SessionView,
-} from './api/client'
+import { ApiRequestError, getSession, signOut, type SessionView } from './api/client'
+import { Sidebar } from './shell/Sidebar'
+import { pages } from './shell/navigation'
+import { useAppearance } from './appearance/useAppearance'
+import { authDestination } from './accounts/authNavigation'
+import { LoadingScreen } from './loading/LoadingScreen'
+import { RouteLoading } from './loading/RouteLoading'
+import { PageLoadBoundary } from './loading/PageLoadBoundary'
+import { LoadingFailure } from './loading/LoadingFailure'
 import './App.css'
 
-const pages = [
-  { path: '/', name: 'Overview', icon: LayoutDashboard },
-  { path: '/new', name: 'New review', icon: FilePlus2 },
-  { path: '/documents', name: 'Documents', icon: Files },
-  { path: '/rules', name: 'Rules', icon: SlidersHorizontal },
-  { path: '/activity', name: 'Activity', icon: Activity },
-  { path: '/settings', name: 'Settings', icon: Settings2 },
-]
+const EditDraftPage = lazy(() =>
+  import('./review/EditDraftPage').then((module) => ({ default: module.EditDraftPage })),
+)
+const DocumentsPage = lazy(() =>
+  import('./workspace/DocumentsPage').then((module) => ({ default: module.DocumentsPage })),
+)
+const ContinueReviewPage = lazy(() =>
+  import('./resume/ContinueReviewPage').then((module) => ({ default: module.ContinueReviewPage })),
+)
+const NotFoundPage = lazy(() =>
+  import('./shell/NotFoundPage').then((module) => ({ default: module.NotFoundPage })),
+)
+const PreferencesPage = lazy(() =>
+  import('./appearance/PreferencesPage').then((module) => ({ default: module.PreferencesPage })),
+)
+const LandingPage = lazy(() =>
+  import('./landing/LandingPage').then((module) => ({ default: module.LandingPage })),
+)
 
 type Authentication =
   | { kind: 'checking' }
@@ -33,18 +44,11 @@ type Authentication =
   | { kind: 'error'; message: string }
   | { kind: 'signed-in'; session: SessionView }
 
-function NotFoundPage() {
-  return (
-    <section>
-      <h1>Page not found</h1>
-      <p>That page could not be found in this workspace.</p>
-      <Link to="/">Back to Overview</Link>
-    </section>
-  )
-}
-
 function App() {
-  const { pathname } = useLocation()
+  useAppearance()
+  useEffect(() => { document.getElementById('startup-loading')?.remove() }, [])
+  const { pathname, search } = useLocation()
+  const navigate = useNavigate()
   const [authentication, setAuthentication] = useState<Authentication>({ kind: 'checking' })
   const [sessionAttempt, setSessionAttempt] = useState(0)
   const [signOutError, setSignOutError] = useState<string | null>(null)
@@ -60,9 +64,13 @@ function App() {
   const previousPathRef = useRef(pathname)
 
   const activePage = pages.find((page) => page.path === pathname)
-  const pageTitle = activePage?.name ??
-    (pathname.endsWith('/history') ? 'Review history' :
-      pathname.endsWith('/edit') ? 'Review workspace' : 'Page not found')
+  const pageTitle =
+    activePage?.name ?? (pathname === '/continue' ? 'Continue review' : undefined) ??
+    (matchPath('/workspaces/:workspaceId/documents/:documentId/history', pathname)
+      ? 'Review history'
+      : matchPath('/documents/:documentId/edit', pathname)
+        ? 'Review workspace'
+        : 'Page not found')
 
   useEffect(() => {
     if (previousPathRef.current !== pathname) {
@@ -86,19 +94,21 @@ function App() {
 
   useEffect(() => {
     const controller = new AbortController()
-    getSession(controller.signal).then((session) => {
-      if (!controller.signal.aborted) setAuthentication({ kind: 'signed-in', session })
-    }).catch((error: unknown) => {
-      if (controller.signal.aborted) return
-      if (error instanceof ApiRequestError && error.status === 401) {
-        setAuthentication({ kind: 'signed-out' })
-      } else {
-        setAuthentication({
-          kind: 'error',
-          message: error instanceof Error ? error.message : 'The session could not be checked.',
-        })
-      }
-    })
+    getSession(controller.signal)
+      .then((session) => {
+        if (!controller.signal.aborted) setAuthentication({ kind: 'signed-in', session })
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return
+        if (error instanceof ApiRequestError && error.status === 401) {
+          setAuthentication({ kind: 'signed-out' })
+        } else {
+          setAuthentication({
+            kind: 'error',
+            message: error instanceof Error ? error.message : 'The session could not be checked.',
+          })
+        }
+      })
     return () => controller.abort()
   }, [sessionAttempt])
 
@@ -126,82 +136,109 @@ function App() {
     }
   }
 
+  const authRoute = pathname === '/sign-in' || pathname === '/sign-up'
+  const publicLanding = pathname === '/welcome' || (pathname === '/' && authentication.kind !== 'signed-in')
+  if (publicLanding) {
+    return (
+      <PageLoadBoundary key={pathname} fullScreen><Suspense fallback={<LoadingScreen label="Opening OpenAnonymi…" description="Preparing a little more privacy for your words." />}>
+        <LandingPage
+          signedIn={authentication.kind === 'signed-in'}
+          sessionError={authentication.kind === 'error' ? authentication.message : undefined}
+          onRetry={() => {
+            setAuthentication({ kind: 'checking' })
+            setSessionAttempt((value) => value + 1)
+          }}
+        />
+      </Suspense></PageLoadBoundary>
+    )
+  }
+  if (authRoute && authentication.kind === 'signed-in') {
+    return <Navigate replace to={authDestination(search, pathname === '/sign-up')} />
+  }
   if (authentication.kind === 'checking') {
-    return <main id="main-content"><p role="status">Checking your session…</p></main>
+    return (
+      <LoadingScreen label="Checking your session…" description="Checking access before opening your workspace." shape="cards" />
+    )
   }
   if (authentication.kind === 'error') {
     return (
-      <main id="main-content">
-        <p role="alert">{authentication.message}</p>
-        <button type="button" onClick={() => {
+      <LoadingFailure fullScreen title="We couldn’t check your session"
+        message={authentication.message} onRetry={() => {
           setAuthentication({ kind: 'checking' })
           setSessionAttempt((value) => value + 1)
-        }}>Retry</button>
-      </main>
+        }} />
     )
   }
   if (authentication.kind === 'signed-out') {
+    const knownRoute =
+      authRoute || pages.some((page) => matchPath(page.path, pathname)) ||
+      matchPath('/continue', pathname) ||
+      matchPath('/documents/:documentId/edit', pathname) ||
+      matchPath('/workspaces/:workspaceId/documents/:documentId/history', pathname)
+    if (!knownRoute) {
+      return (
+        <PageLoadBoundary key={pathname} fullScreen><Suspense
+          fallback={
+            <LoadingScreen label="Opening the page…" description="Preparing your next step." shape="cards" />
+          }
+        >
+          <NotFoundPage signedOut />
+        </Suspense></PageLoadBoundary>
+      )
+    }
     return (
-      <div className="app auth-shell">
-        <header className="auth-brand"><span className="brand-mark" aria-hidden="true">O</span>
-          <strong>OpenAnonymi</strong><span>Privacy review</span></header>
-        {signInNotice && <p role="status">{signInNotice}</p>}
-        <SignInPage onSignedIn={(session) => {
+      <SignInPage
+        key={pathname}
+        initialMode={pathname === '/sign-up' ? 'sign-up' : 'sign-in'}
+        notice={signInNotice}
+        onSignedIn={(session, creatingAccount) => {
           setSignInNotice(null)
           setAuthentication({ kind: 'signed-in', session })
-        }} />
-      </div>
+          if (authRoute) navigate(authDestination(search, creatingAccount), { replace: true })
+        }}
+      />
     )
   }
-  const currentWorkspace = authentication.session.memberships.length === 1
-    ? authentication.session.memberships[0] : null
-  const workspaceLabel = currentWorkspace?.workspace_name ??
-    `${authentication.session.memberships.length} workspaces`
+  const currentWorkspace =
+    authentication.session.memberships.length === 1 ? authentication.session.memberships[0] : null
+  const workspaceLabel =
+    currentWorkspace?.workspace_name ?? `${authentication.session.memberships.length} workspaces`
   return (
     <div className="app app-shell">
-      <a className="skip-link" href="#main-content">Skip to content</a>
-      <aside className={`app-sidebar${menuOpen ? ' is-open' : ''}`} id="app-sidebar"
-        onKeyDown={(event) => {
-          if (event.key === 'Escape' && menuOpen) {
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
+      <Sidebar
+        session={authentication.session}
+        menuOpen={menuOpen}
+        navRef={navRef}
+        onClose={() => {
+          setMenuOpen(false)
+          if (menuOpen) menuButtonRef.current?.focus()
+        }}
+      />
+      {menuOpen && (
+        <button
+          className="nav-scrim"
+          type="button"
+          aria-label="Close navigation"
+          onClick={() => {
             setMenuOpen(false)
             menuButtonRef.current?.focus()
-          }
-        }}>
-        <div className="sidebar-brand"><span className="brand-mark" aria-hidden="true">O</span>
-          <span><strong>OpenAnonymi</strong><small>Privacy review</small></span></div>
-        <div className="workspace-context">
-          <span className="eyebrow">Workspace</span>
-          <strong title={workspaceLabel}>
-            {workspaceLabel}
-          </strong>
-          <span>{currentWorkspace
-            ? currentWorkspace.role === 'administrator' ? 'Administrator' : 'Member'
-            : 'Choose a workspace on each page'}</span>
-        </div>
-        <nav className="app-nav" aria-label="Main navigation" ref={navRef}>
-          <span className="nav-heading">Workspace</span>
-          {pages.map((page) => (
-            <NavLink key={page.path} to={page.path} end={page.path === '/'}
-              onClick={() => setMenuOpen(false)}>
-              <page.icon size={17} strokeWidth={1.9} aria-hidden="true" />
-              {page.name}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="sidebar-footer"><ShieldCheck size={16} aria-hidden="true" />
-          <span>Review before sharing</span></div>
-      </aside>
-      {menuOpen && <button className="nav-scrim" type="button" aria-label="Close navigation"
-        onClick={() => {
-          setMenuOpen(false)
-          menuButtonRef.current?.focus()
-        }} />}
+          }}
+        />
+      )}
       <div className="app-workarea">
         <header className="app-topbar">
-          <button className="menu-toggle icon-button" type="button" ref={menuButtonRef}
+          <button
+            className="menu-toggle icon-button"
+            type="button"
+            ref={menuButtonRef}
             aria-label={menuOpen ? 'Close navigation' : 'Open navigation'}
-            aria-controls="app-sidebar" aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((value) => !value)}>
+            aria-controls="app-sidebar"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((value) => !value)}
+          >
             {menuOpen ? <X size={19} aria-hidden="true" /> : <Menu size={19} aria-hidden="true" />}
           </button>
           <div className="breadcrumbs" aria-label="Current page">
@@ -209,49 +246,86 @@ function App() {
             <ChevronRight size={15} aria-hidden="true" />
             <strong>{pageTitle}</strong>
           </div>
-          <div className="topbar-account"><span title={authentication.session.email}>
-            {authentication.session.email}</span>
-            <button className="text-button" type="button" aria-label="Sign out"
+          <div className="topbar-account">
+            <span title={authentication.session.email}>{authentication.session.email}</span>
+            <button
+              className="text-button"
+              type="button"
+              aria-label="Sign out"
               onClick={handleSignOut}
-              disabled={signOutPending}>
+              disabled={signOutPending}
+            >
               <LogOut size={16} aria-hidden="true" />
               {signOutPending ? 'Signing out…' : 'Sign out'}
             </button>
           </div>
         </header>
-        {signOutError && <p role="alert" className="topbar-alert">{signOutError}</p>}
+        {signOutError && (
+          <p role="alert" className="topbar-alert">
+            {signOutError}
+          </p>
+        )}
         {signOutConfirm && (
           <div className="signout-confirm surface-panel" role="alert">
             <strong>Unsaved changes</strong>
             <p>Signing out will discard your unsaved text and settings.</p>
-            <button ref={signOutStayRef} type="button" onClick={() => {
-              setSignOutConfirm(false)
-              requestAnimationFrame(() => document.querySelector<HTMLElement>(
-                '#source-text, #source-file, #saved-source',
-              )?.focus())
-            }}>Stay and keep editing</button>{' '}
-            <button type="button" disabled={signOutPending}
-              onClick={() => void performSignOut()}>Discard edits and sign out</button>
+            <button
+              ref={signOutStayRef}
+              type="button"
+              onClick={() => {
+                setSignOutConfirm(false)
+                requestAnimationFrame(() =>
+                  document.querySelector<HTMLElement>('#source-text, #source-file, #saved-source')?.focus(),
+                )
+              }}
+            >
+              Stay and keep editing
+            </button>{' '}
+            <button type="button" disabled={signOutPending} onClick={() => void performSignOut()}>
+              Discard edits and sign out
+            </button>
           </div>
         )}
         <main id="main-content" ref={mainRef} tabIndex={-1}>
-          <Routes>
-            <Route path="/" element={<OverviewPage session={authentication.session} />} />
-            <Route path="/new" element={<NewReviewPage session={authentication.session}
-              onUnsavedChange={handleUnsavedChange} />} />
-            <Route path="/documents" element={<DocumentsPage session={authentication.session} />} />
-            <Route path="/activity" element={<ActivityPage session={authentication.session} />} />
-            <Route path="/rules" element={<RulesPage session={authentication.session} />} />
-            <Route path="/documents/:documentId/edit" element={<EditDraftPage
-              session={authentication.session} onUnsavedChange={handleUnsavedChange} />} />
-            <Route path="/workspaces/:workspaceId/documents/:documentId/history" element={<HistoryPage />} />
-            <Route path="/settings" element={<SettingsPage session={authentication.session}
-              onPasswordChanged={() => {
-                setSignInNotice('Password changed. Sign in again with your new password.')
-                setAuthentication({ kind: 'signed-out' })
-              }} />} />
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
+          <PageLoadBoundary key={pathname}><Suspense fallback={<RouteLoading pathname={pathname} title={pageTitle} />}>
+            <Routes>
+              <Route path="/" element={<OverviewPage session={authentication.session} />} />
+              <Route
+                path="/new"
+                element={
+                  <NewReviewPage session={authentication.session} onUnsavedChange={handleUnsavedChange} />
+                }
+              />
+              <Route path="/documents" element={<DocumentsPage session={authentication.session} />} />
+              <Route path="/continue" element={<ContinueReviewPage session={authentication.session} />} />
+              <Route path="/activity" element={<ActivityPage session={authentication.session} />} />
+              <Route path="/rules" element={<RulesPage session={authentication.session} />} />
+              <Route path="/preferences" element={<PreferencesPage />} />
+              <Route
+                path="/documents/:documentId/edit"
+                element={
+                  <EditDraftPage session={authentication.session} onUnsavedChange={handleUnsavedChange} />
+                }
+              />
+              <Route
+                path="/workspaces/:workspaceId/documents/:documentId/history"
+                element={<HistoryPage />}
+              />
+              <Route
+                path="/settings"
+                element={
+                  <SettingsPage
+                    session={authentication.session}
+                    onPasswordChanged={() => {
+                      setSignInNotice('Password changed. Sign in again with your new password.')
+                      setAuthentication({ kind: 'signed-out' })
+                    }}
+                  />
+                }
+              />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </Suspense></PageLoadBoundary>
         </main>
       </div>
     </div>

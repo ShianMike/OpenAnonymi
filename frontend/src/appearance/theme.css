@@ -1,0 +1,151 @@
+/* Warm paper, sage glass and forest ink. Unset tone tokens retain the dark palette. */
+html[data-theme='light'] {
+  color-scheme: light;
+  --page: #f4f2ea;
+  --surface: #fafbf5;
+  --surface-subtle: #e9ede3;
+  --line: #dce2d5;
+  --line-strong: #758b75;
+  --text: #263b30;
+  --muted: #5d6c61;
+  --blue: #35684c;
+  --blue-strong: #254f38;
+  --blue-tint: #e0ebdd;
+  --orange: #876128;
+  --danger: #a44038;
+  --danger-tint: #f8e7e0;
+  --focus: #35684c;
+  --on-accent: #fafcf6;
+  --button-disabled-text: #59685d;
+  --button-disabled-surface: #e6ebdf;
+  --button-disabled-border: #bbc7b5;
+  --selection-bg: #c9dfc5;
+  --selection-text: #203d2c;
+  --shadow: 0 8px 28px rgb(61 75 46 / 5%);
+  --scroll-thumb: #758b75;
+  --scroll-thumb-hover: #54765b;
+  --scroll-thumb-active: #35684c;
+
+  --tone-paper: #fcfcf7;
+  --tone-paper-glass: #fafcf4f5;
+  --tone-field-start: #eaf0e0ed;
+  --tone-field-end: #f2f6eaf0;
+  --tone-menu-start: #fafbf6fa;
+  --tone-menu-end: #edf3e7fa;
+  --tone-surface: #f0f3e9;
+  --tone-surface-glass: #f1f5eaf5;
+  --tone-inset: #e7ede0;
+  --tone-inset-glass: #e6ecdebd;
+  --tone-sidebar: #e8ebdf;
+  --tone-topbar: #f4f2eae8;
+  --tone-text: #263b30;
+  --tone-body: #425b49;
+  --tone-muted: #5d6c61;
+  --tone-accent: #35684c;
+  --tone-accent-soft: #416e50;
+  --tone-accent-wash: #35684c0d;
+  --tone-accent-wash-strong: #35684c1c;
+  --tone-active-surface: #dce8d3;
+  --tone-avatar: #d9e1c8;
+  --tone-avatar-text: #52633a;
+  --tone-hairline: #304b3212;
+  --tone-line: #b6c5b1;
+  --tone-line-strong: #809982;
+  --tone-wash: #2c502d06;
+  --tone-wash-strong: #2c502d0d;
+  --tone-warning: #856028;
+  --tone-warning-wash: #f0e6cd;
+  --tone-warning-line: #c7b181;
+  --tone-danger: #a44038;
+  --tone-danger-wash: #f7e7df;
+  --tone-danger-line: #d8a297;
+  --tone-danger-solid: #a44038;
+  --tone-danger-solid-hover: #89372f;
+  --tone-shadow-soft: #344a280b;
+  --tone-shadow-medium: #344a2815;
+  --tone-shadow-deep: #344a2828;
+  --tone-overlay: #26392e52;
+  --tone-beam-tip: #256442;
+  --tone-beam: #438661;
+  --tone-beam-tail: #51865d66;
+  --tone-beam-idle: #57885b33;
+  --tone-output-icon: #876128;
+  --tone-workspace-icon: #4f6379;
+}
+
+/* Glass is a material in both themes; highlights stay restrained on pale surfaces. */
+html[data-theme='light'] :is(.workspace-panel, .metric-card, .review-text-column, .review-findings, .review-completion, .review-settings, .preset-summary-card) {
+  box-shadow: inset 0 1px 0 #ffffffb3, 0 8px 28px rgb(61 75 46 / 4%);
+}
+html[data-theme='light'] .document-controls {
+  box-shadow: 0 1px 0 var(--tone-hairline), 0 6px 18px var(--tone-shadow-soft);
+}
+html[data-theme='light'] .document-text {
+  background: #f9faf2;
+  box-shadow: inset 0 1px 0 #fff;
+}
+html[data-theme='light'] .auth-card {
+  box-shadow: inset 0 1px 0 #fff, 0 24px 80px rgb(61 75 46 / 10%);
+}
+html[data-theme='light'] .auth-card-symbol .brand-mark {
+  background: #dce7d2;
+  color: var(--blue);
+}
+/* Keep inactive actions readable without fading their label into the paper.
+   Selection controls retain their own field/checked/disabled treatments. */
+html[data-theme='light'] button:disabled:not([role='combobox'], [role='checkbox'], [role='switch'], [role='tab'], .inline-finding) {
+  color: var(--button-disabled-text);
+  background: var(--button-disabled-surface);
+  border-color: var(--button-disabled-border);
+  opacity: 1;
+  box-shadow: none;
+}
+html[data-theme='light'] .choice-switch input:checked::before {
+  background: var(--on-accent);
+}
+html[data-theme='light'] .glass-checkbox-row .glass-checkbox-control[data-state='checked'] {
+  color: var(--on-accent);
+}
+html[data-theme='light'] .findings-tools > .button-primary {
+  color: var(--blue-strong);
+}
+html[data-theme='light'] .lost-digit {
+  background-image: linear-gradient(145deg, #6a8d60, #526c48 48%, #becdaf);
+}
+html[data-theme='light'] .lost-compass {
+  background: linear-gradient(145deg, #fafbf4, #e5ebdc);
+}
+html[data-theme='light'] .lost-compass-dial .lost-compass-pin {
+  fill: #f5f8ee;
+  stroke: var(--blue);
+}
+html[data-theme='light'] .needle-north {
+  fill: var(--blue);
+}
+@media (prefers-reduced-transparency: reduce) {
+  html[data-theme='light'] :is(.glass-select-menu, .document-action-menu, .finding-popover, .app-topbar, .document-controls) {
+    background: var(--surface);
+    backdrop-filter: none;
+  }
+}
+@media (forced-colors: active) {
+  html[data-theme] {
+    --page: Canvas;
+    --surface: Canvas;
+    --surface-subtle: Canvas;
+    --text: CanvasText;
+    --muted: CanvasText;
+    --blue: LinkText;
+    --blue-strong: LinkText;
+    --focus: Highlight;
+    --button-disabled-text: GrayText;
+    --button-disabled-surface: Canvas;
+    --button-disabled-border: GrayText;
+  }
+  html[data-theme] :is(.appearance-panel, .theme-choice, .document-text, .workspace-panel, .review-text-column, .review-findings, .review-completion, .review-settings, .preset-summary-card) {
+    background: Canvas;
+    color: CanvasText;
+    border: 1px solid CanvasText;
+    box-shadow: none;
+  }
+}

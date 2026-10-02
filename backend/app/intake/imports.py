@@ -1,0 +1,196 @@
+"""Bounded, transient PDF/DOCX text extraction. No original file is persisted."""
+
+import io
+import logging
+from dataclasses import dataclass
+from pathlib import PurePath
+from zipfile import ZipFile
+
+from app.contracts import MAX_CODE_POINTS
+from app.intake.validation import (
+    SourceValidationError,
+    ValidatedSource,
+    validate_source,
+    validate_txt_file,
+)
+
+MAX_FILE_BYTES = 8 * 1024 * 1024
+MAX_EXPANDED_BYTES = 16 * 1024 * 1024
+MAX_XML_BYTES = 4 * 1024 * 1024
+MAX_PDF_PAGES = 100
+MAX_PAGE_STREAM = 1024 * 1024
+
+# Library recovery warnings can contain malformed PDF objects. Only our generic
+# content-free errors reach logs or the API.
+logging.getLogger("pypdf").setLevel(logging.CRITICAL)
+
+
+@dataclass(frozen=True)
+class ImportedText:
+    source: ValidatedSource
+    format: str
+    pages: int | None
+    notes: tuple[str, ...]
+
+
+def _pdf(content: bytes) -> ImportedText:
+    from pypdf import Configuration, PdfReader, apply_configuration
+
+    if not content.startswith(b"%PDF-"):
+        raise SourceValidationError("This file does not contain a readable PDF.")
+    config = Configuration(
+        maximum_declared_stream_length=MAX_PAGE_STREAM,
+        array_based_stream_maximum_output_length=MAX_PAGE_STREAM,
+        lzw_maximum_output_length=MAX_PAGE_STREAM,
+        run_length_maximum_output_length=MAX_PAGE_STREAM,
+        zlib_maximum_output_length=MAX_PAGE_STREAM,
+        zlib_maximum_recovery_input_length=MAX_PAGE_STREAM,
+        jbig2_maximum_output_length=MAX_PAGE_STREAM,
+        jbig2dec_binary=None,
+        page_tree_maximum_entries=300,
+        page_tree_maximum_depth=20,
+        xform_maximum_invocations_per_extraction=100,
+        image_maximum_buffer_size=MAX_PAGE_STREAM,
+    )
+    with apply_configuration(config):
+        reader = PdfReader(io.BytesIO(content), strict=True)
+        if reader.is_encrypted:
+            raise SourceValidationError(
+                "This PDF is encrypted. Upload an unlocked copy with selectable text."
+            )
+        count = len(reader.pages)
+        if not 1 <= count <= MAX_PDF_PAGES:
+            raise SourceValidationError("Choose a PDF with 1 to 100 pages.")
+        pieces, chars, streams, empty = [], 0, 0, 0
+        for page in reader.pages:
+            stream = page.get_contents()
+            streams += len(stream.get_data()) if stream is not None else 0
+            if streams > 4 * MAX_PAGE_STREAM:
+                raise SourceValidationError(
+                    "PDF content is too complex. Export a smaller text document."
+                )
+            text = page.extract_text() or ""
+            empty += not text.strip()
+            chars += len(text) + 2
+            if chars > MAX_CODE_POINTS:
+                raise SourceValidationError("Extracted text exceeds the 100,000-character limit.")
+            pieces.append(text.rstrip("\n"))
+        text = "\n\n".join(pieces)
+        if not text.strip():
+            raise SourceValidationError(
+                "No selectable text was found. Scanned PDFs need OCR before importing."
+            )
+        notes = [
+            "PDF reading order and spacing can differ. Check the extracted text before reviewing."
+        ]
+        if empty:
+            notes.append(
+                f"{empty} pages contained no selectable text. Image-only content is not imported."
+            )
+        return ImportedText(validate_source(text), "pdf", count, tuple(notes))
+
+
+def _docx(content: bytes) -> ImportedText:
+    from lxml import etree
+
+    if not content.startswith(b"PK"):
+        raise SourceValidationError("This file does not contain a readable Word DOCX document.")
+    with ZipFile(io.BytesIO(content)) as archive:
+        entries = archive.infolist()
+        if len(entries) > 2000 or sum(item.file_size for item in entries) > MAX_EXPANDED_BYTES:
+            raise SourceValidationError("The Word document expands beyond the import limit.")
+        if any(item.flag_bits & 1 for item in entries):
+            raise SourceValidationError(
+                "This Word document is encrypted. Upload an unlocked DOCX copy."
+            )
+        if len({item.filename for item in entries}) != len(entries):
+            raise SourceValidationError("The Word document has conflicting archive entries.")
+        names = archive.namelist()
+        if "word/document.xml" not in names or "[Content_Types].xml" not in names:
+            raise SourceValidationError("Choose a valid .docx document.")
+        parts = [name for name in names if name.endswith((".xml", ".rels"))]
+        for name in parts:
+            if archive.getinfo(name).file_size > MAX_XML_BYTES:
+                raise SourceValidationError("Word text data exceeds the import limit.")
+            xml = archive.read(name)
+            if b"<!DOCTYPE" in xml.upper() or b"<!ENTITY" in xml.upper():
+                raise SourceValidationError("Word document contains unsupported XML declarations.")
+            etree.fromstring(
+                xml,
+                parser=etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False),
+            )
+    # python-docx preserves paragraph/table order. Headers/footers are included;
+    # tracked revisions/text boxes are called out because not all are supported.
+    from docx import Document
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+
+    document = Document(io.BytesIO(content))
+    pieces = []
+    chars = 0
+
+    def append(text):
+        nonlocal chars
+        chars += len(text) + 1
+        if chars > MAX_CODE_POINTS:
+            raise SourceValidationError("Extracted text exceeds the 100,000-character limit.")
+        pieces.append(text)
+
+    def lines(container, empty=True, depth=0):
+        if depth > 12:
+            raise SourceValidationError("Word tables are nested beyond the import limit.")
+        for block in container.iter_inner_content():
+            if isinstance(block, Paragraph):
+                if empty or block.text.strip():
+                    yield block.text
+            elif isinstance(block, Table):
+                for row in block.rows:
+                    seen, cells = set(), []
+                    for cell in row.cells:
+                        if cell._tc not in seen:
+                            seen.add(cell._tc)
+                            cells.append("\n".join(lines(cell, depth=depth + 1)))
+                    yield "\t".join(cells)
+
+    def blocks(container, empty=True):
+        for text in lines(container, empty):
+            append(text)
+
+    seen = set()
+    for section in document.sections:
+        for part in (section.header, section.first_page_header, section.even_page_header):
+            if part.part.partname not in seen:
+                seen.add(part.part.partname)
+                blocks(part, empty=False)
+    blocks(document)
+    for section in document.sections:
+        for part in (section.footer, section.first_page_footer, section.even_page_footer):
+            if part.part.partname not in seen:
+                seen.add(part.part.partname)
+                blocks(part, empty=False)
+    text = "\n".join(pieces).strip("\n")
+    if not text.strip():
+        raise SourceValidationError("No text was found in this Word document.")
+    notes = (
+        "Paragraphs, tables, headers and footers imported as text. Images, comments, text boxes and tracked changes may be omitted; check the preview.",
+    )
+    return ImportedText(validate_source(text), "docx", None, notes)
+
+
+def extract_import(filename: str | None, content: bytes) -> ImportedText:
+    suffix = PurePath(filename or "").suffix.lower()
+    if suffix == ".txt":
+        return ImportedText(validate_txt_file(filename, content), "txt", None, ())
+    if suffix not in (".pdf", ".docx"):
+        raise SourceValidationError("Choose one UTF-8 TXT, PDF, or Word DOCX file.")
+    if not content or len(content) > MAX_FILE_BYTES:
+        raise SourceValidationError("PDF and DOCX files must be nonempty and no larger than 8 MiB.")
+    try:
+        return _pdf(content) if suffix == ".pdf" else _docx(content)
+    except SourceValidationError:
+        raise
+    except Exception:  # noqa: BLE001 -- parser errors must never disclose file content
+        # No parser message/filename/object escapes into logs, responses or notes.
+        raise SourceValidationError(
+            "This document is damaged, encrypted or too complex to import. Try exporting it as UTF-8 TXT."
+        ) from None

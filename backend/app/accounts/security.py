@@ -115,21 +115,26 @@ def sign_in(session: Session, *, email: str, password: str, now: datetime) -> Is
         memberships = _memberships(session, user.id)
         if not memberships:
             raise InvalidCredentials("Email or password was not accepted.")
-        token = secrets.token_urlsafe(32)
-        csrf_token = _csrf_token(token)
-        expires_at = now + SESSION_TTL
-        record = StoredSession(
-            id=uuid4(),
-            user_id=user.id,
-            token_hash=_digest(token),
-            csrf_hash=_digest(csrf_token),
-            created_at=now,
-            expires_at=expires_at,
-        )
-        session.add(record)
-        identity = SessionIdentity(
-            record.id, user.id, user.email, expires_at, memberships, csrf_token
-        )
+        issued = issue_session(session, user=user, now=now)
+    return issued
+
+
+def issue_session(session: Session, *, user: User, now: datetime) -> IssuedSession:
+    """Issue inside the caller's transaction, including account registration."""
+    memberships = _memberships(session, user.id)
+    token = secrets.token_urlsafe(32)
+    csrf_token = _csrf_token(token)
+    expires_at = now + SESSION_TTL
+    record = StoredSession(
+        id=uuid4(),
+        user_id=user.id,
+        token_hash=_digest(token),
+        csrf_hash=_digest(csrf_token),
+        created_at=now,
+        expires_at=expires_at,
+    )
+    session.add(record)
+    identity = SessionIdentity(record.id, user.id, user.email, expires_at, memberships, csrf_token)
     return IssuedSession(token, identity)
 
 

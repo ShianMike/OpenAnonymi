@@ -6,7 +6,12 @@ from alembic import context
 from sqlalchemy import create_engine, pool
 
 from app.config import load_settings
-from app.db import models  # noqa: F401 — register all tables with Base.metadata
+from app.db import (
+    custom_rules,  # noqa: F401 -- register rule version/snapshot tables
+    models,  # noqa: F401 — register all tables with Base.metadata
+    recovery,  # noqa: F401 -- register the protected autosave table
+    team_review,  # noqa: F401 -- register explicit reviewer grant and protected comments
+)
 from app.db.base import Base
 
 config = context.config

@@ -1,0 +1,29 @@
+.glass-textarea {
+  position: relative;
+  min-width: 0;
+  width: 100%;
+  border-radius: var(--glass-textarea-radius, var(--radius-sm));
+  isolation: isolate;
+}
+.glass-textarea > textarea {
+  display: block;
+  width: 100%;
+  margin: 0;
+  border-radius: inherit;
+}
+.glass-textarea > textarea:focus {
+  background:
+    linear-gradient(145deg, var(--tone-field-start, #2b3530f5), var(--tone-field-end, #202924f5)) padding-box,
+    linear-gradient(125deg, var(--tone-line, #ffffff24), var(--tone-wash, #ffffff07) 44%, var(--tone-wash-strong, #ffffff12)) border-box;
+  animation: none;
+  box-shadow: inset 0 1px 0 #ffffff09;
+}
+.glass-textarea > textarea:focus-visible {
+  outline: 2px solid var(--tone-line-strong, #7aa98f);
+  outline-offset: -2px;
+}
+@media (forced-colors: active) {
+  .glass-textarea > textarea:focus-visible {
+    outline-color: Highlight;
+  }
+}

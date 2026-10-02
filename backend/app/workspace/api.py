@@ -21,6 +21,7 @@ from app.workspace.history import load_document_history
 
 class DocumentIndexView(BaseModel):
     id: UUID
+    is_owner: bool
     title: str | None
     status: DocumentStatus
     created_at: datetime
@@ -55,6 +56,7 @@ class ActivityView(BaseModel):
 
 
 class RevisionHistoryView(BaseModel):
+    id: UUID
     number: int
     created_at: datetime
     is_current: bool

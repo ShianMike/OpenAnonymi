@@ -1,3 +1,4 @@
+import { trackedRequest } from './requestActivity'
 import type { components } from './schema'
 
 export type ServiceMetadata = components['schemas']['ServiceMetadata']
@@ -63,19 +64,20 @@ function isErrorResponse(value: unknown): value is ErrorResponse {
     'message' in value && typeof value.message === 'string'
 }
 
-async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`/api/v1${path}`, {
+export async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return trackedRequest(`/api/v1${path}`, {
     method: 'GET',
     credentials: 'same-origin',
     cache: 'no-store',
     signal,
     headers: { Accept: 'application/json' },
+  }, async (response) => {
+    await requireSuccess(response)
+    return response.json() as Promise<T>
   })
-  await requireSuccess(response)
-  return response.json() as Promise<T>
 }
 
-async function requireSuccess(response: Response): Promise<void> {
+export async function requireSuccess(response: Response): Promise<void> {
   if (response.ok) return
   const body: unknown = await response.json().catch(() => null)
   if (
@@ -93,10 +95,10 @@ async function requireSuccess(response: Response): Promise<void> {
   throw new ApiRequestError(response.status, 'request_failed', `Request failed (${response.status}).`)
 }
 
-async function sendJson<T>(
+export async function sendJson<T>(
   method: 'POST' | 'PATCH' | 'PUT', path: string, body?: object, csrfToken?: string,
 ): Promise<T> {
-  const response = await fetch(`/api/v1${path}`, {
+  return trackedRequest(`/api/v1${path}`, {
     method,
     credentials: 'same-origin',
     cache: 'no-store',
@@ -106,9 +108,10 @@ async function sendJson<T>(
       ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
+  }, async (response) => {
+    await requireSuccess(response)
+    return response.json() as Promise<T>
   })
-  await requireSuccess(response)
-  return response.json() as Promise<T>
 }
 
 function post<T>(path: string, body: object, csrfToken?: string): Promise<T> {
@@ -124,15 +127,16 @@ export function getLiveness(signal?: AbortSignal): Promise<HealthResponse> {
 }
 
 export async function getReadiness(signal?: AbortSignal): Promise<HealthResponse> {
-  const response = await fetch('/api/v1/health/ready', {
+  return trackedRequest('/api/v1/health/ready', {
     credentials: 'same-origin',
     cache: 'no-store',
     signal,
+  }, async (response) => {
+    if (response.status !== 200 && response.status !== 503) {
+      throw new ApiRequestError(response.status, 'readiness_failed', 'Database readiness could not be checked.')
+    }
+    return response.json() as Promise<HealthResponse>
   })
-  if (response.status !== 200 && response.status !== 503) {
-    throw new ApiRequestError(response.status, 'readiness_failed', 'Database readiness could not be checked.')
-  }
-  return response.json() as Promise<HealthResponse>
 }
 
 export function getSession(signal?: AbortSignal): Promise<SessionView> {
@@ -143,20 +147,25 @@ export function signIn(email: string, password: string): Promise<SessionView> {
   return post<SessionView>('/auth/sign-in', { email, password })
 }
 
+export function signUp(email: string, password: string, workspaceName: string): Promise<SessionView> {
+  return post<SessionView>('/auth/sign-up', { email, password, workspace_name: workspaceName })
+}
+
 export async function signOut(csrfToken: string): Promise<void> {
-  const response = await fetch('/api/v1/auth/sign-out', {
+  return trackedRequest('/api/v1/auth/sign-out', {
     method: 'POST',
     credentials: 'same-origin',
     cache: 'no-store',
     headers: { 'X-CSRF-Token': csrfToken },
+  }, async (response) => {
+    await requireSuccess(response)
   })
-  await requireSuccess(response)
 }
 
 export async function changePassword(
   currentPassword: string, newPassword: string, csrfToken: string,
 ): Promise<void> {
-  const response = await fetch('/api/v1/auth/change-password', {
+  return trackedRequest('/api/v1/auth/change-password', {
     method: 'POST',
     credentials: 'same-origin',
     cache: 'no-store',
@@ -166,8 +175,9 @@ export async function changePassword(
       'X-CSRF-Token': csrfToken,
     },
     body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  }, async (response) => {
+    await requireSuccess(response)
   })
-  await requireSuccess(response)
 }
 
 export function requestRecovery(email: string): Promise<RecoveryMessage> {
@@ -177,14 +187,15 @@ export function requestRecovery(email: string): Promise<RecoveryMessage> {
 export async function completeRecovery(
   email: string, code: string, newPassword: string,
 ): Promise<void> {
-  const response = await fetch('/api/v1/auth/recovery/complete', {
+  return trackedRequest('/api/v1/auth/recovery/complete', {
     method: 'POST',
     credentials: 'same-origin',
     cache: 'no-store',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ email, code, new_password: newPassword }),
+  }, async (response) => {
+    await requireSuccess(response)
   })
-  await requireSuccess(response)
 }
 
 export function getWorkspaceSettings(
@@ -245,14 +256,15 @@ export function updateWorkspacePreset(
 }
 
 export async function deleteDocument(documentId: string, csrfToken: string): Promise<DeletedView> {
-  const response = await fetch(`/api/v1/documents/${encodeURIComponent(documentId)}`, {
+  return trackedRequest(`/api/v1/documents/${encodeURIComponent(documentId)}`, {
     method: 'DELETE',
     credentials: 'same-origin',
     cache: 'no-store',
     headers: { Accept: 'application/json', 'X-CSRF-Token': csrfToken },
+  }, async (response) => {
+    await requireSuccess(response)
+    return response.json() as Promise<DeletedView>
   })
-  await requireSuccess(response)
-  return response.json() as Promise<DeletedView>
 }
 
 export function getMembers(workspaceId: string, signal?: AbortSignal): Promise<MemberView[]> {
@@ -332,15 +344,16 @@ export async function createFileDraft(
   form.append('phone_region', phoneRegion)
   form.append('retention_days', String(retentionDays))
   if (presetId) form.append('preset_id', presetId)
-  const response = await fetch('/api/v1/documents/from-file', {
+  return trackedRequest('/api/v1/documents/from-file', {
     method: 'POST',
     credentials: 'same-origin',
     cache: 'no-store',
     headers: { 'X-CSRF-Token': csrfToken, Accept: 'application/json' },
     body: form,
+  }, async (response) => {
+    await requireSuccess(response)
+    return response.json() as Promise<SavedDraftView>
   })
-  await requireSuccess(response)
-  return response.json() as Promise<SavedDraftView>
 }
 
 export function getDraft(documentId: string, signal?: AbortSignal): Promise<SourceView> {
@@ -369,7 +382,7 @@ export function startScan(
 }
 
 export function updateScanSettings(
-  documentId: string, expected: VersionRef, categories: Array<'email' | 'phone'>,
+  documentId: string, expected: VersionRef, categories: FindingCategory[],
   phoneRegion: string, csrfToken: string,
 ): Promise<ScanSettingsView> {
   return sendJson<ScanSettingsView>(
@@ -515,7 +528,7 @@ export function recordCopySuccess(
 export async function downloadReviewedTxt(
   documentId: string, expected: VersionRef, eventId: string, csrfToken: string,
 ): Promise<Blob> {
-  const response = await fetch(`/api/v1/documents/${encodeURIComponent(documentId)}/exports/txt`, {
+  return trackedRequest(`/api/v1/documents/${encodeURIComponent(documentId)}/exports/txt`, {
     method: 'POST',
     credentials: 'same-origin',
     cache: 'no-store',
@@ -525,7 +538,8 @@ export async function downloadReviewedTxt(
       'X-CSRF-Token': csrfToken,
     },
     body: JSON.stringify({ expected, event_id: eventId }),
+  }, async (response) => {
+    await requireSuccess(response)
+    return response.blob()
   })
-  await requireSuccess(response)
-  return response.blob()
 }
