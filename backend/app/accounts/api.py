@@ -4,7 +4,7 @@ import hmac
 import logging
 import re
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, SecretStr, field_validator
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
+from app.accounts.challenges import CHALLENGE_NAME, CHALLENGE_PATH, CHALLENGE_TTL, IssuedChallenge
 from app.accounts.email_rules import EmailRuleError, lookup_forms
 from app.accounts.limits import AttemptLimiter
 from app.accounts.recovery import (
@@ -32,6 +33,7 @@ from app.accounts.security import (
     revoke_session,
     sign_in,
 )
+from app.accounts.security_notices import SecurityNotice, deliver_notice
 from app.accounts.signup import (
     AccountUnavailable,
     CodeDelivery,
@@ -65,6 +67,7 @@ class MembershipView(BaseModel):
     workspace_id: UUID
     role: WorkspaceRole
     workspace_name: str
+    require_second_factor: bool = False
 
 
 class SessionView(BaseModel):
@@ -75,6 +78,14 @@ class SessionView(BaseModel):
     memberships: list[MembershipView]
     email_verified: bool = False
     email_verification_available: bool = False
+    second_factor_enabled: bool = False
+    second_factor_setup_required: bool = False
+    security_emails_available: bool = False
+
+
+class ChallengeView(BaseModel):
+    status: Literal["second_factor_required", "enrollment_required"]
+    expires_at: datetime
 
 
 class RegistrationMessage(BaseModel):
@@ -127,11 +138,15 @@ def _view(identity: SessionIdentity, mail_available: bool = False) -> SessionVie
         csrf_token=identity.csrf_token,
         email_verified=identity.email_verified,
         email_verification_available=mail_available,
+        second_factor_enabled=identity.second_factor_enabled,
+        second_factor_setup_required=identity.second_factor_setup_required,
+        security_emails_available=mail_available,
         memberships=[
             MembershipView(
                 workspace_id=item.workspace_id,
                 role=item.role,
                 workspace_name=item.workspace_name,
+                require_second_factor=item.require_second_factor,
             )
             for item in identity.memberships
         ],
@@ -144,7 +159,7 @@ def request_client_ip(request: Request) -> str:
     return attempt_key(scope_client_address(request.scope, settings.trusted_proxy_hops))
 
 
-def _session_cookie(value: str, *, max_age: int, settings: Settings) -> str:
+def _cookie(name: str, value: str, *, path: str, max_age: int, settings: Settings) -> str:
     """Build the session cookie so issuing and clearing always use identical attributes.
 
     Production serves the website and the API from different sites, so the cookie must be
@@ -152,7 +167,7 @@ def _session_cookie(value: str, *, max_age: int, settings: Settings) -> str:
     which keeps it usable where unpartitioned third-party cookies are blocked. Starlette
     only emits Partitioned on Python 3.14+, so the header is formatted here.
     """
-    attributes = [f"{COOKIE_NAME}={value}", f"Max-Age={max_age}", f"Path={COOKIE_PATH}"]
+    attributes = [f"{name}={value}", f"Max-Age={max_age}", f"Path={path}"]
     if max_age == 0:
         attributes.append("Expires=Thu, 01 Jan 1970 00:00:00 GMT")
     attributes.append("HttpOnly")
@@ -166,12 +181,34 @@ def _session_cookie(value: str, *, max_age: int, settings: Settings) -> str:
 def set_session_cookie(response: Response, token: str, settings: Settings) -> None:
     max_age = int(SESSION_TTL.total_seconds())
     response.headers.append(
-        "set-cookie", _session_cookie(token, max_age=max_age, settings=settings)
+        "set-cookie",
+        _cookie(COOKIE_NAME, token, path=COOKIE_PATH, max_age=max_age, settings=settings),
     )
 
 
 def clear_session_cookie(response: Response, settings: Settings) -> None:
-    response.headers.append("set-cookie", _session_cookie("", max_age=0, settings=settings))
+    response.headers.append(
+        "set-cookie", _cookie(COOKIE_NAME, "", path=COOKIE_PATH, max_age=0, settings=settings)
+    )
+
+
+def set_challenge_cookie(response: Response, token: str, settings: Settings) -> None:
+    response.headers.append(
+        "set-cookie",
+        _cookie(
+            CHALLENGE_NAME,
+            token,
+            path=CHALLENGE_PATH,
+            max_age=int(CHALLENGE_TTL.total_seconds()),
+            settings=settings,
+        ),
+    )
+
+
+def clear_challenge_cookie(response: Response, settings: Settings) -> None:
+    response.headers.append(
+        "set-cookie", _cookie(CHALLENGE_NAME, "", path=CHALLENGE_PATH, max_age=0, settings=settings)
+    )
 
 
 def require_mutation_origin(request: Request) -> None:
@@ -184,7 +221,9 @@ def current_identity(request: Request) -> SessionIdentity:
     token = request.cookies.get(COOKIE_NAME)
     try:
         with Session(request.app.state.engine) as session:
-            return read_session(session, token=token, now=datetime.now(UTC))
+            identity = read_session(session, token=token, now=datetime.now(UTC))
+            session.commit()
+            return identity
     except InvalidSession:
         raise ApiError(401, "sign_in_required", "Sign in to continue.") from None
 
@@ -228,10 +267,16 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
 
     @router.post(
         "/sign-in",
-        response_model=SessionView,
-        responses={401: {"model": ErrorResponse}, 429: {"model": ErrorResponse}},
+        response_model=SessionView | ChallengeView,
+        responses={
+            202: {"model": ChallengeView},
+            401: {"model": ErrorResponse},
+            429: {"model": ErrorResponse},
+        },
     )
-    def sign_in_route(body: SignInRequest, request: Request, response: Response) -> SessionView:
+    def sign_in_route(
+        body: SignInRequest, request: Request, response: Response
+    ) -> SessionView | ChallengeView:
         require_mutation_origin(request)
         client_ip = request_client_ip(request)
         if not limiter.take(client_ip):
@@ -243,12 +288,19 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
                     email=body.email,
                     password=body.password.get_secret_value(),
                     now=datetime.now(UTC),
+                    user_agent=request.headers.get("user-agent", ""),
                 )
         except InvalidCredentials:
             raise ApiError(
                 401, "invalid_credentials", "Email or password was not accepted."
             ) from None
+        if isinstance(issued, IssuedChallenge):
+            response.status_code = 202
+            clear_session_cookie(response, settings)
+            set_challenge_cookie(response, issued.token, settings)
+            return ChallengeView(status=issued.status, expires_at=issued.expires_at)
         set_session_cookie(response, issued.token, settings)
+        clear_challenge_cookie(response, settings)
         return _view(issued.identity, request.app.state.recovery_mailer is not None)
 
     def dispatch(mailer, delivery: CodeDelivery, method: str, event: str):
@@ -347,6 +399,7 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
                 code=body.code.get_secret_value(),
                 password=body.password.get_secret_value(),
                 now=datetime.now(UTC),
+                user_agent=request.headers.get("user-agent", ""),
             )
         except InvalidRegistrationCode:
             raise ApiError(
@@ -458,6 +511,8 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
     )
     def change_password_route(
         body: ChangePasswordRequest,
+        request: Request,
+        background: BackgroundTasks,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ) -> Response:
         try:
@@ -477,6 +532,12 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
             raise ApiError(422, "invalid_password", str(exc)) from None
         response = Response(status_code=204)
         clear_session_cookie(response, settings)
+        background.add_task(
+            deliver_notice,
+            request.app.state.recovery_mailer,
+            SecurityNotice(identity.email, "password_changed", datetime.now(UTC)),
+        )
+        response.background = background
         return response
 
     @router.post(
@@ -507,14 +568,16 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
         status_code=204,
         responses={400: {"model": ErrorResponse}, 429: {"model": ErrorResponse}},
     )
-    def recovery_complete_route(body: RecoveryCompletion, request: Request) -> Response:
+    def recovery_complete_route(
+        body: RecoveryCompletion, request: Request, background: BackgroundTasks
+    ) -> Response:
         require_mutation_origin(request)
         client_ip = request_client_ip(request)
         if not recovery_completion_limiter.take(client_ip):
             raise ApiError(429, "recovery_limited", "Too many recovery attempts. Try again later.")
         try:
             with Session(engine) as session:
-                complete_recovery(
+                recipient = complete_recovery(
                     session,
                     email=body.email,
                     code=body.code,
@@ -527,6 +590,13 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
             ) from None
         response = Response(status_code=204)
         clear_session_cookie(response, settings)
+        clear_challenge_cookie(response, settings)
+        background.add_task(
+            deliver_notice,
+            request.app.state.recovery_mailer,
+            SecurityNotice(recipient, "password_changed", datetime.now(UTC)),
+        )
+        response.background = background
         return response
 
     return router

@@ -27,6 +27,12 @@ const names: Record<string, string> = {
   member_role_changed: 'Member role changed',
   member_revoked: 'Member access revoked',
   member_restored: 'Member access restored',
+  second_factor_enabled: 'Two-step verification enabled',
+  second_factor_disabled: 'Two-step verification disabled',
+  second_factor_reset: 'Authenticator reset',
+  backup_codes_regenerated: 'Backup codes regenerated',
+  device_signed_out: 'Session signed out',
+  other_devices_signed_out: 'Other sessions signed out',
 }
 
 export function eventName(code: string): string {

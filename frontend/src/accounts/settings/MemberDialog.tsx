@@ -5,6 +5,7 @@ import { ArrowUpRight, UserMinus, UserRoundCheck } from 'lucide-react'
 import { changeMemberRole, restoreMember, revokeMember, type MemberView } from '../../api/client'
 import { GlassSelect } from '../../ui/GlassSelect'
 import { DialogFrame, InlineNotice } from '../../ui/WorkspaceControls'
+import { ResetFactorDialog } from './ResetFactorDialog'
 
 export function MemberDialog({
   member,
@@ -153,6 +154,8 @@ export function MemberDialog({
             </AlertDialog.Root>
           </div>
         )}
+        {!revoked && !member.disabled_at && <ResetFactorDialog member={member} workspaceId={workspaceId} csrfToken={csrfToken}
+          onReset={() => { setOpen(false); onChanged(member) }} />}
       </DialogFrame>
     </Dialog.Root>
   )

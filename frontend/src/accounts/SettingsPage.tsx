@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import * as Tabs from '@radix-ui/react-tabs'
-import { Clock3, UserRound, Users } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { Clock3, ShieldCheck, UserRound, Users } from 'lucide-react'
 import {
   getMembers,
+  getSession,
   getWorkspaceSettings,
   type MemberView,
   type SessionView,
@@ -15,6 +17,8 @@ import { InlineNotice } from '../ui/WorkspaceControls'
 import { AccountPanel } from './settings/AccountPanel'
 import { RetentionPanel } from './settings/RetentionPanel'
 import { MembersPanel } from './settings/MembersPanel'
+import { SecurityPanel } from './settings/SecurityPanel'
+import { WorkspaceSecurityPanel } from './settings/WorkspaceSecurityPanel'
 import './settings/settings.css'
 
 type Data =
@@ -25,10 +29,16 @@ type Data =
 export function SettingsPage({
   session,
   onPasswordChanged,
+  onSessionChanged,
+  onSignedOut,
 }: {
   session: SessionView
   onPasswordChanged: () => void
+  onSessionChanged: (session: SessionView) => void
+  onSignedOut: () => void
 }) {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const securityActive = searchParams.get('section') === 'security'
   const adminWorkspaces = session.memberships.filter((item) => item.role === 'administrator')
   const [workspaceId, setWorkspaceId] = useState(adminWorkspaces[0]?.workspace_id ?? '')
   const [attempt, setAttempt] = useState(0)
@@ -51,7 +61,7 @@ export function SettingsPage({
           })
       })
     return () => controller.abort()
-  }, [workspaceId, attempt])
+  }, [workspaceId, attempt, securityActive])
   function reload() {
     setData({ kind: 'loading' })
     setAttempt((value) => value + 1)
@@ -83,13 +93,16 @@ export function SettingsPage({
     <section className="settings-hub">
       <PageHeader
         title="Settings"
-        description="A workspace that works your way. Manage your account, retention, and team."
+        description="Manage your account, security, retention, and team."
       />
-      <Tabs.Root defaultValue="account" className="settings-tabs">
+      <Tabs.Root value={searchParams.get('section') ?? 'account'} onValueChange={(value) => setSearchParams({ section: value })} className="settings-tabs">
         <div className="settings-tab-bar">
           <Tabs.List aria-label="Settings sections">
             <Tabs.Trigger value="account">
               <UserRound size={16} aria-hidden="true" /> Account
+            </Tabs.Trigger>
+            <Tabs.Trigger value="security">
+              <ShieldCheck size={16} aria-hidden="true" /> Security
             </Tabs.Trigger>
             {!!workspaceId && (
               <>
@@ -132,6 +145,15 @@ export function SettingsPage({
               Workspace membership and defaults are managed by an administrator.
             </p>
           )}
+        </Tabs.Content>
+        <Tabs.Content value="security">
+          <SecurityPanel session={session} onSignedOut={onSignedOut} onSessionChanged={(updated) => { onSessionChanged(updated); reload() }} />
+          {!!workspaceId && (data.kind === 'loading' ? loading : failure || (data.kind === 'ready' &&
+            <div className="security-stack"><WorkspaceSecurityPanel key={workspaceId} settings={data.settings} session={session}
+              onSaved={(settings) => {
+                setData((current) => current.kind === 'ready' && current.settings.id === settings.id ? { ...current, settings } : current)
+                void getSession().then(onSessionChanged).catch(() => { /* Retry through the next account action. */ })
+              }} onReload={reload} /></div>))}
         </Tabs.Content>
         {!!workspaceId && (
           <>

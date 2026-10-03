@@ -1,0 +1,24 @@
+.authenticator-setup { display: grid; justify-items: start; gap: 12px; }
+.second-step-links { display: flex; flex-wrap: wrap; gap: 12px; margin-block: 16px; }
+.second-step-help { display: block; font-size: 0.8rem; line-height: 1.6; color: var(--muted); }
+.authenticator-qr { width: min(224px, 100%); height: auto; border: 1px solid var(--border); }
+.authenticator-key { display: grid; gap: 6px; width: 100%; }
+.authenticator-key code { overflow-wrap: anywhere; user-select: all; font-size: 0.95rem; }
+.backup-codes { min-width: 0; }
+.backup-codes ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); padding: 0; gap: 10px; list-style: none; }
+.backup-codes code { font-size: 0.9rem; overflow-wrap: anywhere; user-select: all; }
+.security-stack { display: grid; gap: 24px; min-width: 0; }
+.security-stack .workspace-panel { min-width: 0; }
+.security-stack + .security-stack { margin-top: 24px; }
+.security-form { display: grid; gap: 14px; max-width: 480px; margin-top: 18px; }
+.security-form label { display: block; margin-bottom: 6px; }
+.security-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.security-device-list { list-style: none; padding: 0; display: grid; gap: 12px; }
+.security-device-list li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 0; border-bottom: 1px solid var(--border); }
+.security-device-list li > div { min-width: 0; }
+.security-device-list strong { display: block; overflow-wrap: anywhere; }
+.security-device-list small { display: block; color: var(--muted); }
+.security-current { margin-left: 8px; font-size: 0.8rem; color: var(--blue); }
+.security-stack small, .authenticator-setup small { color: var(--muted); }
+.security-requirement { margin: 12px 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.settings-tab-bar [role='tablist'] { flex-wrap: wrap; gap: 12px 20px; }

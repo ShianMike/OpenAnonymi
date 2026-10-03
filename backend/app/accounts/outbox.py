@@ -43,3 +43,8 @@ class OutboxMailer:
 
     def send_invitation_code(self, recipient: str, code: str):
         self._write(recipient, code, "OpenAnonymi workspace invitation", "Expires in 24 hours.")
+
+    def send_security_notice(self, recipient: str, event: str, at: datetime):
+        from app.accounts.security_notices import notice_body
+
+        self._write(recipient, notice_body(event, at), "OpenAnonymi security notice", "")

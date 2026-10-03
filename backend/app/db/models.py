@@ -47,6 +47,9 @@ class User(Base):
     created_at: Mapped[datetime] = timestamp_column()
     disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    second_factor_reenroll_required: Mapped[bool] = mapped_column(
+        nullable=False, server_default="false"
+    )
 
 
 class Workspace(Base):
@@ -60,6 +63,7 @@ class Workspace(Base):
         Integer, nullable=False, server_default="90"
     )
     settings_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    require_second_factor: Mapped[bool] = mapped_column(nullable=False, server_default="false")
 
     __table_args__ = (
         CheckConstraint("content_retention_days > 0", name="positive_content_retention"),
@@ -98,8 +102,19 @@ class Session(Base):
     created_at: Mapped[datetime] = timestamp_column()
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_seen_at: Mapped[datetime] = timestamp_column()
+    device_label: Mapped[str] = mapped_column(
+        String(100), nullable=False, server_default="Unknown browser · Unknown system"
+    )
+    auth_method: Mapped[str] = mapped_column(String(24), nullable=False, server_default="password")
 
-    __table_args__ = (Index("ix_sessions_user_expiry", "user_id", "expires_at"),)
+    __table_args__ = (
+        Index("ix_sessions_user_expiry", "user_id", "expires_at"),
+        CheckConstraint(
+            "auth_method IN ('password', 'password_totp', 'password_backup_code', 'enrollment')",
+            name="session_auth_method",
+        ),
+    )
 
 
 class RecoveryToken(Base):

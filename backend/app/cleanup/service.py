@@ -14,7 +14,9 @@ from app.db.custom_rules import DocumentRuleSnapshot
 from app.db.durable import AttemptEvent, ReviewUndoEntry
 from app.db.email_verification import EmailVerification, PendingRegistration
 from app.db.models import AuditEvent, Document, LabelCounter, SourceRevision, Workspace
+from app.db.models import Session as StoredSession
 from app.db.recovery import RecoverySnapshot
+from app.db.second_factor import AuthChallenge, UserSecondFactor
 from app.db.team_review import ReviewHandoff
 from app.workspace.activity import record_event
 
@@ -101,6 +103,23 @@ def purge_unavailable_content(
         session.execute(delete(RecoverySnapshot).where(RecoverySnapshot.expires_at <= now))
         session.execute(delete(PendingRegistration).where(PendingRegistration.expires_at <= now))
         session.execute(delete(EmailVerification).where(EmailVerification.expires_at <= now))
+        session.execute(
+            delete(UserSecondFactor).where(
+                UserSecondFactor.status == "pending",
+                UserSecondFactor.created_at <= now - timedelta(minutes=10),
+            )
+        )
+        session.execute(
+            delete(AuthChallenge).where(AuthChallenge.expires_at <= now - timedelta(hours=1))
+        )
+        session.execute(
+            delete(StoredSession).where(
+                or_(
+                    StoredSession.expires_at <= now - timedelta(hours=24),
+                    StoredSession.revoked_at <= now - timedelta(hours=24),
+                )
+            )
+        )
         session.execute(
             delete(AttemptEvent).where(AttemptEvent.attempted_at <= now - timedelta(days=1))
         )

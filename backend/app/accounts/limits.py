@@ -48,39 +48,39 @@ class AttemptLimiter:
     def _digest(self, value: str) -> bytes:
         return hmac.digest(self.key, value.encode("utf-8"), "sha256")
 
-    def take(self, subject: str, *, now: datetime | None = None) -> bool:
+    def take(
+        self, subject: str, *, now: datetime | None = None, session: Session | None = None
+    ) -> bool:
         now = now or datetime.now(UTC)
         if now.tzinfo is None:
             raise ValueError("A timezone-aware clock is required.")
+        if session is None:
+            with Session(self.engine) as owned, owned.begin():
+                return self.take(subject, now=now, session=owned)
         digest = self._digest(subject)
         cutoff = now - timedelta(seconds=self.window_seconds)
         subject_lock = int.from_bytes(
             self._digest(self.scope + ":" + digest.hex())[:8], "big", signed=True
         )
-        with Session(self.engine) as session, session.begin():
-            session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": subject_lock})
-            if self.network_scope:
-                # Serializing this small scope admission check makes the distinct
-                # network cap exact when many different subjects arrive together.
-                scope_lock = int.from_bytes(
-                    self._digest("scope:" + self.scope)[:8], "big", signed=True
-                )
-                session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": scope_lock})
-            active = (AttemptEvent.scope == self.scope, AttemptEvent.attempted_at > cutoff)
-            count = session.scalar(
-                select(func.count())
-                .select_from(AttemptEvent)
-                .where(*active, AttemptEvent.subject_hmac == digest)
+        session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": subject_lock})
+        if self.network_scope:
+            scope_lock = int.from_bytes(self._digest("scope:" + self.scope)[:8], "big", signed=True)
+            session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": scope_lock})
+        active = (AttemptEvent.scope == self.scope, AttemptEvent.attempted_at > cutoff)
+        count = session.scalar(
+            select(func.count())
+            .select_from(AttemptEvent)
+            .where(*active, AttemptEvent.subject_hmac == digest)
+        )
+        if count >= self.maximum:
+            return False
+        if self.network_scope and count == 0:
+            subjects = session.scalar(
+                select(func.count(distinct(AttemptEvent.subject_hmac))).where(*active)
             )
-            if count >= self.maximum:
+            if subjects >= self.subject_cap:
                 return False
-            if self.network_scope and count == 0:
-                subjects = session.scalar(
-                    select(func.count(distinct(AttemptEvent.subject_hmac))).where(*active)
-                )
-                if subjects >= self.subject_cap:
-                    return False
-            session.add(
-                AttemptEvent(id=uuid4(), scope=self.scope, subject_hmac=digest, attempted_at=now)
-            )
+        session.add(
+            AttemptEvent(id=uuid4(), scope=self.scope, subject_hmac=digest, attempted_at=now)
+        )
         return True

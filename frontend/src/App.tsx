@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import { matchPath, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { Link, matchPath, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { ChevronRight, LogOut, Menu, X } from 'lucide-react'
 import { SignInPage } from './accounts/SignInPage'
 import { SettingsPage } from './accounts/SettingsPage'
@@ -111,6 +111,23 @@ function App() {
       })
     return () => controller.abort()
   }, [sessionAttempt])
+
+  const signedIn = authentication.kind === 'signed-in'
+  useEffect(() => {
+    if (!signedIn) return
+    const controller = new AbortController()
+    function refreshSession() {
+      if (document.visibilityState !== 'visible') return
+      getSession(controller.signal).then((session) => {
+        if (!controller.signal.aborted) setAuthentication((current) =>
+          current.kind === 'signed-in' && current.session.user_id === session.user_id
+            ? { kind: 'signed-in', session } : current)
+      }).catch(() => { /* The next authenticated action reports a session failure. */ })
+    }
+    refreshSession()
+    document.addEventListener('visibilitychange', refreshSession)
+    return () => { controller.abort(); document.removeEventListener('visibilitychange', refreshSession) }
+  }, [pathname, signedIn])
 
   async function handleSignOut() {
     if (authentication.kind !== 'signed-in') return
@@ -287,6 +304,9 @@ function App() {
           </div>
         )}
         <main id="main-content" ref={mainRef} tabIndex={-1}>
+          {authentication.session.second_factor_setup_required && <div className="security-requirement" role="status">
+            A workspace requires two-step verification. <Link to="/settings?section=security">Set up your authenticator</Link>
+          </div>}
           <PageLoadBoundary key={pathname}><Suspense fallback={<RouteLoading pathname={pathname} title={pageTitle} />}>
             <Routes>
               <Route path="/" element={<OverviewPage session={authentication.session} />} />
@@ -316,6 +336,8 @@ function App() {
                 element={
                   <SettingsPage
                     session={authentication.session}
+                    onSessionChanged={(session) => setAuthentication({ kind: 'signed-in', session })}
+                    onSignedOut={() => { setSignInNotice('Session signed out. Sign in again to continue.'); setAuthentication({ kind: 'signed-out' }) }}
                     onPasswordChanged={() => {
                       setSignInNotice('Password changed. Sign in again with your new password.')
                       setAuthentication({ kind: 'signed-out' })

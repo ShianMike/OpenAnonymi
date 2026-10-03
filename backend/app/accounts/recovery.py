@@ -35,6 +35,7 @@ class RecoveryMailer(Protocol):
     def send_invitation_code(self, recipient: str, code: str) -> None: ...
     def send_registration_code(self, recipient: str, code: str) -> None: ...
     def send_email_verification_code(self, recipient: str, code: str) -> None: ...
+    def send_security_notice(self, recipient: str, event: str, at: datetime) -> None: ...
 
 
 class SmtpRecoveryMailer:
@@ -94,11 +95,19 @@ class SmtpRecoveryMailer:
     def _send_code(
         self, recipient: str, code: str, subject: str, introduction: str, expiry: str
     ) -> None:
+        self._send_message(recipient, subject, f"{introduction}\n\n{code}\n\n{expiry}")
+
+    def send_security_notice(self, recipient: str, event: str, at: datetime) -> None:
+        from app.accounts.security_notices import notice_body
+
+        self._send_message(recipient, "OpenAnonymi security notice", notice_body(event, at))
+
+    def _send_message(self, recipient: str, subject: str, body: str) -> None:
         message = EmailMessage()
         message["From"] = self.sender
         message["To"] = recipient
         message["Subject"] = subject
-        message.set_content(f"{introduction}\n\n{code}\n\n{expiry}")
+        message.set_content(body)
         try:
             with smtplib.SMTP_SSL(
                 self.host, self.port, timeout=10, context=ssl.create_default_context()
@@ -139,7 +148,9 @@ def request_recovery(
 
 def complete_recovery(
     session: Session, *, email: str, code: str, new_password: str, now: datetime
-) -> None:
+) -> str:
+    from app.db.second_factor import AuthChallenge, UserSecondFactor
+
     try:
         forms = lookup_forms(email)
         digest = _digest(code)
@@ -152,11 +163,19 @@ def complete_recovery(
         )
         if token is None or token.used_at is not None or token.expires_at <= now:
             raise InvalidRecoveryCode("The recovery code is invalid or expired.")
-        user = session.get(User, token.user_id)
+        user = session.scalar(select(User).where(User.id == token.user_id).with_for_update())
         if user is None or user.disabled_at is not None or user.email not in forms:
             raise InvalidRecoveryCode("The recovery code is invalid or expired.")
         user.password_hash = new_hash
         user.email_verified_at = now
+        factor = session.get(UserSecondFactor, user.id)
+        if factor is not None:
+            factor.failed_attempts = 0
+        session.execute(
+            update(AuthChallenge)
+            .where(AuthChallenge.user_id == user.id, AuthChallenge.consumed_at.is_(None))
+            .values(consumed_at=now)
+        )
         session.execute(
             update(RecoveryToken)
             .where(RecoveryToken.user_id == user.id, RecoveryToken.used_at.is_(None))
@@ -167,3 +186,5 @@ def complete_recovery(
             .where(StoredSession.user_id == user.id, StoredSession.revoked_at.is_(None))
             .values(revoked_at=now)
         )
+        recipient = user.email
+    return recipient

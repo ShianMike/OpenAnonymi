@@ -92,7 +92,7 @@ def request_registration(
             maximum=3,
             window_seconds=3600,
             network_scope=False,
-        ).take(canonical, now=now):
+        ).take(canonical, now=now, session=session):
             return None
         code = secrets.token_urlsafe(24)
         protected = keys.encrypt_text(name)
@@ -112,7 +112,14 @@ def request_registration(
 
 
 def verify_registration(
-    engine: Engine, *, settings: Settings, email: str, code: str, password: str, now: datetime
+    engine: Engine,
+    *,
+    settings: Settings,
+    email: str,
+    code: str,
+    password: str,
+    now: datetime,
+    user_agent: str = "",
 ) -> IssuedSession:
     try:
         forms = lookup_forms(email)
@@ -169,7 +176,7 @@ def verify_registration(
                     )
                 )
                 session.flush()
-                issued = issue_session(session, user=user, now=now)
+                issued = issue_session(session, user=user, now=now, user_agent=user_agent)
         if unavailable:
             raise AccountUnavailable
         return issued

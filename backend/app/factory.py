@@ -15,6 +15,7 @@ from app.accounts.admin_api import create_admin_router
 from app.accounts.api import create_auth_router
 from app.accounts.outbox import OutboxMailer
 from app.accounts.recovery import RecoveryMailer, SmtpRecoveryMailer
+from app.accounts.second_factor_api import create_second_factor_router
 from app.cleanup.api import create_cleanup_router
 from app.cleanup.runner import periodic_cleanup
 from app.comparison.api import create_comparison_router
@@ -115,6 +116,7 @@ def create_app(
     app.add_exception_handler(RequestValidationError, validation_error_handler)
     app.add_exception_handler(RequestTooLarge, request_too_large_handler)
     app.include_router(create_auth_router(engine, settings))
+    app.include_router(create_second_factor_router(engine, settings))
     app.include_router(create_admin_router(engine))
     app.include_router(create_intake_router(engine))
     app.include_router(create_import_router(engine))

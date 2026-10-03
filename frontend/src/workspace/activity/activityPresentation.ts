@@ -4,6 +4,7 @@ import {
   FilePlus2,
   ScanLine,
   SlidersHorizontal,
+  ShieldCheck,
   Users,
   type LucideIcon,
 } from 'lucide-react'
@@ -16,12 +17,13 @@ export type DocumentMap = Record<string, DocumentIndexView>
 
 export function eventGroup(code: string): Exclude<ActivityFilter, 'all'> {
   if (code.startsWith('output_')) return 'outputs'
-  if (/^(workspace_|member_|preset_)/.test(code)) return 'workspace'
+  if (/^(workspace_|member_|preset_|second_factor_|backup_codes_|device_|other_devices_)/.test(code)) return 'workspace'
   return 'reviews'
 }
 
 export function eventIcon(code: string): LucideIcon {
   if (code.startsWith('output_')) return Download
+  if (/^(second_factor_|backup_codes_|device_|other_devices_)/.test(code)) return ShieldCheck
   if (code.startsWith('member_')) return Users
   if (/^(workspace_|preset_)/.test(code)) return SlidersHorizontal
   if (code.startsWith('scan_')) return ScanLine

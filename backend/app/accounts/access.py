@@ -131,10 +131,10 @@ def require_administrator(
 ) -> Workspace:
     statement = select(Workspace).where(Workspace.id == workspace_id)
     if lock:
-        statement = statement.with_for_update()
-    workspace = session.scalar(statement)
-    membership = session.get(Membership, (workspace_id, actor_id))
-    user = session.get(User, actor_id)
+        statement = statement.with_for_update(key_share=True)
+    workspace = session.scalar(statement.execution_options(populate_existing=True))
+    membership = session.get(Membership, (workspace_id, actor_id), populate_existing=True)
+    user = session.get(User, actor_id, populate_existing=True)
     if (
         workspace is None
         or membership is None

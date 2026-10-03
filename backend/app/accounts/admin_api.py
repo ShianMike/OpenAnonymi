@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
@@ -28,7 +28,11 @@ from app.accounts.memberships import (
     update_workspace_settings,
 )
 from app.accounts.recovery import RecoveryDeliveryError
+from app.accounts.reset_second_factor import reset_factor
+from app.accounts.second_factor import FactorError
+from app.accounts.second_factor_api import factor_failure
 from app.accounts.security import SessionIdentity
+from app.accounts.security_notices import deliver_notice
 from app.contracts import ErrorResponse, WorkspaceRole
 from app.errors import ApiError
 
@@ -47,6 +51,8 @@ class WorkspaceSettingsView(BaseModel):
     content_retention_days: int
     activity_retention_days: int
     settings_version: int
+    require_second_factor: bool
+    members_without_second_factor: int
 
 
 class InviteMemberRequest(BaseModel):
@@ -62,6 +68,7 @@ class UpdateWorkspaceSettingsRequest(BaseModel):
     expected_version: int = Field(ge=1)
     content_retention_days: int = Field(ge=1, le=30)
     activity_retention_days: int = Field(ge=1, le=365)
+    require_second_factor: bool | None = None
 
 
 def _member_view(record: MemberRecord) -> MemberView:
@@ -81,10 +88,14 @@ def _settings_view(record: WorkspaceRecord) -> WorkspaceSettingsView:
         content_retention_days=record.content_retention_days,
         activity_retention_days=record.activity_retention_days,
         settings_version=record.settings_version,
+        require_second_factor=record.require_second_factor,
+        members_without_second_factor=record.members_without_second_factor,
     )
 
 
 def _raise_access_error(exc: Exception) -> None:
+    if isinstance(exc, FactorError):
+        raise ApiError(exc.status, exc.code, exc.message) from None
     if isinstance(exc, WorkspaceAccessDenied):
         raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
     if isinstance(exc, MemberNotFound):
@@ -111,6 +122,7 @@ def create_admin_router(engine: Engine) -> APIRouter:
         403: {"model": ErrorResponse},
         404: {"model": ErrorResponse},
         409: {"model": ErrorResponse},
+        422: {"model": ErrorResponse},
     }
 
     @router.get("/{workspace_id}/members", response_model=list[MemberView], responses=errors)
@@ -259,9 +271,37 @@ def create_admin_router(engine: Engine) -> APIRouter:
                     expected_version=body.expected_version,
                     content_retention_days=body.content_retention_days,
                     activity_retention_days=body.activity_retention_days,
+                    require_second_factor=body.require_second_factor,
                 )
-        except (WorkspaceAccessDenied, WorkspaceVersionConflict, ValueError) as exc:
+        except (WorkspaceAccessDenied, WorkspaceVersionConflict, FactorError, ValueError) as exc:
             _raise_access_error(exc)
         return _settings_view(record)
+
+    @router.post(
+        "/{workspace_id}/members/{user_id}/second-factor/reset", status_code=204, responses=errors
+    )
+    def reset_route(
+        workspace_id: UUID,
+        user_id: UUID,
+        request: Request,
+        background: BackgroundTasks,
+        identity: Annotated[SessionIdentity, Depends(mutation_identity)],
+    ):
+        try:
+            delivered = reset_factor(
+                engine,
+                user_id,
+                datetime.now(UTC),
+                actor_id=identity.user_id,
+                workspace_id=workspace_id,
+                actor_session_id=identity.session_id,
+            )
+            for notice in delivered:
+                background.add_task(deliver_notice, request.app.state.recovery_mailer, notice)
+            return Response(status_code=204, background=background)
+        except FactorError as error:
+            return factor_failure(error, request)
+        except WorkspaceAccessDenied as error:
+            _raise_access_error(error)
 
     return router

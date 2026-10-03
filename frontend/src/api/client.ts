@@ -5,6 +5,10 @@ import type { components } from './schema'
 export type ServiceMetadata = components['schemas']['ServiceMetadata']
 export type HealthResponse = components['schemas']['HealthResponse']
 export type SessionView = components['schemas']['SessionView']
+export type ChallengeView = components['schemas']['ChallengeView']
+export type EnrollmentView = components['schemas']['EnrollmentView']
+export type SecondFactorState = components['schemas']['SecondFactorState']
+export type DeviceView = components['schemas']['DeviceView']
 export type RecoveryMessage = components['schemas']['RecoveryMessage']
 export type MemberView = components['schemas']['MemberView']
 export type WorkspaceSettingsView = components['schemas']['WorkspaceSettingsView']
@@ -145,8 +149,52 @@ export function getSession(signal?: AbortSignal): Promise<SessionView> {
   return get<SessionView>('/auth/session', signal)
 }
 
-export function signIn(email: string, password: string): Promise<SessionView> {
-  return post<SessionView>('/auth/sign-in', { email, password })
+export function signIn(email: string, password: string): Promise<SessionView | ChallengeView> {
+  return post('/auth/sign-in', { email, password })
+}
+
+export function finishSecondFactor(code: string): Promise<SessionView> {
+  return post('/auth/sign-in/second-factor', { code })
+}
+
+export function startForcedEnrollment(): Promise<EnrollmentView> {
+  return post('/auth/sign-in/enrollment/start', {})
+}
+
+export function finishForcedEnrollment(code: string): Promise<components['schemas']['ForcedEnrollmentView']> {
+  return post('/auth/sign-in/enrollment/confirm', { code })
+}
+
+export function getSecondFactor(signal?: AbortSignal): Promise<SecondFactorState> {
+  return get('/auth/second-factor', signal)
+}
+
+export function startEnrollment(csrfToken: string): Promise<EnrollmentView> {
+  return post('/auth/second-factor/enrollment/start', {}, csrfToken)
+}
+
+export function confirmEnrollment(code: string, csrfToken: string): Promise<components['schemas']['BackupCodesView']> {
+  return post('/auth/second-factor/enrollment/confirm', { code }, csrfToken)
+}
+
+export function changeSecondFactor(password: string, code: string, disable: boolean, csrfToken: string): Promise<components['schemas']['BackupCodesView'] | void> {
+  return post(`/auth/second-factor/${disable ? 'disable' : 'backup-codes'}`, { password, code }, csrfToken)
+}
+
+export function getDevices(signal?: AbortSignal): Promise<DeviceView[]> {
+  return get('/auth/sessions', signal)
+}
+
+export function revokeDevice(id: string, csrfToken: string): Promise<void> {
+  return post(`/auth/sessions/${encodeURIComponent(id)}/revoke`, {}, csrfToken)
+}
+
+export function revokeOtherDevices(csrfToken: string): Promise<void> {
+  return post('/auth/sessions/revoke-others', {}, csrfToken)
+}
+
+export function resetMemberSecondFactor(workspaceId: string, userId: string, csrfToken: string): Promise<void> {
+  return post(`/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}/second-factor/reset`, {}, csrfToken)
 }
 
 export function signUp(email: string, password: string, workspaceName: string): Promise<components['schemas']['RegistrationMessage']> {
@@ -287,12 +335,13 @@ export function getMembers(workspaceId: string, signal?: AbortSignal): Promise<M
 
 export function updateWorkspaceSettings(
   workspaceId: string, expectedVersion: number, contentDays: number,
-  activityDays: number, csrfToken: string,
+  activityDays: number, csrfToken: string, requireSecondFactor?: boolean,
 ): Promise<WorkspaceSettingsView> {
   return sendJson<WorkspaceSettingsView>(
     'PUT', `/workspaces/${encodeURIComponent(workspaceId)}/settings`,
     { expected_version: expectedVersion, content_retention_days: contentDays,
-      activity_retention_days: activityDays }, csrfToken,
+      activity_retention_days: activityDays,
+      ...(requireSecondFactor === undefined ? {} : { require_second_factor: requireSecondFactor }) }, csrfToken,
   )
 }
 

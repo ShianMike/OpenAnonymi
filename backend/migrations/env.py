@@ -12,6 +12,7 @@ from app.db import (
     email_verification,  # noqa: F401 -- register ownership proof and pending accounts
     models,  # noqa: F401 — register all tables with Base.metadata
     recovery,  # noqa: F401 -- register the protected autosave table
+    second_factor,  # noqa: F401 -- register encrypted TOTP and content-free challenges
     team_review,  # noqa: F401 -- register explicit reviewer grant and protected comments
 )
 from app.db.base import Base

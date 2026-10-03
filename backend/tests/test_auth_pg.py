@@ -96,6 +96,7 @@ def test_sign_in_session_recovery_and_protected_sign_out(auth_site):
             "workspace_id": str(workspace_id),
             "role": "member",
             "workspace_name": "Auth test workspace",
+            "require_second_factor": False,
         }
     ]
     assert "httponly" in signed_in.headers["set-cookie"].lower()

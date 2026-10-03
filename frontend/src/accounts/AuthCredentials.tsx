@@ -1,8 +1,9 @@
 import { LoadingMark } from '../loading/LoadingMark'
 import { useState, type FormEvent } from 'react'
 import { ArrowUpRight, AtSign, LockKeyhole, Layers2 } from 'lucide-react'
-import { signIn, signUp, verifySignUp, type SessionView } from '../api/client'
+import { signIn, signUp, verifySignUp, type ChallengeView, type SessionView } from '../api/client'
 import { GlassInput } from '../ui/GlassField'
+import { AuthSecondStep } from './AuthSecondStep'
 
 type Props = {
   mode: 'sign-in' | 'sign-up'
@@ -19,6 +20,7 @@ export function AuthCredentials({ mode, onSignedIn, onRecover }: Props) {
   const [code, setCode] = useState('')
   const [requested, setRequested] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [challenge, setChallenge] = useState<ChallengeView | null>(null)
   const creating = mode === 'sign-up'
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -36,6 +38,7 @@ export function AuthCredentials({ mode, onSignedIn, onRecover }: Props) {
       }
       const session = creating ? await verifySignUp(email, code, password) : await signIn(email, password)
       setPassword('')
+      if ('status' in session) { setChallenge(session); return }
       onSignedIn(session)
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : 'Please try again in a moment.')
@@ -44,6 +47,8 @@ export function AuthCredentials({ mode, onSignedIn, onRecover }: Props) {
     }
   }
 
+  if (challenge) return <AuthSecondStep challenge={challenge} onSignedIn={onSignedIn} onRecover={onRecover}
+    onRestart={() => { setChallenge(null); setError(null) }} />
   return (
     <form onSubmit={submit} className="auth-form" aria-busy={pending}>
       {error && (
@@ -131,6 +136,7 @@ export function AuthCredentials({ mode, onSignedIn, onRecover }: Props) {
           setRequested(false); setCode(''); setMessage(null); setError(null)
         }}>Edit sign-up details or request a new code</button>}
       </fieldset>
+      {!creating && <button type="button" className="auth-link" disabled={pending} onClick={onRecover}>Recover password</button>}
       {pending && (
         <span className="sr-only" role="status">
           {creating ? requested ? 'Verifying your code' : 'Sending your code' : 'Signing in'}

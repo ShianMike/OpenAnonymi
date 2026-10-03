@@ -42,6 +42,12 @@ EVENT_CODES = frozenset(
         "member_role_changed",
         "member_revoked",
         "member_restored",
+        "second_factor_enabled",
+        "second_factor_disabled",
+        "backup_codes_regenerated",
+        "device_signed_out",
+        "other_devices_signed_out",
+        "second_factor_reset",
     }
 )
 
