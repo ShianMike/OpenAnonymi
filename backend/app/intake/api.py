@@ -57,6 +57,7 @@ class SourceView(BaseModel):
     preset_version: int | None
     preferred_action: Literal["label", "redact"]
     category_defaults: dict[FindingCategory, CategoryDefault]
+    structure: Literal["kept", "simplified", "none"]
 
 
 class IntakeDefaultsView(BaseModel):
@@ -87,6 +88,7 @@ class SavedDraftView(BaseModel):
     version: VersionRef
     expires_at: datetime
     status: DocumentStatus
+    structure: Literal["kept", "simplified", "none"]
 
 
 def _source_view(source: LoadedSource) -> SourceView:
@@ -105,11 +107,17 @@ def _source_view(source: LoadedSource) -> SourceView:
         preset_version=source.preset_version,
         preferred_action=source.preferred_action,
         category_defaults=source.category_defaults,
+        structure=source.structure,
     )
 
 
 def _saved_view(saved: SavedDocument) -> SavedDraftView:
-    return SavedDraftView(version=saved.version, expires_at=saved.expires_at, status=saved.status)
+    return SavedDraftView(
+        version=saved.version,
+        expires_at=saved.expires_at,
+        status=saved.status,
+        structure=saved.structure,
+    )
 
 
 def _keys(request: Request) -> KeyRing:
@@ -259,7 +267,8 @@ def create_intake_router(engine: Engine) -> APIRouter:
             raise ApiError(422, "invalid_file", "File exceeds the 8 MiB import limit.")
         raw = await file.read(MAX_FILE_BYTES + 1)
         try:
-            validated = (await run_in_threadpool(extract_import, file.filename, raw)).source
+            imported = await run_in_threadpool(extract_import, file.filename, raw)
+            validated = imported.source
             parsed_categories = [
                 FindingCategory(value.strip()) for value in categories.split(",") if value.strip()
             ]
@@ -288,6 +297,7 @@ def create_intake_router(engine: Engine) -> APIRouter:
                     if retention_days is not None
                     else None,
                     preset_id=preset_id,
+                    layout=imported.layout,
                 )
         except DocumentNotFound:
             raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
@@ -341,6 +351,8 @@ def create_intake_router(engine: Engine) -> APIRouter:
             return _conflict(exc)
         except SourceValidationError as exc:
             raise _input_error(exc) from None
+        except (ContentKeyUnavailable, ProtectedContentError):
+            raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
         return _saved_view(saved)
 
     @router.get(

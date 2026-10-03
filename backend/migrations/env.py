@@ -15,6 +15,7 @@ from app.db import (
     recovery,  # noqa: F401 -- register the protected autosave table
     replacement_secrets,  # noqa: F401 -- encrypted replacement seed/date offset
     second_factor,  # noqa: F401 -- register encrypted TOTP and content-free challenges
+    source_structures,  # noqa: F401 -- encrypted immutable revision layout
     team_review,  # noqa: F401 -- register explicit reviewer grant and protected comments
 )
 from app.db.base import Base

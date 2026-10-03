@@ -2,7 +2,7 @@ import type { Dispatch, SetStateAction } from 'react'
 import {
   ApiConflictError,
   confirmReview,
-  downloadReviewedTxt,
+  downloadReviewedFile,
   getCopyPayload,
   getReviewSummary,
   recordCopySuccess,
@@ -28,7 +28,7 @@ type ExportContext = {
   setSummary: Update<ReviewSummaryView | null>
   setConflict: Update<boolean>
   setExportPending: Update<boolean>
-  setPreparedDownload: Update<{ url: string; filename: string; version: VersionRef } | null>
+  setPreparedDownload: Update<{ url: string; filename: string; version: VersionRef; format: 'txt' | 'docx' } | null>
 }
 
 /** Completion and export share the server's version-bound review contract. */
@@ -115,30 +115,32 @@ export function createReviewExportActions({
     }
   }
 
-  async function downloadReviewedOutput() {
+  async function downloadReviewedOutput(format: 'txt' | 'docx' = 'txt') {
     if (!documentId || state.kind !== 'ready' || !canExport) return
     setExportPending(true)
     setError(null)
     setNotice(null)
     try {
-      const file = await downloadReviewedTxt(
+      const file = await downloadReviewedFile(
         documentId,
         state.saved.version,
         crypto.randomUUID(),
         session.csrf_token,
+        format,
       )
       setState({ kind: 'ready', saved: { ...state.saved, status: 'exported' } })
       setPreparedDownload({
         url: URL.createObjectURL(file),
-        filename: `reviewed-${documentId}.txt`,
+        filename: `reviewed-${documentId}.${format}`,
         version: state.saved.version,
+        format,
       })
-      setNotice('Reviewed TXT generated. Use the save link to download it.')
+      setNotice(`Reviewed ${format === 'txt' ? 'TXT' : 'Word file'} generated. Use the save link to download it.`)
       try {
         const result = await getReviewSummary(documentId)
         if (sameVersion(result.version, state.saved.version)) setSummary(result)
       } catch {
-        setError('TXT generated, but the review summary could not be refreshed.')
+        setError('Output generated, but the review summary could not be refreshed.')
       }
     } catch (cause: unknown) {
       if (cause instanceof ApiConflictError) setConflict(true)

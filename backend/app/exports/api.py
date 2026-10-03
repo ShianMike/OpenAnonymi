@@ -16,12 +16,15 @@ from app.contracts import ConflictResponse, ErrorResponse, VersionRef
 from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedContentError
 from app.db.repository import VersionConflict
 from app.errors import ApiError
+from app.exports.docx import MEDIA_TYPE
 from app.exports.service import (
     ExportConflict,
+    generate_output,
     generate_txt,
     prepare_copy,
     record_copy_success,
 )
+from app.intake.structure import InvalidLayout
 from app.reviews.service import CompletionRejected
 from app.transformations.engine import InvalidTransformation
 
@@ -64,7 +67,7 @@ def _error(exc: Exception) -> JSONResponse | ApiError:
         return ApiError(404, "document_not_found", "Document not found.")
     if isinstance(exc, ContentUnavailable):
         return ApiError(410, "content_expired", "Document content is unavailable.")
-    if isinstance(exc, (ContentKeyUnavailable, ProtectedContentError)):
+    if isinstance(exc, (ContentKeyUnavailable, ProtectedContentError, InvalidLayout)):
         return ApiError(503, "content_unavailable", "Content access is unavailable.")
     if isinstance(exc, CompletionRejected):
         return ApiError(409, exc.code, str(exc))
@@ -185,6 +188,52 @@ def create_exports_router(engine: Engine) -> APIRouter:
             CompletionRejected,
             ExportConflict,
             InvalidTransformation,
+        ) as exc:
+            error = _error(exc)
+            if isinstance(error, ApiError):
+                raise error from None
+            return error
+
+    @router.post(
+        "/{document_id}/exports/docx",
+        response_class=Response,
+        responses={200: {"content": {MEDIA_TYPE: {}}}},
+    )
+    def docx_route(
+        document_id: UUID,
+        body: ExportRequest,
+        request: Request,
+        identity: Annotated[SessionIdentity, Depends(mutation_identity)],
+    ) -> Response:
+        try:
+            payload, output = generate_output(
+                engine,
+                document_id=document_id,
+                actor_id=identity.user_id,
+                expected=body.expected,
+                event_id=body.event_id,
+                keys=_keys(request),
+                now=datetime.now(UTC),
+                format="docx",
+            )
+            return Response(
+                content=payload,
+                media_type=MEDIA_TYPE,
+                headers={
+                    "Content-Disposition": f'attachment; filename="{output.filename}"',
+                    "X-Content-Type-Options": "nosniff",
+                },
+            )
+        except (
+            VersionConflict,
+            DocumentNotFound,
+            ContentUnavailable,
+            ContentKeyUnavailable,
+            ProtectedContentError,
+            CompletionRejected,
+            ExportConflict,
+            InvalidTransformation,
+            InvalidLayout,
         ) as exc:
             error = _error(exc)
             if isinstance(error, ApiError):

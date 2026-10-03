@@ -59,6 +59,7 @@ class ScanSnapshot:
     match_count: int | None
     failure_code: str | None
     suggestions: tuple[StoredSuggestion, ...]
+    dropped_suggestions: int = 0
 
 
 def _version(document: Document) -> VersionRef:
@@ -99,6 +100,7 @@ def _snapshot(session: Session, version: VersionRef, run: ScanRun | None) -> Sca
         attempt_count=run.attempt_count,
         match_count=run.match_count,
         failure_code=run.failure_code,
+        dropped_suggestions=run.dropped_suggestions,
         suggestions=tuple(
             StoredSuggestion(
                 id=row.id,
@@ -152,9 +154,7 @@ def change_scan_settings(
     now: datetime,
     language: str | None = None,
 ) -> VersionRef:
-    if not categories.issubset(
-        AUTOMATIC_CATEGORIES
-    ):
+    if not categories.issubset(AUTOMATIC_CATEGORIES):
         raise ValueError("Choose supported automatic suggestion categories.")
     # Detector validation is the single source for supported regions.
     from phonenumbers import SUPPORTED_REGIONS
@@ -173,7 +173,11 @@ def change_scan_settings(
         if expected != current:
             raise VersionConflict(current)
         selected_language = language if language is not None else document.language
-        if document.category_settings == encoded_categories and document.phone_region == region and document.language == selected_language:
+        if (
+            document.category_settings == encoded_categories
+            and document.phone_region == region
+            and document.language == selected_language
+        ):
             return current
         document.category_settings = encoded_categories
         document.phone_region = region
@@ -284,6 +288,10 @@ def scan_document(
         source = keys.decrypt_text(
             ProtectedValue(revision.source_ciphertext, revision.source_key_id)
         )
+        from app.db.source_structures import load_word
+        from app.intake.structure import allows_span
+
+        layout = load_word(session, current.source_revision_id, keys, len(source), source)
         categories = {
             FindingCategory(value) for value in document.category_settings.split(",") if value
         }
@@ -308,6 +316,7 @@ def scan_document(
             run.status = "scanning"
             run.attempt_count += 1
             run.match_count = None
+            run.dropped_suggestions = 0
             run.failure_code = None
             run.started_at = now
             run.finished_at = None
@@ -330,9 +339,21 @@ def scan_document(
         unique = {}
         for suggestion in detected:
             unique.setdefault(
-                (suggestion.span.start, suggestion.span.end, suggestion.category, suggestion.rule_id), suggestion
+                (
+                    suggestion.span.start,
+                    suggestion.span.end,
+                    suggestion.category,
+                    suggestion.rule_id,
+                ),
+                suggestion,
             )
         detected = list(unique.values())
+        dropped = sum(
+            not allows_span(layout, source, item.span.start, item.span.end) for item in detected
+        )
+        detected = [
+            item for item in detected if allows_span(layout, source, item.span.start, item.span.end)
+        ]
         if len(detected) > 1_000:
             raise DetectionLimitError("too_many_suggestions")
         detected.sort(key=lambda item: (item.span.start, item.span.end, item.category.value))
@@ -390,9 +411,11 @@ def scan_document(
                         rule_id=item.rule_id,
                         rule_version=item.rule_version,
                         reason=item.reason,
-                        date_format=item.date_format or (
+                        date_format=item.date_format
+                        or (
                             format_for_span(source, item.span.start, item.span.end, region)
-                            if item.category == FindingCategory.DATE else None
+                            if item.category == FindingCategory.DATE
+                            else None
                         ),
                         start_offset=item.span.start,
                         end_offset=item.span.end,
@@ -402,6 +425,7 @@ def scan_document(
                 )
                 run.status = "completed"
                 run.match_count = len(detected)
+                run.dropped_suggestions = dropped
                 run.finished_at = datetime.now(UTC)
                 document.decision_version += 1
                 require_transition(DocumentStatus(document.status), DocumentStatus.NEEDS_REVIEW)

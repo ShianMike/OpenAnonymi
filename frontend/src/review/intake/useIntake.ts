@@ -5,6 +5,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useProtectedDraft } from '../../recovery/useProtectedDraft'
 import {
   createPastedDraft,
+  createFileDraft,
   getIntakeDefaults,
   getWorkspacePresets,
   type IntakeDefaultsView,
@@ -117,7 +118,7 @@ export function useIntake(session: SessionView) {
     setError(null)
     const categories = [...(emailEnabled ? ['email'] : []), ...(phoneEnabled ? ['phone'] : []), ...extraCategories]
     try {
-      const saved = await createPastedDraft({ workspace_id: workspaceId,
+      const saved = mode === 'file' && file ? await createFileDraft(workspaceId, file, title.trim(), categories, phoneRegion, retentionDays, session.csrf_token, presetId || undefined, language) : await createPastedDraft({ workspace_id: workspaceId,
         source: mode === 'paste' ? source : fileText, title: title.trim() || null,
         categories: categories as FindingCategory[], phone_region: phoneRegion, language,
         retention_days: retentionDays, preset_id: presetId || null,

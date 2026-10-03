@@ -101,6 +101,7 @@ export function createReviewScanActions({ documentId, state, dirty, settingsDirt
         status: 'not_started',
         attempt_count: 0,
         match_count: null,
+        dropped_suggestions: 0,
         failure_code: null,
         suggestions: [],
       })

@@ -78,7 +78,7 @@ def purge_document(session: Session, document: Document, now: datetime) -> bool:
     document.title_ciphertext = None
     document.title_key_id = None
     session.flush()
-    # Revision-owned findings, decisions, scans and completions cascade here.
+    # Revision-owned findings, decisions, scans, completions and encrypted layouts cascade here.
     session.execute(delete(SourceRevision).where(SourceRevision.document_id == document.id))
     session.execute(delete(LabelCounter).where(LabelCounter.document_id == document.id))
     session.execute(delete(RecoverySnapshot).where(RecoverySnapshot.document_id == document.id))

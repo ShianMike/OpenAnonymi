@@ -1,6 +1,6 @@
 """Atomic authorized output snapshots and content-free export events."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
@@ -29,10 +29,16 @@ class AuthorizedOutput:
     completion_id: UUID
     text: str
     filename: str
+    layout: dict | None = field(default=None, repr=False)
 
 
 def _current_output(
-    session: Session, document: Document, expected: VersionRef, keys: KeyRing
+    session: Session,
+    document: Document,
+    expected: VersionRef,
+    keys: KeyRing,
+    *,
+    format: str = "txt",
 ) -> tuple[AuthorizedOutput, ReviewCompletion]:
     version = _version(document)
     if version != expected:
@@ -46,12 +52,25 @@ def _current_output(
         raise CompletionRejected(
             "review_not_completed", "The completed review no longer has a valid output."
         )
+    layout = None
+    if format == "docx":
+        from app.db.models import SourceRevision
+        from app.db.source_structures import load_word
+        from app.intake.structure import output_layout
+
+        revision = session.get(SourceRevision, expected.source_revision_id)
+        layout = output_layout(
+            load_word(session, revision.id, keys, revision.code_points),
+            preview.mappings,
+            preview.text,
+        )
     return (
         AuthorizedOutput(
             version=version,
             completion_id=completion.id,
             text=preview.text,
-            filename=f"reviewed-{document.id}.txt",
+            filename=f"reviewed-{document.id}.{format}",
+            layout=layout,
         ),
         completion,
     )
@@ -150,7 +169,7 @@ def record_copy_success(
         return event.occurred_at
 
 
-def generate_txt(
+def generate_output(
     engine: Engine,
     *,
     document_id: UUID,
@@ -159,18 +178,30 @@ def generate_txt(
     event_id: UUID,
     keys: KeyRing,
     now: datetime,
+    format: str = "txt",
 ) -> tuple[bytes, AuthorizedOutput]:
+    if format not in {"txt", "docx"}:
+        raise ExportConflict("Choose a supported reviewed output format.")
     with Session(engine) as session, session.begin():
         document = owned_document(session, document_id, actor_id, now, lock=True)
-        output, completion = _current_output(session, document, expected, keys)
-        payload = output.text.encode("utf-8")
+        output, completion = _current_output(session, document, expected, keys, format=format)
+        if format == "docx":
+            from app.exports.docx import generate_word
+
+            payload = generate_word(output.text, output.layout, now)
+        else:
+            payload = output.text.encode("utf-8")
         _record_event(
             session,
             document=document,
             completion=completion,
             actor_id=actor_id,
             event_id=event_id,
-            format="txt",
+            format=format,
             now=now,
         )
         return payload, output
+
+
+def generate_txt(engine: Engine, **kwargs):
+    return generate_output(engine, **kwargs, format="txt")

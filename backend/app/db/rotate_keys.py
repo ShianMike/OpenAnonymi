@@ -16,6 +16,7 @@ from app.db.models import Document, SourceRevision
 from app.db.recovery import RecoverySnapshot
 from app.db.replacement_secrets import DocumentReplacementSecret
 from app.db.second_factor import UserSecondFactor
+from app.db.source_structures import SourceStructure
 from app.db.team_review import FindingComment
 
 BATCH_SIZE = 100
@@ -137,6 +138,20 @@ def rotate_replacement_secrets(session: Session, keys: KeyRing) -> int:
     return len(rows)
 
 
+def rotate_source_structures(session: Session, keys: KeyRing) -> int:
+    rows = session.scalars(
+        select(SourceStructure)
+        .where(SourceStructure.key_id != keys.active_key_id)
+        .order_by(SourceStructure.revision_id)
+        .limit(BATCH_SIZE)
+        .with_for_update()
+    ).all()
+    for row in rows:
+        rotated = keys.rotate_text(ProtectedValue(row.layout_ciphertext, row.key_id))
+        row.layout_ciphertext, row.key_id = rotated.ciphertext, rotated.key_id
+    return len(rows)
+
+
 def rotate_database(settings: Settings, keys: KeyRing) -> dict[str, int]:
     engine = create_engine(settings.database_url, pool_pre_ping=True, hide_parameters=True)
     totals = {
@@ -148,6 +163,7 @@ def rotate_database(settings: Settings, keys: KeyRing) -> dict[str, int]:
         "pending registrations": 0,
         "authenticator secrets": 0,
         "replacement secrets": 0,
+        "source structures": 0,
     }
     try:
         for label, rotate_batch in (
@@ -159,10 +175,11 @@ def rotate_database(settings: Settings, keys: KeyRing) -> dict[str, int]:
             ("pending registrations", rotate_pending_registrations),
             ("authenticator secrets", rotate_second_factors),
             ("replacement secrets", rotate_replacement_secrets),
+            ("source structures", rotate_source_structures),
         ):
             while True:
                 with Session(engine) as session:
-                    if label == "source revisions":
+                    if label in ("source revisions", "source structures"):
                         session.info["allow_source_key_rotation"] = True
                         session.execute(text("SET LOCAL openanonymi.key_rotation = 'on'"))
                     count = rotate_batch(session, keys)
@@ -190,7 +207,8 @@ def main() -> None:
         f", {totals['comments']} finding comments "
         f", {totals['pending registrations']} pending registrations "
         f", {totals['authenticator secrets']} authenticator secrets "
-        f"and {totals['replacement secrets']} replacement secrets."
+        f", {totals['replacement secrets']} replacement secrets "
+        f"and {totals['source structures']} source structures."
     )
 
 

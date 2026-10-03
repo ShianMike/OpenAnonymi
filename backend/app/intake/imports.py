@@ -31,6 +31,7 @@ class ImportedText:
     format: str
     pages: int | None
     notes: tuple[str, ...]
+    layout: dict | None = None
 
 
 def _pdf(content: bytes) -> ImportedText:
@@ -119,62 +120,26 @@ def _docx(content: bytes) -> ImportedText:
                 xml,
                 parser=etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False),
             )
-    # python-docx preserves paragraph/table order. Headers/footers are included;
-    # tracked revisions/text boxes are called out because not all are supported.
     from docx import Document
-    from docx.table import Table
-    from docx.text.paragraph import Paragraph
+
+    from app.intake.structure import capture_word
 
     document = Document(io.BytesIO(content))
-    pieces = []
-    chars = 0
-
-    def append(text):
-        nonlocal chars
-        chars += len(text) + 1
-        if chars > MAX_CODE_POINTS:
-            raise SourceValidationError("Extracted text exceeds the 100,000-character limit.")
-        pieces.append(text)
-
-    def lines(container, empty=True, depth=0):
-        if depth > 12:
-            raise SourceValidationError("Word tables are nested beyond the import limit.")
-        for block in container.iter_inner_content():
-            if isinstance(block, Paragraph):
-                if empty or block.text.strip():
-                    yield block.text
-            elif isinstance(block, Table):
-                for row in block.rows:
-                    seen, cells = set(), []
-                    for cell in row.cells:
-                        if cell._tc not in seen:
-                            seen.add(cell._tc)
-                            cells.append("\n".join(lines(cell, depth=depth + 1)))
-                    yield "\t".join(cells)
-
-    def blocks(container, empty=True):
-        for text in lines(container, empty):
-            append(text)
-
-    seen = set()
-    for section in document.sections:
-        for part in (section.header, section.first_page_header, section.even_page_header):
-            if part.part.partname not in seen:
-                seen.add(part.part.partname)
-                blocks(part, empty=False)
-    blocks(document)
-    for section in document.sections:
-        for part in (section.footer, section.first_page_footer, section.even_page_footer):
-            if part.part.partname not in seen:
-                seen.add(part.part.partname)
-                blocks(part, empty=False)
-    text = "\n".join(pieces).strip("\n")
-    if not text.strip():
-        raise SourceValidationError("No text was found in this Word document.")
+    source, layout, layout_notes = capture_word(document)
     notes = (
-        "Paragraphs, tables, headers and footers imported as text. Images, comments, text boxes and tracked changes may be omitted; check the preview.",
+        (
+            "Paragraphs, tables, headers and footers imported as text. Images, comments, text boxes and tracked changes may be omitted; check the preview.",
+        )
+        + layout_notes
+        + (
+            (
+                "Word downloads keep basic headings, lists and tables. Header and footer text appears in the body.",
+            )
+            if layout
+            else ()
+        )
     )
-    return ImportedText(validate_source(text), "docx", None, notes)
+    return ImportedText(source, "docx", None, notes, layout)
 
 
 def extract_import(filename: str | None, content: bytes) -> ImportedText:

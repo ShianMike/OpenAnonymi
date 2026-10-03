@@ -4,10 +4,13 @@ import { sameVersion } from './reviewState'
 import { GlassCheckbox } from '../ui/GlassCheckbox'
 import { LoadingMark } from '../loading/LoadingMark'
 import { ReviewerCompletion } from '../team/ReviewerCompletion'
+import { useState } from 'react'
+import { GlassSelect } from '../ui/GlassSelect'
 
 const styleCountLabels: Record<string, string> = { stand_in: 'Fictional stand-ins', date_shift: 'Shifted dates', partial_mask: 'Partial masks', generalize: 'Generalized dates' }
 
 export function ReviewCompletion({ review }: { review: ReviewController }) {
+  const [format, setFormat] = useState<'txt' | 'docx'>('txt')
   const { state, canConfirm, canExport, currentSummary, preparedDownload } = review
   if (state.kind !== 'ready') return null
   if (!review.canEdit) return <ReviewerCompletion review={review} />
@@ -81,13 +84,18 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
           {review.exportPending ? <LoadingMark small /> : <Copy size={16} aria-hidden="true" />}
           {review.exportPending ? 'Preparing output…' : 'Copy reviewed text'}
         </button>
+        <div><label className="field-label" htmlFor="download-format">Download format</label>
+          <GlassSelect id="download-format" value={format} disabled={review.exportPending}
+            onValueChange={(value) => setFormat(value as typeof format)}>
+            <option value="txt">Plain text (TXT)</option><option value="docx">Word (DOCX)</option>
+          </GlassSelect></div>
         <button
           type="button"
-          onClick={() => void review.downloadReviewedOutput()}
+          onClick={() => void review.downloadReviewedOutput(format)}
           disabled={!canExport}
         >
           {review.exportPending ? <LoadingMark small /> : <Download size={16} aria-hidden="true" />}
-          {review.exportPending ? 'Preparing output…' : 'Generate reviewed TXT'}
+          {review.exportPending ? 'Preparing output…' : format === 'txt' ? 'Generate reviewed TXT' : 'Generate reviewed Word'}
         </button>
       </div>
       {preparedDownload &&
@@ -95,7 +103,7 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
         sameVersion(preparedDownload.version, state.saved.version) && (
           <p>
             <a href={preparedDownload.url} download={preparedDownload.filename}>
-              Save reviewed TXT
+              {preparedDownload.format === 'txt' ? 'Save reviewed TXT' : 'Save reviewed Word'}
             </a>
           </p>
         )}

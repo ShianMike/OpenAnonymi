@@ -5154,6 +5154,55 @@
         }
       }
     },
+    "/api/v1/documents/{document_id}/exports/docx": {
+      "post": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "Docx Route",
+        "operationId": "docx_route_api_v1_documents__document_id__exports_docx_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/documents/{document_id}/history": {
       "get": {
         "tags": [
@@ -8710,13 +8759,23 @@
           },
           "status": {
             "$ref": "#/components/schemas/DocumentStatus"
+          },
+          "structure": {
+            "type": "string",
+            "enum": [
+              "kept",
+              "simplified",
+              "none"
+            ],
+            "title": "Structure"
           }
         },
         "type": "object",
         "required": [
           "version",
           "expires_at",
-          "status"
+          "status",
+          "structure"
         ],
         "title": "SavedDraftView"
       },
@@ -8831,6 +8890,10 @@
             },
             "type": "array",
             "title": "Suggestions"
+          },
+          "dropped_suggestions": {
+            "type": "integer",
+            "title": "Dropped Suggestions"
           }
         },
         "type": "object",
@@ -8840,7 +8903,8 @@
           "attempt_count",
           "match_count",
           "failure_code",
-          "suggestions"
+          "suggestions",
+          "dropped_suggestions"
         ],
         "title": "ScanView"
       },
@@ -9169,6 +9233,15 @@
             },
             "type": "object",
             "title": "Category Defaults"
+          },
+          "structure": {
+            "type": "string",
+            "enum": [
+              "kept",
+              "simplified",
+              "none"
+            ],
+            "title": "Structure"
           }
         },
         "type": "object",
@@ -9186,7 +9259,8 @@
           "preset_id",
           "preset_version",
           "preferred_action",
-          "category_defaults"
+          "category_defaults",
+          "structure"
         ],
         "title": "SourceView"
       },

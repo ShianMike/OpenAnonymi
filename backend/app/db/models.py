@@ -278,6 +278,7 @@ class ScanRun(Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     match_count: Mapped[int | None] = mapped_column(Integer)
+    dropped_suggestions: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     failure_code: Mapped[str | None] = mapped_column(String(40))
     started_at: Mapped[datetime] = timestamp_column()
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -296,6 +297,7 @@ class ScanRun(Base):
         ),
         CheckConstraint("settings_version > 0", name="positive_scan_settings_version"),
         CheckConstraint("attempt_count > 0", name="positive_scan_attempt_count"),
+        CheckConstraint("dropped_suggestions >= 0", name="nonnegative_dropped_suggestions"),
         CheckConstraint(
             "match_count IS NULL OR match_count >= 0", name="nonnegative_scan_match_count"
         ),
@@ -448,7 +450,7 @@ class ExportEvent(Base):
             ["review_completions.document_id", "review_completions.id"],
             ondelete="CASCADE",
         ),
-        CheckConstraint("format IN ('copy', 'txt')", name="valid_format"),
+        CheckConstraint("format IN ('copy','txt','docx')", name="valid_format"),
     )
 
 

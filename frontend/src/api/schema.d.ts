@@ -1086,6 +1086,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/{document_id}/exports/docx": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Docx Route */
+        post: operations["docx_route_api_v1_documents__document_id__exports_docx_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/documents/{document_id}/history": {
         parameters: {
             query?: never;
@@ -2484,6 +2501,11 @@ export interface components {
              */
             expires_at: string;
             status: components["schemas"]["DocumentStatus"];
+            /**
+             * Structure
+             * @enum {string}
+             */
+            structure: "kept" | "simplified" | "none";
         };
         /** ScanRequest */
         ScanRequest: {
@@ -2519,6 +2541,8 @@ export interface components {
             failure_code: string | null;
             /** Suggestions */
             suggestions: components["schemas"]["SuggestionView"][];
+            /** Dropped Suggestions */
+            dropped_suggestions: number;
         };
         /** SecondFactorState */
         SecondFactorState: {
@@ -2665,6 +2689,11 @@ export interface components {
             category_defaults: {
                 [key: string]: components["schemas"]["CategoryDefault"];
             };
+            /**
+             * Structure
+             * @enum {string}
+             */
+            structure: "kept" | "simplified" | "none";
         };
         /** SpanMappingView */
         SpanMappingView: {
@@ -6711,6 +6740,41 @@ export interface operations {
                 };
                 content: {
                     "text/plain": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    docx_route_api_v1_documents__document_id__exports_docx_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": unknown;
                 };
             };
             /** @description Validation Error */

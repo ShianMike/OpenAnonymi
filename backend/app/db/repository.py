@@ -47,6 +47,7 @@ class SavedDocument:
     version: VersionRef
     expires_at: datetime
     status: DocumentStatus
+    structure: str = "none"
 
 
 @dataclass(frozen=True)
@@ -65,6 +66,7 @@ class LoadedSource:
     preferred_action: str
     language: str
     category_defaults: dict
+    structure: str
 
 
 def _version(document: Document) -> VersionRef:
@@ -92,6 +94,7 @@ def create_document(
     requested_expiry: datetime | None = None,
     preset_id: UUID | None = None,
     language: str = "en",
+    layout: dict | None = None,
 ) -> SavedDocument:
     from app.detection.local_nlp import SUPPORTED_LANGUAGES
 
@@ -167,6 +170,9 @@ def create_document(
         )
         session.add(revision)
         session.flush()
+        from app.db.source_structures import store_word
+
+        store_word(session, revision.id, layout, validated.text, keys, now)
         document.current_revision_id = revision.id
         from app.custom_rules.service import snapshot_rules
 
@@ -180,7 +186,9 @@ def create_document(
             event_code="document_created",
             now=now,
         )
-        saved = SavedDocument(_version(document), expiry, DocumentStatus.DRAFT)
+        saved = SavedDocument(
+            _version(document), expiry, DocumentStatus.DRAFT, "kept" if layout else "none"
+        )
     return saved
 
 
@@ -206,6 +214,9 @@ def load_current_source(
     categories = tuple(
         FindingCategory(value) for value in document.category_settings.split(",") if value
     )
+    from app.db.source_structures import SourceStructure
+
+    structure = "kept" if session.get(SourceStructure, revision.id) else "none"
     return LoadedSource(
         document.workspace_id,
         document.owner_id == actor_id,
@@ -221,6 +232,7 @@ def load_current_source(
         document.preferred_action,
         document.language,
         deepcopy(document.category_defaults),
+        structure,
     )
 
 
@@ -240,6 +252,19 @@ def append_source_revision(
         current = _version(document)
         if expected != current:
             raise VersionConflict(current)
+        from app.db.source_structures import SourceStructure, load_word, store_word
+        from app.intake.structure import realign_word
+
+        old_layout, new_layout = None, None
+        if session.get(SourceStructure, current.source_revision_id) is not None:
+            old_revision = session.get(SourceRevision, current.source_revision_id)
+            old_text = keys.decrypt_text(
+                ProtectedValue(old_revision.source_ciphertext, old_revision.source_key_id)
+            )
+            old_layout = load_word(
+                session, current.source_revision_id, keys, len(old_text), old_text
+            )
+            new_layout = realign_word(old_layout, old_text, validated.text)
         previous_number = session.scalar(
             select(func.max(SourceRevision.revision_number)).where(
                 SourceRevision.document_id == document_id
@@ -258,6 +283,7 @@ def append_source_revision(
         )
         session.add(revision)
         session.flush()
+        store_word(session, revision.id, new_layout, validated.text, keys, now)
         document.current_revision_id = revision.id
         from app.groups.undo_store import clear_document
 
@@ -276,7 +302,12 @@ def append_source_revision(
             event_code="source_revised",
             now=now,
         )
-        saved = SavedDocument(_version(document), document.expires_at, DocumentStatus.DRAFT)
+        saved = SavedDocument(
+            _version(document),
+            document.expires_at,
+            DocumentStatus.DRAFT,
+            "kept" if new_layout else "simplified" if old_layout else "none",
+        )
     return saved
 
 

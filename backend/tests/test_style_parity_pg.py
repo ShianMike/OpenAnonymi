@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.db.crypto import KeyRing
 from app.db.models import Document
 from app.db.replacement_secrets import DocumentReplacementSecret
+from tests.docx_fixtures import read_word
 from tests.intake_support import _login
 from tests.styles_support import decide, draft
 
@@ -100,6 +101,12 @@ def test_exact_style_parity(intake_site, value, category, action, style, option,
         headers=headers,
     )
     assert txt.status_code == 200 and txt.content == preview["text"].encode("utf-8")
+    word = owner.post(
+        base + "/exports/docx",
+        json={"expected": state["version"], "event_id": str(uuid4())},
+        headers=headers,
+    )
+    assert word.status_code == 200 and read_word(word.content)[0] == preview["text"]
     summary = owner.get(base + "/summary").json()
     assert summary["counts_by_action_and_style"][action][style] == 1
     assert summary["fictional_replacements"] == 0

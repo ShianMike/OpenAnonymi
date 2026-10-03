@@ -405,6 +405,7 @@ export function createPastedDraft(
 export async function createFileDraft(
   workspaceId: string, file: File, title: string, categories: string[],
   phoneRegion: string, retentionDays: number, csrfToken: string, presetId?: string,
+  language = 'en',
 ): Promise<SavedDraftView> {
   const form = new FormData()
   form.append('workspace_id', workspaceId)
@@ -412,6 +413,7 @@ export async function createFileDraft(
   form.append('title', title)
   form.append('categories', categories.join(','))
   form.append('phone_region', phoneRegion)
+  form.append('language', language)
   form.append('retention_days', String(retentionDays))
   if (presetId) form.append('preset_id', presetId)
   return trackedRequest(apiUrl('/documents/from-file'), {
@@ -604,12 +606,19 @@ export function recordCopySuccess(
 export async function downloadReviewedTxt(
   documentId: string, expected: VersionRef, eventId: string, csrfToken: string,
 ): Promise<Blob> {
-  return trackedRequest(apiUrl(`/documents/${encodeURIComponent(documentId)}/exports/txt`), {
+  return downloadReviewedFile(documentId, expected, eventId, csrfToken, 'txt')
+}
+
+export async function downloadReviewedFile(
+  documentId: string, expected: VersionRef, eventId: string, csrfToken: string,
+  format: 'txt' | 'docx',
+): Promise<Blob> {
+  return trackedRequest(apiUrl(`/documents/${encodeURIComponent(documentId)}/exports/${format}`), {
     method: 'POST',
     credentials: API_CREDENTIALS,
     cache: 'no-store',
     headers: {
-      Accept: 'text/plain',
+      Accept: format === 'txt' ? 'text/plain' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'Content-Type': 'application/json',
       'X-CSRF-Token': csrfToken,
     },

@@ -69,6 +69,7 @@ export function useReviewController(session: SessionView) {
     url: string
     filename: string
     version: VersionRef
+    format: 'txt' | 'docx'
   } | null>(null)
   const sourceRef = useRef<HTMLTextAreaElement>(null)
   const previewRef = useRef<HTMLTextAreaElement>(null)
@@ -331,6 +332,7 @@ export function useReviewController(session: SessionView) {
           text: source,
           status: saved.status,
           expires_at: saved.expires_at,
+          structure: saved.structure,
         },
       })
       setConflict(false)
@@ -340,6 +342,7 @@ export function useReviewController(session: SessionView) {
         status: 'not_started',
         attempt_count: 0,
         match_count: null,
+        dropped_suggestions: 0,
         failure_code: null,
         suggestions: [],
       })

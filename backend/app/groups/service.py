@@ -186,7 +186,20 @@ def _validated_selection(
     source = keys.decrypt_text(ProtectedValue(revision.source_ciphertext, revision.source_key_id))
     if not source[span.start : span.end].strip():
         raise ReviewValidationError("invalid_span", "Select visible text to mark.")
+    _require_block(session, version, source, span, keys)
     return source
+
+
+def _require_block(session, version, source, span, keys):
+    from app.db.source_structures import load_word
+    from app.intake.structure import allows_span
+
+    layout = load_word(session, version.source_revision_id, keys, len(source), source)
+    if not allows_span(layout, source, span.start, span.end):
+        raise ReviewValidationError(
+            "finding_crosses_block",
+            "Select text within one Word paragraph or table cell, without line breaks or tabs.",
+        )
 
 
 def _active_finding(session: Session, version: VersionRef, finding_id: UUID) -> Finding:
@@ -216,6 +229,10 @@ def exact_matches(
         )
         needle = source[finding.start_offset : finding.end_offset]
         occupied = _rows(session, version)
+        from app.db.source_structures import load_word
+        from app.intake.structure import allows_span
+
+        layout = load_word(session, version.source_revision_id, keys, len(source), source)
         spans: list[SourceSpan] = []
         cursor = 0
         occupied_index = 0
@@ -223,6 +240,8 @@ def exact_matches(
         while (position := source.find(needle, cursor)) != -1:
             cursor = position + 1
             end = position + len(needle)
+            if not allows_span(layout, source, position, end):
+                continue
             while (
                 occupied_index < len(occupied) and occupied[occupied_index].end_offset <= position
             ):
@@ -420,10 +439,7 @@ def add_exact_match(
     with Session(engine) as session, session.begin():
         document, version = _current_locked(session, document_id, actor_id, expected, now)
         source_finding = _active_finding(session, version, finding_id)
-        revision = session.get(SourceRevision, version.source_revision_id)
-        source = keys.decrypt_text(
-            ProtectedValue(revision.source_ciphertext, revision.source_key_id)
-        )
+        source = _validated_selection(session, version, span, keys)
         if (
             span.end > len(source)
             or source[span.start : span.end]

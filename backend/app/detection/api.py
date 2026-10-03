@@ -63,6 +63,7 @@ class ScanView(BaseModel):
     match_count: int | None
     failure_code: str | None
     suggestions: list[SuggestionView]
+    dropped_suggestions: int
 
 
 def _view(snapshot: ScanSnapshot) -> ScanView:
@@ -72,6 +73,7 @@ def _view(snapshot: ScanSnapshot) -> ScanView:
         attempt_count=snapshot.attempt_count,
         match_count=snapshot.match_count,
         failure_code=snapshot.failure_code,
+        dropped_suggestions=snapshot.dropped_suggestions,
         suggestions=[
             SuggestionView(
                 finding_id=item.id,

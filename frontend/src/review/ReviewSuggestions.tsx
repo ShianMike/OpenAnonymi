@@ -71,6 +71,9 @@ export function ReviewSuggestions({ review }: { review: ReviewController }) {
           No suggestions found. Review the full text before sharing.
         </p>
       )}
+      {complete && scan.dropped_suggestions > 0 && <p className="field-note" role="status">
+        {scan.dropped_suggestions} suggestions crossed Word paragraph or cell boundaries and were not added; mark them manually if needed.
+      </p>}
       {complete && scan.suggestions.length > 0 && (
         <details className="scan-explanations">
           <summary>

@@ -62,6 +62,7 @@ export function ReviewSource({ review }: { review: ReviewController }) {
         </>
       )}
       <div hidden={!editingSource} className="document-editor">
+        {state.saved.structure === 'simplified' && <p className="field-note" role="status">This edit changed the Word layout; the Word download will use plain paragraphs.</p>}
         <p className="document-help">
           {review.canEdit ? 'Select text to mark a detail, or edit the source and save a new revision.' : 'Select text to mark a detail. The owner manages source revisions.'}
         </p>
