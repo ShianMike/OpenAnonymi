@@ -155,6 +155,13 @@ jobs:
           echo "$headers" | grep -qi '^cache-control: no-store'
           if echo "$headers" | grep -qi '^server:'; then exit 1; fi
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/docs)" = 404
+          # The host terminates TLS; noncanonical paths must never redirect to HTTP.
+          test "$(curl -s -o /dev/null -w '%{http_code}' "$base/meta/")" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$base/auth/sign-in/")" = 404
+          slash_headers="$(curl -sS -D - -o /dev/null "$base/meta/")"
+          if echo "$slash_headers" | grep -qi '^location:'; then exit 1; fi
+          docs_headers="$(curl -sS -D - -o /dev/null http://127.0.0.1:8080/docs)"
+          echo "$docs_headers" | grep -qi "^content-security-policy: default-src 'none'"
           preflight="$(curl -fsS -D - -o /dev/null -X OPTIONS "$base/auth/sign-in" \
             -H "Origin: $origin" -H 'Access-Control-Request-Method: POST' \
             -H 'Access-Control-Request-Headers: content-type,x-csrf-token')"
@@ -169,4 +176,7 @@ jobs:
           done
           docker logs api 2>&1 | grep -q '"GET /api/v1/meta" 200'
           if docker logs api 2>&1 | grep -q 'synthetic-query'; then exit 1; fi
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X SYNTHETIC_PRIVATE_METHOD "$base/meta")" = 405
+          docker logs api 2>&1 | grep -q '\[unsupported\] /api/v1/meta'
+          if docker logs api 2>&1 | grep -q 'SYNTHETIC_PRIVATE_METHOD'; then exit 1; fi
           test "$(docker top api | grep -c 'uvicorn app.main:app')" -eq 1

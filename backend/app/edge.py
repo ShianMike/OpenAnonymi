@@ -24,6 +24,10 @@ MAX_REQUEST_BYTES = 9 * 1024 * 1024
 TOO_LARGE_MESSAGE = "The request exceeds the 9 MiB upload limit."
 _QUIET_PATHS = ("/api/v1/health/live", "/api/v1/health/ready")
 _API_POLICY = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+_HTTP_METHODS = frozenset(
+    ("GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH")
+)
+_DOCS_PATHS = ("/docs", "/docs/oauth2-redirect", "/redoc")
 
 
 def _parse_address(value: str) -> str | None:
@@ -113,7 +117,9 @@ class ContentFreeErrorsMiddleware:
             logging.getLogger("app.errors").error("Request failed; internal error.")
             if started:
                 raise RuntimeError("Response interrupted; internal error.") from None
-            body = ErrorResponse(code="internal_error", message="The request could not be completed.")
+            body = ErrorResponse(
+                code="internal_error", message="The request could not be completed."
+            )
             response = Response(
                 body.model_dump_json(), status_code=500, media_type="application/json"
             )
@@ -191,6 +197,7 @@ class SecurityHeadersMiddleware:
 
     def __init__(self, app: ASGIApp, *, strict_transport: bool) -> None:
         self.app = app
+        self.strict_transport = strict_transport
         self.headers = [
             ("x-content-type-options", "nosniff"),
             ("referrer-policy", "no-referrer"),
@@ -199,15 +206,18 @@ class SecurityHeadersMiddleware:
             ("cross-origin-resource-policy", "same-origin"),
         ]
         if strict_transport:
-            self.headers.append(("strict-transport-security", "max-age=63072000; includeSubDomains"))
+            self.headers.append(
+                ("strict-transport-security", "max-age=63072000; includeSubDomains")
+            )
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
         path = scope.get("path", "")
-        # Interactive docs exist only outside production and load their own scripts.
-        policy = not path.startswith(("/docs", "/redoc"))
+        # Only actual development docs need their own scripts. Disabled production
+        # docs and arbitrary paths beginning with /docs or /redoc keep the API policy.
+        policy = self.strict_transport or path not in _DOCS_PATHS
 
         async def send_with_headers(message: Message) -> None:
             if message["type"] == "http.response.start":
@@ -248,10 +258,13 @@ class AccessLogMiddleware:
         finally:
             path = scope.get("path", "")
             if not (status < 400 and path in _QUIET_PATHS):
+                method = scope.get("method", "")
+                if method not in _HTTP_METHODS:
+                    method = "[unsupported]"
                 ACCESS_LOGGER.info(
                     '%s "%s %s" %d %dms',
                     scope_client_address(scope, self.trusted_proxy_hops),
-                    scope.get("method", "-"),
+                    method,
                     loggable_path(scope),
                     status,
                     round((time.perf_counter() - started) * 1000),
