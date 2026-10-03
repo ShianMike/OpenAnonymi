@@ -488,3 +488,25 @@
     min-height: 44px;
   }
 }
+.cleanup-health {
+  border-top: 1px solid var(--tone-hairline, #ffffff0b);
+  margin-top: 28px;
+  padding-top: 24px;
+}
+.cleanup-health-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+.cleanup-health-heading h3 { margin: 0 0 8px; }
+.cleanup-health-heading p, .cleanup-health-status p { margin: 6px 0; color: var(--muted); }
+.cleanup-health-heading .quiet-button { flex-shrink: 0; }
+.cleanup-health-details { display: flex; justify-content: space-between; gap: 24px; margin-top: 20px; }
+.cleanup-health-status { display: flex; align-items: flex-start; gap: 12px; }
+.cleanup-health-status > svg { flex-shrink: 0; margin-top: 2px; }
+.cleanup-health-awaiting { display: flex; align-items: center; gap: 12px; margin: 0; max-width: 230px; }
+.cleanup-health-awaiting strong { font-size: 1.5rem; }
+@media (max-width: 640px) {
+  .cleanup-health-heading, .cleanup-health-details { flex-direction: column; gap: 16px; }
+}

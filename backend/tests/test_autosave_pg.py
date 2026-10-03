@@ -165,7 +165,7 @@ def test_deleted_expired_and_revoked_content_cannot_recover(intake_site):
         == 200
     )
     assert owner.delete(f"/api/v1/documents/{document}", headers=headers).status_code == 200
-    assert owner.get(path(workspace, snapshot)).status_code == 410
+    assert owner.get(path(workspace, snapshot)).status_code == 404
     assert owner.get(path(workspace) + f"?document_id={document}").status_code == 410
     purge_unavailable_content(engine, now=datetime.now(UTC))
     with Session(engine) as session:

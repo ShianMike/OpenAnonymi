@@ -5601,6 +5601,59 @@
         }
       }
     },
+    "/api/v1/workspaces/{workspace_id}/cleanup-health": {
+      "get": {
+        "tags": [
+          "cleanup health"
+        ],
+        "summary": "Health Route",
+        "operationId": "health_route_api_v1_workspaces__workspace_id__cleanup_health_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CleanupHealthView"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/health/live": {
       "get": {
         "summary": "Live",
@@ -5945,6 +5998,56 @@
           "role"
         ],
         "title": "ChangeRoleRequest"
+      },
+      "CleanupHealthView": {
+        "properties": {
+          "last_success_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          },
+          "last_failure_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Failure At"
+          },
+          "overdue": {
+            "type": "boolean",
+            "title": "Overdue"
+          },
+          "documents_awaiting_purge": {
+            "type": "integer",
+            "title": "Documents Awaiting Purge"
+          },
+          "checked_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Checked At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "last_success_at",
+          "last_failure_at",
+          "overdue",
+          "documents_awaiting_purge",
+          "checked_at"
+        ],
+        "title": "CleanupHealthView"
       },
       "CommentInput": {
         "properties": {

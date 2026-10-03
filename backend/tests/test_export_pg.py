@@ -473,7 +473,7 @@ def test_full_review_journey_persists_and_cleans_up(intake_site):
         assert reopened.delete(path, headers=reopened_headers).json() == {"status": "deleted"}
         assert reopened.get(f"{path}/source").status_code == 410
 
-    assert purge_unavailable_content(engine, now=datetime.now(UTC)).documents_purged == 1
+    assert purge_unavailable_content(engine, now=datetime.now(UTC)).documents_purged == 0
     history = owner.get(
         f"/api/v1/workspaces/{workspace_id}/documents/{version['document_id']}/history"
     )

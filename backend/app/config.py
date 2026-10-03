@@ -1,5 +1,6 @@
 """Validated process configuration. Never include setting values in errors."""
 
+import re
 import secrets
 from pathlib import Path
 from typing import Literal
@@ -48,6 +49,14 @@ class Settings(BaseSettings):
     trusted_proxy_hops: int = Field(default=0, ge=0, le=5)
     # libpq connect timeout in seconds; managed databases that suspend may need longer.
     database_connect_timeout: int = Field(default=2, ge=2, le=60)
+    maintenance_token_sha256: SecretStr | None = Field(default=None, repr=False)
+
+    @field_validator("maintenance_token_sha256")
+    @classmethod
+    def require_maintenance_digest(cls, value: SecretStr | None):
+        if value is not None and re.fullmatch(r"[0-9a-f]{64}", value.get_secret_value()) is None:
+            raise ValueError("maintenance digest must be 64 lowercase hexadecimal characters")
+        return value
 
     @field_validator("database_url")
     @classmethod

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Activity, Clock3, FileText, RotateCcw } from 'lucide-react'
 import { updateWorkspaceSettings, type WorkspaceSettingsView } from '../../api/client'
 import { InlineNotice, PanelHeading } from '../../ui/WorkspaceControls'
+import { CleanupHealthPanel } from './CleanupHealthPanel'
 
 export function RetentionPanel({
   settings,
@@ -120,6 +121,7 @@ export function RetentionPanel({
           </button>
         </div>
       </form>
+      <CleanupHealthPanel key={settings.id} workspaceId={settings.id} />
     </div>
   )
 }

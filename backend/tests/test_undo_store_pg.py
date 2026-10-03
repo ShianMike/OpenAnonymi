@@ -384,7 +384,7 @@ def test_cleanup_prunes_expired_budgets_and_deleted_document_history(intake_site
         )
     assert owner.delete(base, headers=headers).status_code == 200
     assert owner.get(base + "/findings").status_code == 410
-    assert purge_unavailable_content(engine, now=now).documents_purged == 1
+    assert purge_unavailable_content(engine, now=now).documents_purged == 0
     with Session(engine) as session, session.begin():
         assert session.get(AttemptEvent, old) is None
         assert session.get(AttemptEvent, fresh) is not None

@@ -1189,6 +1189,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/cleanup-health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Health Route */
+        get: operations["health_route_api_v1_workspaces__workspace_id__cleanup_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health/live": {
         parameters: {
             query?: never;
@@ -1355,6 +1372,22 @@ export interface components {
         /** ChangeRoleRequest */
         ChangeRoleRequest: {
             role: components["schemas"]["WorkspaceRole"];
+        };
+        /** CleanupHealthView */
+        CleanupHealthView: {
+            /** Last Success At */
+            last_success_at: string | null;
+            /** Last Failure At */
+            last_failure_at: string | null;
+            /** Overdue */
+            overdue: boolean;
+            /** Documents Awaiting Purge */
+            documents_awaiting_purge: number;
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
         };
         /** CommentInput */
         CommentInput: {
@@ -6867,6 +6900,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeletedView"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    health_route_api_v1_workspaces__workspace_id__cleanup_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CleanupHealthView"];
                 };
             };
             /** @description Not Found */

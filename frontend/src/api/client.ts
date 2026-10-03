@@ -12,6 +12,7 @@ export type DeviceView = components['schemas']['DeviceView']
 export type RecoveryMessage = components['schemas']['RecoveryMessage']
 export type MemberView = components['schemas']['MemberView']
 export type WorkspaceSettingsView = components['schemas']['WorkspaceSettingsView']
+export type CleanupHealthView = components['schemas']['CleanupHealthView']
 export type IntakeDefaultsView = components['schemas']['IntakeDefaultsView']
 export type SavedDraftView = components['schemas']['SavedDraftView']
 export type SourceView = components['schemas']['SourceView']
@@ -147,6 +148,10 @@ export async function getReadiness(signal?: AbortSignal): Promise<HealthResponse
 
 export function getSession(signal?: AbortSignal): Promise<SessionView> {
   return get<SessionView>('/auth/session', signal)
+}
+
+export function getCleanupHealth(workspaceId: string, signal?: AbortSignal): Promise<CleanupHealthView> {
+  return get(`/workspaces/${encodeURIComponent(workspaceId)}/cleanup-health`, signal)
 }
 
 export function signIn(email: string, password: string): Promise<SessionView | ChallengeView> {

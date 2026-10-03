@@ -10,6 +10,7 @@ from app.db import (
     custom_rules,  # noqa: F401 -- register rule version/snapshot tables
     durable,  # noqa: F401 -- register persistent content-free limits and undo
     email_verification,  # noqa: F401 -- register ownership proof and pending accounts
+    maintenance,  # noqa: F401 -- register content-free cleanup run health
     models,  # noqa: F401 — register all tables with Base.metadata
     recovery,  # noqa: F401 -- register the protected autosave table
     second_factor,  # noqa: F401 -- register encrypted TOTP and content-free challenges

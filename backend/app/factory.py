@@ -36,6 +36,7 @@ from app.exports.api import create_exports_router
 from app.groups.api import create_groups_router
 from app.intake.api import create_intake_router
 from app.intake.import_api import create_import_router
+from app.maintenance.api import create_maintenance_router
 from app.recovery.api import create_recovery_router
 from app.reviews.api import create_reviews_router
 from app.team_review.api import create_team_router
@@ -132,6 +133,7 @@ def create_app(
     app.include_router(create_workspace_router(engine))
     app.include_router(create_presets_router(engine))
     app.include_router(create_cleanup_router(engine))
+    app.include_router(create_maintenance_router(engine, settings))
 
     @app.get("/api/v1/health/live", response_model=HealthResponse)
     def live() -> HealthResponse:
