@@ -186,7 +186,11 @@ def mutation_identity(request: Request) -> SessionIdentity:
     require_mutation_origin(request)
     identity = current_identity(request)
     supplied = request.headers.get("x-csrf-token", "")
-    if len(supplied) > 200 or not hmac.compare_digest(supplied, identity.csrf_token):
+    if (
+        len(supplied) != len(identity.csrf_token)
+        or not supplied.isascii()
+        or not hmac.compare_digest(supplied, identity.csrf_token)
+    ):
         raise ApiError(403, "csrf_denied", "Refresh the session and try again.")
     return identity
 

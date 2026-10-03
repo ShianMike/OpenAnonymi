@@ -98,6 +98,13 @@ class Settings(BaseSettings):
                 raise ValueError("production origins must use HTTPS")
             if "change-me" in self.database_url:
                 raise ValueError("production database credentials must be configured")
+            database = make_url(self.database_url)
+            # Plain loopback is reserved for disposable production-mode CI/browser drills.
+            if database.host not in ("localhost", "127.0.0.1", "::1"):
+                if database.query.get("sslmode") != "verify-full":
+                    raise ValueError("production remote databases require sslmode=verify-full")
+                if not database.query.get("sslrootcert"):
+                    raise ValueError("production remote databases require a trusted root certificate")
             if not self.active_key_id:
                 raise ValueError("production requires an active content encryption key")
         return self

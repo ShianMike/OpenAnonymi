@@ -20,6 +20,7 @@ RUN uv sync --locked --no-dev --no-install-project --no-cache
 COPY alembic.ini ./
 COPY migrations ./migrations
 COPY app ./app
+COPY certs ./certs
 RUN /app/.venv/bin/python -m compileall -q app migrations
 
 FROM python:3.11-slim

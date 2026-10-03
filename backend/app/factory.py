@@ -22,6 +22,7 @@ from app.custom_rules.api import create_custom_rules_router
 from app.detection.api import create_detection_router
 from app.edge import (
     AccessLogMiddleware,
+    ContentFreeErrorsMiddleware,
     RequestBodyLimitMiddleware,
     RequestTooLarge,
     SecurityHeadersMiddleware,
@@ -82,6 +83,7 @@ def create_app(
     )
     # Added innermost first. The body limit sits inside CORS so a 413 still carries CORS
     # headers the website can read; security headers and the access log wrap everything.
+    app.add_middleware(ContentFreeErrorsMiddleware)
     app.add_middleware(RequestBodyLimitMiddleware)
     app.add_middleware(
         CORSMiddleware,

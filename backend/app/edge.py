@@ -7,7 +7,6 @@ other than X-Forwarded-For and Content-Length.
 import ipaddress
 import json
 import logging
-import re
 import time
 from collections.abc import Iterable
 
@@ -23,7 +22,6 @@ ACCESS_LOGGER = logging.getLogger("app.access")
 # The largest legitimate request is an 8 MiB import plus multipart framing.
 MAX_REQUEST_BYTES = 9 * 1024 * 1024
 TOO_LARGE_MESSAGE = "The request exceeds the 9 MiB upload limit."
-_UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 _QUIET_PATHS = ("/api/v1/health/live", "/api/v1/health/ready")
 _API_POLICY = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 
@@ -82,11 +80,44 @@ def scope_client_address(scope: Scope, trusted_hops: int) -> str:
 
 
 def loggable_path(scope: Scope) -> str:
-    """Prefer the route template; otherwise replace identifiers. Never include a query."""
+    """Only log server-defined route templates, never an unmatched request path."""
     template = getattr(scope.get("route"), "path", None)
     if isinstance(template, str):
         return template
-    return _UUID.sub("{id}", scope.get("path", ""))[:120]
+    return "[unmatched]"
+
+
+class ContentFreeErrorsMiddleware:
+    """Keep unexpected exception text out of responses and the server traceback log."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        started = False
+
+        async def recording_send(message: Message) -> None:
+            nonlocal started
+            if message["type"] == "http.response.start":
+                started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive, recording_send)
+        except Exception:  # noqa: BLE001 -- exception values may contain private content
+            # An exception can carry parser content, SQL parameters or credentials.
+            # No exception value or traceback is logged, even in development.
+            logging.getLogger("app.errors").error("Request failed; internal error.")
+            if started:
+                raise RuntimeError("Response interrupted; internal error.") from None
+            body = ErrorResponse(code="internal_error", message="The request could not be completed.")
+            response = Response(
+                body.model_dump_json(), status_code=500, media_type="application/json"
+            )
+            await response(scope, receive, send)
 
 
 class RequestTooLarge(HTTPException):

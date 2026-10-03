@@ -88,6 +88,8 @@ jobs:
       - run: npm run test
       - run: npm run lint
       - run: npm run build
+      - name: Frontend public configuration boundary
+        run: python ../scripts/verify_frontend_config.py
       - name: Generated API types match openapi.json
         run: |
           npm run typegen
