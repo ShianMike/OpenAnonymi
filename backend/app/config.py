@@ -1,10 +1,18 @@
 """Validated process configuration. Never include setting values in errors."""
 
+import secrets
 from typing import Literal
 from urllib.parse import urlsplit
 
 from cryptography.fernet import Fernet
-from pydantic import Field, SecretStr, ValidationError, field_validator, model_validator
+from pydantic import (
+    Field,
+    PrivateAttr,
+    SecretStr,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
@@ -23,6 +31,7 @@ class Settings(BaseSettings):
     registration_enabled: bool = True
     active_key_id: str | None = None
     content_keys: dict[str, SecretStr] = Field(default_factory=dict, repr=False)
+    _attempt_subject_key: bytes = PrivateAttr(default_factory=lambda: secrets.token_bytes(32))
     smtp_host: str | None = None
     smtp_port: int = Field(default=465, ge=1, le=65535)
     smtp_username: str | None = None

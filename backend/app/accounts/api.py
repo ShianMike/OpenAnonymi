@@ -1,10 +1,7 @@
 """Cookie session endpoints and reusable authentication dependencies."""
 
 import hmac
-import time
-from collections import deque
 from datetime import UTC, datetime
-from threading import Lock
 from typing import Annotated
 from uuid import UUID
 
@@ -13,6 +10,7 @@ from pydantic import BaseModel, Field, SecretStr
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
+from app.accounts.limits import AttemptLimiter
 from app.accounts.recovery import (
     InvalidRecoveryCode,
     RecoveryDeliveryError,
@@ -100,39 +98,6 @@ def _view(identity: SessionIdentity) -> SessionView:
     )
 
 
-class AttemptLimiter:
-    """Conservative per-process IP budget until deployment-wide limits are configured.
-
-    State lives in this process only. Run exactly one worker and one instance; extra
-    workers or replicas each get their own budget, and a restart resets it.
-    """
-
-    def __init__(self, maximum: int = 8, window_seconds: int = 300) -> None:
-        self.maximum = maximum
-        self.window_seconds = window_seconds
-        self._attempts: dict[str, deque[float]] = {}
-        self._lock = Lock()
-
-    def take(self, client_ip: str) -> bool:
-        now = time.monotonic()
-        with self._lock:
-            if len(self._attempts) >= 10_000:
-                self._attempts = {
-                    key: values
-                    for key, values in self._attempts.items()
-                    if values and values[-1] > now - self.window_seconds
-                }
-                if len(self._attempts) >= 10_000 and client_ip not in self._attempts:
-                    return False
-            attempts = self._attempts.setdefault(client_ip, deque())
-            while attempts and attempts[0] <= now - self.window_seconds:
-                attempts.popleft()
-            if len(attempts) >= self.maximum:
-                return False
-            attempts.append(now)
-            return True
-
-
 def request_client_ip(request: Request) -> str:
     """Attempt-limit key: the first trusted X-Forwarded-For hop, else the socket peer."""
     settings: Settings = request.app.state.settings
@@ -197,10 +162,10 @@ def mutation_identity(request: Request) -> SessionIdentity:
 
 def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
     router = APIRouter(prefix="/api/v1/auth", tags=["accounts"])
-    limiter = AttemptLimiter()
-    registration_limiter = AttemptLimiter(maximum=3)
-    recovery_request_limiter = AttemptLimiter(maximum=3)
-    recovery_completion_limiter = AttemptLimiter()
+    limiter = AttemptLimiter(engine, settings, scope="sign_in")
+    registration_limiter = AttemptLimiter(engine, settings, scope="registration", maximum=3)
+    recovery_request_limiter = AttemptLimiter(engine, settings, scope="recovery_request", maximum=3)
+    recovery_completion_limiter = AttemptLimiter(engine, settings, scope="recovery_complete")
 
     @router.post(
         "/sign-in",

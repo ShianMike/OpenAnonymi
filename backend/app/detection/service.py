@@ -171,6 +171,9 @@ def change_scan_settings(
         document.phone_region = region
         previous_settings = document.settings_version
         document.settings_version += 1
+        from app.groups.undo_store import clear_document
+
+        clear_document(session, document.id)
         from app.custom_rules.service import copy_snapshot
 
         copy_snapshot(session, document, previous_settings)

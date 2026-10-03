@@ -1,10 +1,7 @@
 """Owner-scoped findings for one current immutable source revision."""
 
-from collections import OrderedDict, deque
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime
-from threading import RLock
-from time import monotonic
 from uuid import UUID, uuid4
 
 from sqlalchemy import or_, select
@@ -17,6 +14,7 @@ from app.db.crypto import KeyRing, ProtectedValue
 from app.db.labels import allocate_group_locked
 from app.db.models import Decision, Document, EntityGroup, Finding, ScanRun, SourceRevision
 from app.db.repository import VersionConflict
+from app.groups.undo_store import UndoUnavailable, available, capture, remember, replay
 from app.lifecycle import require_transition
 from app.workspace.activity import record_event
 
@@ -51,6 +49,7 @@ class FindingsSnapshot:
     version: VersionRef
     findings: tuple[FindingItem, ...]
     overlaps: tuple[tuple[UUID, UUID], ...]
+    undo_available: int
 
 
 @dataclass(frozen=True)
@@ -58,93 +57,6 @@ class ExactMatches:
     version: VersionRef
     spans: tuple[SourceSpan, ...]
     truncated: bool
-
-
-@dataclass(frozen=True)
-class FindingBefore:
-    span: SourceSpan
-    category: str
-    origin: str
-    group_id: UUID | None
-    scan_run_id: UUID | None
-    rule_id: str | None
-    rule_version: str | None
-    reason: str | None
-
-
-@dataclass(frozen=True)
-class DecisionBefore:
-    action: str
-    keep_reason: str | None
-
-
-@dataclass(frozen=True)
-class UndoEntry:
-    after: VersionRef
-    findings: dict[UUID, FindingBefore]
-    decisions: dict[UUID, DecisionBefore]
-
-
-_undo_lock = RLock()
-_undo: OrderedDict[tuple[UUID, UUID], tuple[float, deque[UndoEntry]]] = OrderedDict()
-
-
-def _capture_review(
-    session: Session, version: VersionRef
-) -> tuple[dict[UUID, FindingBefore], dict[UUID, DecisionBefore]]:
-    rows = _rows(session, version)
-    findings = {
-        row.id: FindingBefore(
-            SourceSpan(start=row.start_offset, end=row.end_offset),
-            row.category,
-            row.origin,
-            row.group_id,
-            row.scan_run_id,
-            row.rule_id,
-            row.rule_version,
-            row.reason,
-        )
-        for row in rows
-    }
-    decisions = (
-        {
-            row.finding_id: DecisionBefore(row.action, row.keep_reason)
-            for row in session.scalars(
-                select(Decision).where(Decision.finding_id.in_(findings))
-            ).all()
-        }
-        if findings
-        else {}
-    )
-    return findings, decisions
-
-
-def _remember_undo(
-    document_id: UUID,
-    actor_id: UUID,
-    before: VersionRef,
-    after: VersionRef,
-    state: tuple[dict[UUID, FindingBefore], dict[UUID, DecisionBefore]],
-) -> None:
-    if before == after:
-        return
-    key = (document_id, actor_id)
-    with _undo_lock:
-        now = monotonic()
-        for old_key, (last_used, _entries) in list(_undo.items()):
-            if now - last_used > 3600:
-                del _undo[old_key]
-        if key in _undo:
-            entries = _undo[key][1]
-            if entries and entries[-1].after != before:
-                entries.clear()
-        else:
-            entries = deque(maxlen=20)
-        entries.append(UndoEntry(after, *state))
-        _undo[key] = (now, entries)
-        _undo.move_to_end(key)
-        while len(_undo) > 128:
-            _undo.popitem(last=False)
 
 
 def _version(document: Document) -> VersionRef:
@@ -181,7 +93,9 @@ def _rows(session: Session, version: VersionRef) -> list[Finding]:
     ).all()
 
 
-def _snapshot(session: Session, version: VersionRef) -> FindingsSnapshot:
+def _snapshot(
+    session: Session, version: VersionRef, actor_id: UUID | None = None, now: datetime | None = None
+) -> FindingsSnapshot:
     rows = _rows(session, version)
     groups = {
         group.id: group
@@ -204,6 +118,9 @@ def _snapshot(session: Session, version: VersionRef) -> FindingsSnapshot:
     )
     return FindingsSnapshot(
         version=version,
+        undo_available=available(session, version, actor_id, now)
+        if actor_id is not None and now is not None
+        else 0,
         findings=tuple(
             FindingItem(
                 id=row.id,
@@ -234,7 +151,7 @@ def load_findings(
 ) -> FindingsSnapshot:
     with Session(engine) as session:
         document = review_document(session, document_id, actor_id, now)
-        return _snapshot(session, _version(document))
+        return _snapshot(session, _version(document), actor_id, now)
 
 
 def _current_locked(
@@ -360,10 +277,11 @@ def add_finding(
         document, version = _current_locked(session, document_id, actor_id, expected, now)
         _validated_selection(session, version, span, keys)
         _require_nonoverlap(session, version, span)
-        before = _capture_review(session, version)
+        created_id = uuid4()
+        before = capture(session, [], created=(created_id,))
         session.add(
             Finding(
-                id=uuid4(),
+                id=created_id,
                 document_id=document_id,
                 source_revision_id=version.source_revision_id,
                 category=category.value,
@@ -376,8 +294,15 @@ def add_finding(
         _touch_review(document, now)
         _record_review_edit(session, document, actor_id, "finding_added", now)
         session.flush()
-        snapshot = _snapshot(session, _version(document))
-    _remember_undo(document_id, actor_id, version, snapshot.version, before)
+        remember(
+            session,
+            actor_id=actor_id,
+            before=version,
+            after=_version(document),
+            payload=before,
+            now=now,
+        )
+        snapshot = _snapshot(session, _version(document), actor_id, now)
     return snapshot
 
 
@@ -403,8 +328,8 @@ def revise_finding(
             span.end,
             category.value,
         ):
-            return _snapshot(session, version)
-        before = _capture_review(session, version)
+            return _snapshot(session, version, actor_id, now)
+        before = capture(session, [finding])
         finding.start_offset = span.start
         finding.end_offset = span.end
         finding.category = category.value
@@ -420,8 +345,15 @@ def revise_finding(
         _touch_review(document, now)
         _record_review_edit(session, document, actor_id, "finding_corrected", now)
         session.flush()
-        snapshot = _snapshot(session, _version(document))
-    _remember_undo(document_id, actor_id, version, snapshot.version, before)
+        remember(
+            session,
+            actor_id=actor_id,
+            before=version,
+            after=_version(document),
+            payload=before,
+            now=now,
+        )
+        snapshot = _snapshot(session, _version(document), actor_id, now)
     return snapshot
 
 
@@ -437,7 +369,7 @@ def remove_finding(
     with Session(engine) as session, session.begin():
         document, version = _current_locked(session, document_id, actor_id, expected, now)
         finding = _active_finding(session, version, finding_id)
-        before = _capture_review(session, version)
+        before = capture(session, [finding])
         finding.removed_at = now
         decision = session.get(Decision, finding_id)
         if decision is not None:
@@ -445,8 +377,15 @@ def remove_finding(
         _touch_review(document, now)
         _record_review_edit(session, document, actor_id, "finding_removed", now)
         session.flush()
-        snapshot = _snapshot(session, _version(document))
-    _remember_undo(document_id, actor_id, version, snapshot.version, before)
+        remember(
+            session,
+            actor_id=actor_id,
+            before=version,
+            after=_version(document),
+            payload=before,
+            now=now,
+        )
+        snapshot = _snapshot(session, _version(document), actor_id, now)
     return snapshot
 
 
@@ -476,10 +415,11 @@ def add_exact_match(
         ):
             raise ReviewValidationError("not_exact_match", "This range is not an exact match.")
         _require_nonoverlap(session, version, span)
-        before = _capture_review(session, version)
+        created_id = uuid4()
+        before = capture(session, [], created=(created_id,))
         session.add(
             Finding(
-                id=uuid4(),
+                id=created_id,
                 document_id=document_id,
                 source_revision_id=version.source_revision_id,
                 category=source_finding.category,
@@ -492,8 +432,15 @@ def add_exact_match(
         _touch_review(document, now)
         _record_review_edit(session, document, actor_id, "finding_added", now)
         session.flush()
-        snapshot = _snapshot(session, _version(document))
-    _remember_undo(document_id, actor_id, version, snapshot.version, before)
+        remember(
+            session,
+            actor_id=actor_id,
+            before=version,
+            after=_version(document),
+            payload=before,
+            now=now,
+        )
+        snapshot = _snapshot(session, _version(document), actor_id, now)
     return snapshot
 
 
@@ -528,15 +475,22 @@ def split_finding(
         members = [row for row in _rows(session, version) if row.group_id == finding.group_id]
         if len(members) < 2:
             raise ReviewValidationError("single_member_group", "This group has one occurrence.")
-        before = _capture_review(session, version)
+        before = capture(session, members)
         finding.group_id = allocate_group_locked(
             session, document=document, category=FindingCategory(finding.category), now=now
         ).id
         _touch_review(document, now)
         _record_review_edit(session, document, actor_id, "group_split", now)
         session.flush()
-        snapshot = _snapshot(session, _version(document))
-    _remember_undo(document_id, actor_id, version, snapshot.version, before)
+        remember(
+            session,
+            actor_id=actor_id,
+            before=version,
+            after=_version(document),
+            payload=before,
+            now=now,
+        )
+        snapshot = _snapshot(session, _version(document), actor_id, now)
     return snapshot
 
 
@@ -560,8 +514,17 @@ def merge_findings(
             raise ReviewValidationError("incompatible_category", "Categories must match to merge.")
         already_merged = source.group_id is not None and source.group_id == target.group_id
         if already_merged:
-            return _snapshot(session, version)
-        before = _capture_review(session, version)
+            return _snapshot(session, version, actor_id, now)
+        before = capture(
+            session,
+            [
+                row
+                for row in _rows(session, version)
+                if row.id in {source.id, target.id}
+                or (source.group_id is not None and row.group_id == source.group_id)
+                or (target.group_id is not None and row.group_id == target.group_id)
+            ],
+        )
         if target.group_id is None and source.group_id is not None:
             target_group = session.get(EntityGroup, source.group_id)
             target.group_id = target_group.id
@@ -574,8 +537,15 @@ def merge_findings(
         _touch_review(document, now)
         _record_review_edit(session, document, actor_id, "group_merged", now)
         session.flush()
-        snapshot = _snapshot(session, _version(document))
-    _remember_undo(document_id, actor_id, version, snapshot.version, before)
+        remember(
+            session,
+            actor_id=actor_id,
+            before=version,
+            after=_version(document),
+            payload=before,
+            now=now,
+        )
+        snapshot = _snapshot(session, _version(document), actor_id, now)
     return snapshot
 
 
@@ -617,7 +587,7 @@ def decide_findings(
                 SourceSpan(start=row.start_offset, end=row.end_offset),
                 exclude_id=row.id,
             )
-        before = _capture_review(session, version)
+        before = capture(session, rows)
         if action == DecisionAction.LABEL:
             for row in rows:
                 _group_for_finding(session, document, row, now)
@@ -633,7 +603,15 @@ def decide_findings(
             decision.decision_version = document.decision_version
             decision.decided_at = now
         session.flush()
-        snapshot = _snapshot(session, _version(document))
+        remember(
+            session,
+            actor_id=actor_id,
+            before=version,
+            after=_version(document),
+            payload=before,
+            now=now,
+        )
+        snapshot = _snapshot(session, _version(document), actor_id, now)
         record_event(
             session,
             workspace_id=document.workspace_id,
@@ -642,7 +620,6 @@ def decide_findings(
             event_code="review_decision_saved",
             now=now,
         )
-    _remember_undo(document_id, actor_id, version, snapshot.version, before)
     return snapshot
 
 
@@ -654,62 +631,14 @@ def undo_last_review_edit(
     expected: VersionRef,
     now: datetime,
 ) -> FindingsSnapshot:
-    """Undo only edits made in this process for the current source/settings."""
-    key = (document_id, actor_id)
-    with _undo_lock:
-        with Session(engine) as session, session.begin():
-            document, version = _current_locked(session, document_id, actor_id, expected, now)
-            entries = _undo.get(key, (0.0, deque()))[1]
-            if not entries:
-                raise ReviewValidationError(
-                    "nothing_to_undo", "No review edit is available to undo."
-                )
-            entry = entries[-1]
-            if entry.after != version:
-                raise ReviewValidationError(
-                    "undo_unavailable", "The review changed since that edit. Reload before editing."
-                )
-            for row in _rows(session, version):
-                if row.id not in entry.findings:
-                    row.removed_at = now
-                    decision = session.get(Decision, row.id)
-                    if decision is not None:
-                        session.delete(decision)
-            for finding_id, previous in entry.findings.items():
-                row = session.get(Finding, finding_id)
-                row.start_offset = previous.span.start
-                row.end_offset = previous.span.end
-                row.category = previous.category
-                row.origin = previous.origin
-                row.group_id = previous.group_id
-                row.scan_run_id = previous.scan_run_id
-                row.rule_id = previous.rule_id
-                row.rule_version = previous.rule_version
-                row.reason = previous.reason
-                row.removed_at = None
-                decision = session.get(Decision, finding_id)
-                prior_decision = entry.decisions.get(finding_id)
-                if prior_decision is None:
-                    if decision is not None:
-                        session.delete(decision)
-                else:
-                    if decision is None:
-                        decision = Decision(finding_id=finding_id)
-                        session.add(decision)
-                    decision.action = prior_decision.action
-                    decision.keep_reason = prior_decision.keep_reason
-                    decision.decided_by = actor_id
-                    decision.decided_at = now
-                    decision.decision_version = document.decision_version + 1
-            _touch_review(document, now)
-            _record_review_edit(session, document, actor_id, "review_edit_undone", now)
-            session.flush()
-            snapshot = _snapshot(session, _version(document))
-        entries.pop()
-        if entries:
-            entries[-1] = replace(entries[-1], after=snapshot.version)
-        if entries:
-            _undo[key] = (monotonic(), entries)
-        else:
-            _undo.pop(key, None)
-        return snapshot
+    """Replay the actor's latest current-version edit across processes/restarts."""
+    with Session(engine) as session, session.begin():
+        document, version = _current_locked(session, document_id, actor_id, expected, now)
+        try:
+            replay(session, version=version, actor_id=actor_id, now=now)
+        except UndoUnavailable as error:
+            raise ReviewValidationError(error.code, str(error)) from None
+        _touch_review(document, now)
+        _record_review_edit(session, document, actor_id, "review_edit_undone", now)
+        session.flush()
+        return _snapshot(session, _version(document), actor_id, now)

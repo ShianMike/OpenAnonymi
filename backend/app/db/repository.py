@@ -239,6 +239,9 @@ def append_source_revision(
         session.add(revision)
         session.flush()
         document.current_revision_id = revision.id
+        from app.groups.undo_store import clear_document
+
+        clear_document(session, document.id)
         document.decision_version += 1
         if document.status != DocumentStatus.DRAFT:
             require_transition(DocumentStatus(document.status), DocumentStatus.DRAFT)

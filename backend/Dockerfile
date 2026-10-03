@@ -1,9 +1,8 @@
 # OpenAnonymi API: one container, one Uvicorn worker.
 #
-# Keep exactly one worker and one running instance. Sign-in, registration and recovery
-# attempt limits (app/accounts/api.py AttemptLimiter) and review undo history
-# (app/groups/service.py _undo) live in process memory. Extra workers or replicas would
-# each keep their own copy, and a restart clears them.
+# Keep one worker and one instance for the spaCy model's memory budget on Free hosting.
+# Attempt limits and bounded review undo history are shared in PostgreSQL and survive
+# restarts. Each additional worker would load its own local language model.
 #
 # Build from this directory:  docker build -t openanonymi-api backend
 

@@ -8,13 +8,13 @@ type Update<T> = Dispatch<SetStateAction<T>>
 type Download = { url: string; filename: string; version: VersionRef } | null
 
 export function createReviewScanActions({ documentId, state, dirty, settingsDirty, selectedCategories, phoneRegion,
-  csrf, recovery, refreshPreview, setScanPending, setError, setNotice, setScan, setUndoCount, setSummary,
+  csrf, recovery, refreshPreview, setScanPending, setError, setNotice, setScan, setSummary,
   setConfirmedPreview, setPreparedDownload, setState, setFindings, setConflict, setSettingsPending, setPreview, setPreviewError }: {
   documentId: string | undefined; state: DraftState; dirty: boolean; settingsDirty: boolean;
   selectedCategories: FindingCategory[]; phoneRegion: string; csrf: string; recovery: ProtectedDraftController;
   refreshPreview: (id: string, version: VersionRef) => Promise<void>;
   setScanPending: Update<boolean>; setError: Update<string | null>; setNotice: Update<string | null>;
-  setScan: Update<ScanView | null>; setUndoCount: Update<number>; setSummary: Update<ReviewSummaryView | null>;
+  setScan: Update<ScanView | null>; setSummary: Update<ReviewSummaryView | null>;
   setConfirmedPreview: Update<boolean>; setPreparedDownload: Update<Download>; setState: Update<DraftState>;
   setFindings: Update<FindingsView | null>; setConflict: Update<boolean>; setSettingsPending: Update<boolean>;
   setPreview: Update<PreviewView | null>; setPreviewError: Update<string | null>;
@@ -34,7 +34,6 @@ export function createReviewScanActions({ documentId, state, dirty, settingsDirt
     try {
       const result = await startScan(documentId, state.saved.version, csrf)
       setScan(result)
-      setUndoCount(0)
       if (result.status === 'completed') {
         setSummary(null)
         setConfirmedPreview(false)
@@ -113,7 +112,6 @@ export function createReviewScanActions({ documentId, state, dirty, settingsDirt
         setError('Settings were saved, but findings could not be refreshed. Reload the draft.')
       }
       await refreshPreview(documentId, updated.version)
-      setUndoCount(0)
       await recovery.clear().catch(() => undefined)
       setNotice('Suggestion settings saved. Run a fresh scan before review.')
     } catch (cause: unknown) {
@@ -148,7 +146,6 @@ export function createReviewScanActions({ documentId, state, dirty, settingsDirt
       setSummary(null)
       setConfirmedPreview(false)
       setPreparedDownload(null)
-      setUndoCount(0)
       setError(null)
       if (latest.status === 'ready' || latest.status === 'exported') {
         try {

@@ -1,6 +1,6 @@
 """ASGI entry point. Run from the backend directory with configured environment.
 
-Serve with exactly one Uvicorn worker: attempt limits and review undo are process-local.
+Serve with one Uvicorn worker for model memory; limits and undo are in PostgreSQL.
 """
 
 from app.edge import configure_logging

@@ -1,4 +1,4 @@
-"""Proxy-facing behavior that needs no database: client address, cookies, headers, limits."""
+"""Proxy behavior, including trusted-address budgets on real PostgreSQL."""
 
 import logging
 
@@ -6,9 +6,7 @@ from cryptography.fernet import Fernet
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 
-from app.accounts import api as accounts_api
 from app.accounts.api import _session_cookie
-from app.accounts.security import InvalidCredentials
 from app.config import Settings
 from app.edge import MAX_REQUEST_BYTES, attempt_key, client_address
 from app.factory import create_app
@@ -82,25 +80,26 @@ def test_development_session_cookie_stays_lax_for_plain_http():
     assert "Secure" not in issued and "Partitioned" not in issued
 
 
-def test_attempt_limits_use_the_trusted_forwarded_address(monkeypatch):
-    def reject(*_args, **_kwargs):
-        raise InvalidCredentials("Email or password was not accepted.")
-
-    monkeypatch.setattr(accounts_api, "sign_in", reject)
+def test_attempt_limits_use_the_trusted_forwarded_address(intake_site):
+    owner, _, engine, _, _ = intake_site
+    values = owner.app.state.settings.model_dump()
+    values["allowed_origins"] = [ORIGIN]
     body = {"email": "member@example.invalid", "password": "synthetic-password"}
 
     def attempt(client: TestClient, forwarded: str) -> int:
         headers = {"Origin": ORIGIN, "X-Forwarded-For": forwarded}
         return client.post("/api/v1/auth/sign-in", json=body, headers=headers).status_code
 
-    trusted = TestClient(_app(_settings(trusted_proxy_hops=1)))
+    trusted = TestClient(
+        create_app(Settings(**{**values, "trusted_proxy_hops": 1}, _env_file=None), engine=engine)
+    )
     assert [attempt(trusted, "203.0.113.1, 198.51.100.7") for _ in range(8)] == [401] * 8
     # A rotated client-supplied entry does not buy new attempts for the same client.
     assert attempt(trusted, "203.0.113.2, 198.51.100.7") == 429
     # A different client behind the same proxy keeps its own budget.
     assert attempt(trusted, "198.51.100.8") == 401
 
-    untrusted = TestClient(_app(_settings()))
+    untrusted = TestClient(create_app(Settings(**values, _env_file=None), engine=engine))
     assert [attempt(untrusted, f"198.51.100.{n}") for n in range(8)] == [401] * 8
     # Without trusted hops a forged header is ignored entirely.
     assert attempt(untrusted, "198.51.100.99") == 429
@@ -119,7 +118,10 @@ def test_security_headers_cors_and_cache_policy():
     )
     foreign = client.options(
         "/api/v1/auth/sign-in",
-        headers={"Origin": "https://other.example.invalid", "Access-Control-Request-Method": "POST"},
+        headers={
+            "Origin": "https://other.example.invalid",
+            "Access-Control-Request-Method": "POST",
+        },
     )
     assert meta.status_code == 200
     assert meta.headers["access-control-allow-origin"] == ORIGIN

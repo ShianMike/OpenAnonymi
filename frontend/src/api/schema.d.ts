@@ -1447,6 +1447,11 @@ export interface components {
                 string,
                 string
             ][];
+            /**
+             * Undo Available
+             * @default 0
+             */
+            undo_available: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {

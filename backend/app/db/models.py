@@ -16,6 +16,7 @@ from sqlalchemy import (
     event,
     func,
     inspect,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -434,6 +435,12 @@ class Preset(Base):
 
     __table_args__ = (
         UniqueConstraint("workspace_id", "name", name="uq_presets_workspace_name"),
+        Index(
+            "uq_presets_workspace_default",
+            "workspace_id",
+            unique=True,
+            postgresql_where=text("is_default"),
+        ),
         CheckConstraint("version > 0", name="positive_version"),
         CheckConstraint("preferred_action IN ('label', 'redact')", name="valid_preferred_action"),
     )

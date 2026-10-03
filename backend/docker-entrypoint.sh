@@ -1,7 +1,7 @@
 #!/bin/sh
 # Validate configuration without touching the database, apply migrations, then serve.
 #
-# --workers 1 is required: attempt limits and review undo are process-local.
+# One worker for the model's memory budget; limits and undo are in PostgreSQL.
 # --no-access-log: app.edge.AccessLogMiddleware logs route templates without query strings.
 # --no-proxy-headers: the client address comes only from PRIVACY_REVIEW_TRUSTED_PROXY_HOPS.
 set -eu

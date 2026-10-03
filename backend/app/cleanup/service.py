@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.accounts.access import owned_document_record
 from app.contracts import DocumentStatus
 from app.db.custom_rules import DocumentRuleSnapshot
+from app.db.durable import AttemptEvent, ReviewUndoEntry
 from app.db.models import AuditEvent, Document, LabelCounter, SourceRevision, Workspace
 from app.db.recovery import RecoverySnapshot
 from app.db.team_review import ReviewHandoff
@@ -80,6 +81,9 @@ def purge_unavailable_content(
                     now=now,
                 )
             session.execute(delete(ReviewHandoff).where(ReviewHandoff.document_id == document.id))
+            session.execute(
+                delete(ReviewUndoEntry).where(ReviewUndoEntry.document_id == document.id)
+            )
             document.current_revision_id = None
             document.title_ciphertext = None
             document.title_key_id = None
@@ -89,10 +93,17 @@ def purge_unavailable_content(
             session.execute(
                 delete(RecoverySnapshot).where(RecoverySnapshot.document_id == document.id)
             )
-            session.execute(delete(DocumentRuleSnapshot).where(
-                DocumentRuleSnapshot.document_id == document.id))
+            session.execute(
+                delete(DocumentRuleSnapshot).where(DocumentRuleSnapshot.document_id == document.id)
+            )
 
         session.execute(delete(RecoverySnapshot).where(RecoverySnapshot.expires_at <= now))
+        session.execute(
+            delete(AttemptEvent).where(AttemptEvent.attempted_at <= now - timedelta(days=1))
+        )
+        session.execute(
+            delete(ReviewUndoEntry).where(ReviewUndoEntry.created_at <= now - timedelta(hours=1))
+        )
 
         activity_removed = 0
         for workspace in session.scalars(select(Workspace)).all():

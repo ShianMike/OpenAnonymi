@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.engine import Engine
 
 from app.accounts.access import ContentUnavailable, DocumentNotFound
@@ -58,6 +58,7 @@ class FindingsView(BaseModel):
     version: VersionRef
     findings: list[FindingView]
     overlaps: list[tuple[UUID, UUID]]
+    undo_available: int = Field(default=0, ge=0, le=20)
 
 
 class ExactMatchesView(BaseModel):
@@ -101,6 +102,7 @@ class DecisionRequest(BaseModel):
 def _view(snapshot: FindingsSnapshot) -> FindingsView:
     return FindingsView(
         version=snapshot.version,
+        undo_available=snapshot.undo_available,
         overlaps=list(snapshot.overlaps),
         findings=[
             FindingView(

@@ -5527,6 +5527,13 @@
             },
             "type": "array",
             "title": "Overlaps"
+          },
+          "undo_available": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 0.0,
+            "title": "Undo Available",
+            "default": 0
           }
         },
         "type": "object",

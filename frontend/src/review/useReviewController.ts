@@ -1,3 +1,4 @@
+import { useUndoState } from './useUndoState'
 import { createReviewScanActions } from './reviewScanActions'
 import { useReviewHandoff } from '../team/useReviewHandoff'
 import { extras } from '../detection/categories'
@@ -88,7 +89,7 @@ export function useReviewController(session: SessionView) {
   const [editingSource, setEditingSource] = useState(false)
   const [plainPreview, setPlainPreview] = useState(false)
   const [findingPending, setFindingPending] = useState(false)
-  const [undoCount, setUndoCount] = useState(0)
+  const undoCount = useUndoState(findings, state.kind === 'ready' ? state.saved.version : null)
   const [exactMatches, setExactMatches] = useState<{
     findingId: string
     result: ExactMatchesView
@@ -224,7 +225,6 @@ export function useReviewController(session: SessionView) {
         setConfirmedPreview(false)
         setSelection(null)
         setExactMatches(null)
-        setUndoCount(0)
         setSelectedFindingId(null)
         setEditingSource(false)
         setPlainPreview(false)
@@ -304,7 +304,6 @@ export function useReviewController(session: SessionView) {
     setPreparedDownload(null)
     setSelection(null)
     setExactMatches(null)
-    setUndoCount(0)
     setSelectedFindingId(null)
     setGroupConfirmation(null)
     setMergeTargets({})
@@ -345,7 +344,7 @@ export function useReviewController(session: SessionView) {
         failure_code: null,
         suggestions: [],
       })
-      setFindings({ version: saved.version, findings: [], overlaps: [] })
+      setFindings({ version: saved.version, findings: [], overlaps: [], undo_available: 0 })
       resetSourceReview()
       await refreshPreview(documentId, saved.version)
     },
@@ -374,14 +373,13 @@ export function useReviewController(session: SessionView) {
     setPreparedDownload(null)
     setSelection(null)
     setExactMatches(null)
-    setUndoCount(0)
     setSelectedFindingId(null)
     setAttempt((value) => value + 1)
   }
 
   const { scanDraft, saveSettings, refreshScan } = createReviewScanActions({
     documentId, state, dirty, settingsDirty, selectedCategories, phoneRegion, csrf: session.csrf_token,
-    recovery, refreshPreview, setScanPending, setError, setNotice, setScan, setUndoCount, setSummary,
+    recovery, refreshPreview, setScanPending, setError, setNotice, setScan, setSummary,
     setConfirmedPreview, setPreparedDownload, setState, setFindings, setConflict, setSettingsPending, setPreview, setPreviewError,
   })
 
@@ -547,9 +545,6 @@ export function useReviewController(session: SessionView) {
         setScan(null)
         setError('Finding saved, but the scan summary could not be refreshed. Reload the draft.')
       }
-      if (result.version.decision_version !== state.saved.version.decision_version) {
-        setUndoCount((count) => Math.min(count + 1, 20))
-      }
       setNotice('Finding changes saved. Review completion must use this latest version.')
     } catch (cause: unknown) {
       if (cause instanceof ApiConflictError) setConflict(true)
@@ -644,9 +639,6 @@ export function useReviewController(session: SessionView) {
       setExactMatches(null)
       setGroupConfirmation(null)
       await refreshPreview(documentId, result.version)
-      if (result.version.decision_version !== state.saved.version.decision_version) {
-        setUndoCount((count) => Math.min(count + 1, 20))
-      }
       setNotice('Review change saved.')
       return true
     } catch (cause: unknown) {
@@ -671,7 +663,6 @@ export function useReviewController(session: SessionView) {
       setSummary(null)
       setConfirmedPreview(false)
       setPreparedDownload(null)
-      setUndoCount((count) => Math.max(0, count - 1))
       setExactMatches(null)
       setGroupConfirmation(null)
       await refreshPreview(documentId, result.version)

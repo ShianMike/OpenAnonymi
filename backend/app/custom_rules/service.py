@@ -190,6 +190,9 @@ def refresh_snapshot(
         if not snapshot_state(session, document, keys).update_available:
             return snapshot_state(session, document, keys)
         document.settings_version += 1
+        from app.groups.undo_store import clear_document
+
+        clear_document(session, document.id)
         document.decision_version += 1
         if document.status != DocumentStatus.DRAFT:
             require_transition(DocumentStatus(document.status), DocumentStatus.DRAFT)
