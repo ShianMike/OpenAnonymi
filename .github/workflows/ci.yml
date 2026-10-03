@@ -131,6 +131,7 @@ jobs:
             -e PRIVACY_REVIEW_ACTIVE_KEY_ID=ci \
             -e PRIVACY_REVIEW_CONTENT_KEYS="{\"ci\":\"$key\"}" \
             -e PRIVACY_REVIEW_TRUSTED_PROXY_HOPS=1 \
+            -e PRIVACY_REVIEW_EMAIL_CHECK_DELIVERABILITY=false \
             openanonymi-api:ci
       - name: Wait for the Docker health check
         run: |
@@ -167,9 +168,17 @@ jobs:
             -H 'Access-Control-Request-Headers: content-type,x-csrf-token')"
           echo "$preflight" | grep -qi "^access-control-allow-origin: $origin"
           echo "$preflight" | grep -qi '^access-control-allow-credentials: true'
-          cookie="$(curl -fsS -D - -o /dev/null -X POST "$base/auth/sign-up" \
+          email=ci-smoke@openanonymi.vercel.app
+          pw=synthetic-ci-password
+          printf '%s\n%s\n%s\n%s\n' "$email" "CI smoke" "$pw" "$pw" | docker exec -i api python -m app.accounts.bootstrap
+          signup_status="$(curl -sS -o /tmp/signup-response.json -w '%{http_code}' -X POST "$base/auth/sign-up" \
             -H "Origin: $origin" -H 'Content-Type: application/json' \
-            --data '{"email":"ci-smoke@example.invalid","password":"synthetic-ci-password","workspace_name":"CI smoke"}' \
+            --data "{\"email\":\"$email\",\"password\":\"$pw\",\"workspace_name\":\"CI smoke\"}")"
+          test "$signup_status" = 503
+          grep -q 'registration_unavailable' /tmp/signup-response.json
+          cookie="$(curl -fsS -D - -o /dev/null -X POST "$base/auth/sign-in" \
+            -H "Origin: $origin" -H 'Content-Type: application/json' \
+            --data "{\"email\":\"$email\",\"password\":\"$pw\"}" \
             | grep -i '^set-cookie:')"
           for attribute in HttpOnly Secure SameSite=None Partitioned Path=/api/v1 Max-Age=43200; do
             echo "$cookie" | grep -qi -- "$attribute"

@@ -38,6 +38,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/sign-up/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify Sign Up Route */
+        post: operations["verify_sign_up_route_api_v1_auth_sign_up_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/email-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Request Email Proof Route */
+        post: operations["request_email_proof_route_api_v1_auth_email_verification_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/email-verification/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm Email Proof Route */
+        post: operations["confirm_email_proof_route_api_v1_auth_email_verification_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/session": {
         parameters: {
             query?: never;
@@ -1352,6 +1403,14 @@ export interface components {
             /** Source */
             source: string;
         };
+        /** EmailProofCode */
+        EmailProofCode: {
+            /**
+             * Code
+             * Format: password
+             */
+            code: string;
+        };
         /** ErrorDetail */
         ErrorDetail: {
             /** Field */
@@ -1771,6 +1830,31 @@ export interface components {
         RefreshRulesInput: {
             expected: components["schemas"]["VersionRef"];
         };
+        /** RegistrationMessage */
+        RegistrationMessage: {
+            /** Message */
+            message: string;
+            /**
+             * Expires In Seconds
+             * @default 900
+             */
+            expires_in_seconds: number;
+        };
+        /** RegistrationVerification */
+        RegistrationVerification: {
+            /**
+             * Code
+             * Format: password
+             */
+            code: string;
+            /** Email */
+            email: string;
+            /**
+             * Password
+             * Format: password
+             */
+            password: string;
+        };
         /** RemoveFindingRequest */
         RemoveFindingRequest: {
             expected: components["schemas"]["VersionRef"];
@@ -2043,6 +2127,16 @@ export interface components {
             csrf_token: string;
             /** Memberships */
             memberships: components["schemas"]["MembershipView"][];
+            /**
+             * Email Verified
+             * @default false
+             */
+            email_verified: boolean;
+            /**
+             * Email Verification Available
+             * @default false
+             */
+            email_verification_available: boolean;
         };
         /** SignInRequest */
         SignInRequest: {
@@ -2300,12 +2394,72 @@ export interface operations {
         };
         responses: {
             /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationMessage"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    verify_sign_up_route_api_v1_auth_sign_up_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegistrationVerification"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["SessionView"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
             /** @description Conflict */
@@ -2333,6 +2487,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    request_email_proof_route_api_v1_auth_email_verification_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationMessage"];
+                };
+            };
+        };
+    };
+    confirm_email_proof_route_api_v1_auth_email_verification_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailProofCode"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

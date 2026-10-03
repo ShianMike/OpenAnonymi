@@ -46,6 +46,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
     created_at: Mapped[datetime] = timestamp_column()
     disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Workspace(Base):

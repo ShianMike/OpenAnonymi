@@ -1,15 +1,18 @@
 """Cookie session endpoints and reusable authentication dependencies."""
 
 import hmac
+import logging
+import re
 from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, Response
-from pydantic import BaseModel, Field, SecretStr
+from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
+from pydantic import BaseModel, Field, SecretStr, field_validator
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
+from app.accounts.email_rules import EmailRuleError, lookup_forms
 from app.accounts.limits import AttemptLimiter
 from app.accounts.recovery import (
     InvalidRecoveryCode,
@@ -17,7 +20,6 @@ from app.accounts.recovery import (
     complete_recovery,
     request_recovery,
 )
-from app.accounts.registration import AccountUnavailable, register_account
 from app.accounts.security import (
     COOKIE_NAME,
     COOKIE_PATH,
@@ -30,8 +32,19 @@ from app.accounts.security import (
     revoke_session,
     sign_in,
 )
+from app.accounts.signup import (
+    AccountUnavailable,
+    CodeDelivery,
+    InvalidEmailVerificationCode,
+    InvalidRegistrationCode,
+    confirm_email_verification,
+    request_email_verification,
+    request_registration,
+    verify_registration,
+)
 from app.config import Settings
 from app.contracts import ErrorResponse, WorkspaceRole
+from app.db.crypto import ContentKeyUnavailable, ProtectedContentError
 from app.edge import attempt_key, scope_client_address
 from app.errors import ApiError
 
@@ -60,6 +73,31 @@ class SessionView(BaseModel):
     expires_at: datetime
     csrf_token: str
     memberships: list[MembershipView]
+    email_verified: bool = False
+    email_verification_available: bool = False
+
+
+class RegistrationMessage(BaseModel):
+    message: str
+    expires_in_seconds: int = 900
+
+
+class EmailProofCode(BaseModel):
+    code: SecretStr = Field(min_length=1, max_length=200)
+
+    @field_validator("code")
+    @classmethod
+    def validate_email_code(cls, value: SecretStr) -> SecretStr:
+        code = value.get_secret_value().strip()
+        if not re.fullmatch(r"[A-Za-z0-9_-]{32}", code):
+            raise ValueError("Enter the complete email code.")
+        return SecretStr(code)
+
+
+class RegistrationVerification(EmailProofCode):
+    model_config = {"extra": "forbid"}
+    email: str = Field(min_length=1, max_length=320)
+    password: SecretStr = Field(min_length=1, max_length=1024)
 
 
 class RecoveryRequest(BaseModel):
@@ -81,12 +119,14 @@ class ChangePasswordRequest(BaseModel):
     new_password: SecretStr = Field(min_length=12, max_length=1024)
 
 
-def _view(identity: SessionIdentity) -> SessionView:
+def _view(identity: SessionIdentity, mail_available: bool = False) -> SessionView:
     return SessionView(
         user_id=identity.user_id,
         email=identity.email,
         expires_at=identity.expires_at,
         csrf_token=identity.csrf_token,
+        email_verified=identity.email_verified,
+        email_verification_available=mail_available,
         memberships=[
             MembershipView(
                 workspace_id=item.workspace_id,
@@ -125,7 +165,9 @@ def _session_cookie(value: str, *, max_age: int, settings: Settings) -> str:
 
 def set_session_cookie(response: Response, token: str, settings: Settings) -> None:
     max_age = int(SESSION_TTL.total_seconds())
-    response.headers.append("set-cookie", _session_cookie(token, max_age=max_age, settings=settings))
+    response.headers.append(
+        "set-cookie", _session_cookie(token, max_age=max_age, settings=settings)
+    )
 
 
 def clear_session_cookie(response: Response, settings: Settings) -> None:
@@ -164,6 +206,23 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
     router = APIRouter(prefix="/api/v1/auth", tags=["accounts"])
     limiter = AttemptLimiter(engine, settings, scope="sign_in")
     registration_limiter = AttemptLimiter(engine, settings, scope="registration", maximum=3)
+    registration_verify_limiter = AttemptLimiter(engine, settings, scope="registration_verify")
+    registration_verify_address = AttemptLimiter(
+        engine,
+        settings,
+        scope="registration_verify_address",
+        maximum=10,
+        window_seconds=900,
+        network_scope=False,
+    )
+    email_verification_limiter = AttemptLimiter(
+        engine,
+        settings,
+        scope="email_verification_request",
+        maximum=3,
+        window_seconds=3600,
+        network_scope=False,
+    )
     recovery_request_limiter = AttemptLimiter(engine, settings, scope="recovery_request", maximum=3)
     recovery_completion_limiter = AttemptLimiter(engine, settings, scope="recovery_complete")
 
@@ -190,15 +249,27 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
                 401, "invalid_credentials", "Email or password was not accepted."
             ) from None
         set_session_cookie(response, issued.token, settings)
-        return _view(issued.identity)
+        return _view(issued.identity, request.app.state.recovery_mailer is not None)
+
+    def dispatch(mailer, delivery: CodeDelivery, method: str, event: str):
+        try:
+            getattr(mailer, method)(delivery.recipient, delivery.code)
+        except RecoveryDeliveryError:
+            logging.getLogger("app.accounts").warning(event)
 
     @router.post(
         "/sign-up",
-        status_code=201,
-        response_model=SessionView,
-        responses={409: {"model": ErrorResponse}, 429: {"model": ErrorResponse}},
+        status_code=202,
+        response_model=RegistrationMessage,
+        responses={
+            422: {"model": ErrorResponse},
+            429: {"model": ErrorResponse},
+            503: {"model": ErrorResponse},
+        },
     )
-    def sign_up_route(body: SignUpRequest, request: Request, response: Response) -> SessionView:
+    def sign_up_route(
+        body: SignUpRequest, request: Request, background: BackgroundTasks
+    ) -> RegistrationMessage:
         require_mutation_origin(request)
         if not settings.registration_enabled:
             raise ApiError(
@@ -206,30 +277,151 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
                 "registration_closed",
                 "Account creation is closed. Contact your workspace administrator.",
             )
-        client_ip = request_client_ip(request)
-        if not registration_limiter.take(client_ip):
+        mailer = request.app.state.recovery_mailer
+        if mailer is None or not settings.active_key_id:
+            raise ApiError(
+                503,
+                "registration_unavailable",
+                "Self-registration isn't available on this site right now. Ask a workspace administrator for an invitation.",
+            )
+        if not registration_limiter.take(request_client_ip(request)):
             raise ApiError(
                 429, "registration_limited", "Too many account creation attempts. Try again later."
             )
         try:
-            with Session(engine) as session:
-                issued = register_account(
-                    session,
-                    email=body.email,
-                    password=body.password.get_secret_value(),
-                    workspace_name=body.workspace_name,
-                    now=datetime.now(UTC),
-                )
+            delivery = request_registration(
+                engine,
+                settings=settings,
+                email=body.email,
+                password=body.password.get_secret_value(),
+                workspace_name=body.workspace_name,
+                now=datetime.now(UTC),
+            )
+        except EmailRuleError as exc:
+            raise ApiError(exc.status, exc.code, exc.message) from None
+        except ValueError as exc:
+            raise ApiError(422, "invalid_registration", str(exc)) from None
+        if delivery:
+            background.add_task(
+                dispatch,
+                mailer,
+                delivery,
+                "send_registration_code",
+                "registration_code_delivery_failed",
+            )
+        return RegistrationMessage(
+            message="If this address can be used, we sent a code to it. It expires in 15 minutes."
+        )
+
+    @router.post(
+        "/sign-up/verify",
+        status_code=201,
+        response_model=SessionView,
+        responses={
+            400: {"model": ErrorResponse},
+            409: {"model": ErrorResponse},
+            429: {"model": ErrorResponse},
+        },
+    )
+    def verify_sign_up_route(
+        body: RegistrationVerification, request: Request, response: Response
+    ) -> SessionView:
+        require_mutation_origin(request)
+        try:
+            subject = lookup_forms(body.email)[0]
+        except ValueError:
+            subject = "invalid"
+        if not registration_verify_limiter.take(
+            request_client_ip(request)
+        ) or not registration_verify_address.take(subject):
+            raise ApiError(
+                429,
+                "registration_verify_limited",
+                "Too many verification attempts. Try again later.",
+            )
+        try:
+            issued = verify_registration(
+                engine,
+                settings=settings,
+                email=body.email,
+                code=body.code.get_secret_value(),
+                password=body.password.get_secret_value(),
+                now=datetime.now(UTC),
+            )
+        except InvalidRegistrationCode:
+            raise ApiError(
+                400,
+                "invalid_registration_code",
+                "That code and password don't match a pending sign-up.",
+            ) from None
         except AccountUnavailable:
             raise ApiError(
                 409,
                 "account_unavailable",
                 "This account could not be created. Try signing in or recovering your account.",
             ) from None
-        except ValueError as exc:
-            raise ApiError(422, "invalid_registration", str(exc)) from None
+        except (ContentKeyUnavailable, ProtectedContentError):
+            raise ApiError(
+                503, "registration_unavailable", "Self-registration is unavailable right now."
+            ) from None
         set_session_cookie(response, issued.token, settings)
-        return _view(issued.identity)
+        return _view(issued.identity, request.app.state.recovery_mailer is not None)
+
+    @router.post("/email-verification", status_code=202, response_model=RegistrationMessage)
+    def request_email_proof_route(
+        request: Request,
+        background: BackgroundTasks,
+        identity: Annotated[SessionIdentity, Depends(mutation_identity)],
+    ) -> RegistrationMessage:
+        mailer = request.app.state.recovery_mailer
+        if mailer is None:
+            raise ApiError(
+                503,
+                "email_verification_unavailable",
+                "Email verification is unavailable right now.",
+            )
+        if not email_verification_limiter.take(str(identity.user_id)):
+            raise ApiError(
+                429, "email_verification_limited", "Too many code requests. Try again later."
+            )
+        try:
+            delivery = request_email_verification(
+                engine, user_id=identity.user_id, now=datetime.now(UTC)
+            )
+        except InvalidSession:
+            raise ApiError(401, "sign_in_required", "Sign in to continue.") from None
+        if delivery:
+            background.add_task(
+                dispatch,
+                mailer,
+                delivery,
+                "send_email_verification_code",
+                "email_verification_delivery_failed",
+            )
+        return RegistrationMessage(
+            message="If verification is needed, we sent you a code. It expires in 15 minutes."
+        )
+
+    @router.post("/email-verification/confirm", status_code=204)
+    def confirm_email_proof_route(
+        body: EmailProofCode, identity: Annotated[SessionIdentity, Depends(mutation_identity)]
+    ) -> Response:
+        try:
+            confirm_email_verification(
+                engine,
+                user_id=identity.user_id,
+                code=body.code.get_secret_value(),
+                now=datetime.now(UTC),
+            )
+        except InvalidEmailVerificationCode:
+            raise ApiError(
+                400,
+                "invalid_verification_code",
+                "That code is invalid or expired. Request a new code.",
+            ) from None
+        except InvalidSession:
+            raise ApiError(401, "sign_in_required", "Sign in to continue.") from None
+        return Response(status_code=204)
 
     @router.get(
         "/session",
@@ -237,9 +429,10 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
         responses={401: {"model": ErrorResponse}},
     )
     def session_route(
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(current_identity)],
     ) -> SessionView:
-        return _view(identity)
+        return _view(identity, request.app.state.recovery_mailer is not None)
 
     @router.post(
         "/sign-out",

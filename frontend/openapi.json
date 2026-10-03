@@ -84,12 +84,83 @@
           "required": true
         },
         "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationMessage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sign-up/verify": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Verify Sign Up Route",
+        "operationId": "verify_sign_up_route_api_v1_auth_sign_up_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistrationVerification"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
           "201": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SessionView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -113,6 +184,61 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/email-verification": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Request Email Proof Route",
+        "operationId": "request_email_proof_route_api_v1_auth_email_verification_post",
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationMessage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/email-verification/confirm": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Confirm Email Proof Route",
+        "operationId": "confirm_email_proof_route_api_v1_auth_email_verification_confirm_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailProofCode"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -5240,6 +5366,23 @@
         ],
         "title": "EditSourceRequest"
       },
+      "EmailProofCode": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "format": "password",
+            "title": "Code",
+            "writeOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "EmailProofCode"
+      },
       "ErrorDetail": {
         "properties": {
           "field": {
@@ -6382,6 +6525,58 @@
         ],
         "title": "RefreshRulesInput"
       },
+      "RegistrationMessage": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "expires_in_seconds": {
+            "type": "integer",
+            "title": "Expires In Seconds",
+            "default": 900
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "RegistrationMessage"
+      },
+      "RegistrationVerification": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "format": "password",
+            "title": "Code",
+            "writeOnly": true
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "minLength": 1,
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 1024,
+            "minLength": 1,
+            "format": "password",
+            "title": "Password",
+            "writeOnly": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "email",
+          "password"
+        ],
+        "title": "RegistrationVerification"
+      },
       "RemoveFindingRequest": {
         "properties": {
           "expected": {
@@ -6986,6 +7181,16 @@
             },
             "type": "array",
             "title": "Memberships"
+          },
+          "email_verified": {
+            "type": "boolean",
+            "title": "Email Verified",
+            "default": false
+          },
+          "email_verification_available": {
+            "type": "boolean",
+            "title": "Email Verification Available",
+            "default": false
           }
         },
         "type": "object",

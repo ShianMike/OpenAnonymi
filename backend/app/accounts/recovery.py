@@ -12,7 +12,8 @@ from uuid import uuid4
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.accounts.security import hash_password, normalize_email
+from app.accounts.email_rules import lookup_forms
+from app.accounts.security import hash_password
 from app.config import Settings
 from app.db.models import RecoveryToken, User
 from app.db.models import Session as StoredSession
@@ -32,6 +33,8 @@ class RecoveryMailer(Protocol):
     def send_recovery_code(self, recipient: str, code: str) -> None: ...
 
     def send_invitation_code(self, recipient: str, code: str) -> None: ...
+    def send_registration_code(self, recipient: str, code: str) -> None: ...
+    def send_email_verification_code(self, recipient: str, code: str) -> None: ...
 
 
 class SmtpRecoveryMailer:
@@ -70,6 +73,24 @@ class SmtpRecoveryMailer:
             "It expires in 24 hours. If you did not expect it, ignore this email.",
         )
 
+    def send_registration_code(self, recipient: str, code: str) -> None:
+        self._send_code(
+            recipient,
+            code,
+            "OpenAnonymi sign-up code",
+            "Enter this code with the password you chose to finish signing up:",
+            "It expires in 15 minutes. If you did not request it, ignore this email.",
+        )
+
+    def send_email_verification_code(self, recipient: str, code: str) -> None:
+        self._send_code(
+            recipient,
+            code,
+            "Verify your OpenAnonymi email",
+            "Enter this code in Settings to verify your email:",
+            "It expires in 15 minutes. If you did not request it, ignore this email.",
+        )
+
     def _send_code(
         self, recipient: str, code: str, subject: str, introduction: str, expiry: str
     ) -> None:
@@ -96,11 +117,11 @@ def request_recovery(
     session: Session, *, email: str, now: datetime, mailer: RecoveryMailer
 ) -> None:
     try:
-        normalized = normalize_email(email)
+        forms = lookup_forms(email)
     except ValueError:
         return
     with session.begin():
-        user = session.scalar(select(User).where(User.email == normalized))
+        user = session.scalar(select(User).where(User.email.in_(forms)))
         if user is None or user.disabled_at is not None:
             return
         code = secrets.token_urlsafe(24)
@@ -120,7 +141,7 @@ def complete_recovery(
     session: Session, *, email: str, code: str, new_password: str, now: datetime
 ) -> None:
     try:
-        normalized = normalize_email(email)
+        forms = lookup_forms(email)
         digest = _digest(code)
     except (ValueError, UnicodeEncodeError):
         raise InvalidRecoveryCode("The recovery code is invalid or expired.") from None
@@ -132,9 +153,10 @@ def complete_recovery(
         if token is None or token.used_at is not None or token.expires_at <= now:
             raise InvalidRecoveryCode("The recovery code is invalid or expired.")
         user = session.get(User, token.user_id)
-        if user is None or user.disabled_at is not None or user.email != normalized:
+        if user is None or user.disabled_at is not None or user.email not in forms:
             raise InvalidRecoveryCode("The recovery code is invalid or expired.")
         user.password_hash = new_hash
+        user.email_verified_at = now
         session.execute(
             update(RecoveryToken)
             .where(RecoveryToken.user_id == user.id, RecoveryToken.used_at.is_(None))

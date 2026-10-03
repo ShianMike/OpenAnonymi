@@ -12,6 +12,7 @@ from pwdlib.exceptions import UnknownHashError
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from app.accounts.email_rules import lookup_forms
 from app.contracts import WorkspaceRole
 from app.db.models import Membership, User, Workspace
 from app.db.models import Session as StoredSession
@@ -46,24 +47,13 @@ class SessionIdentity:
     expires_at: datetime
     memberships: tuple[ActiveMembership, ...]
     csrf_token: str
+    email_verified: bool = False
 
 
 @dataclass(frozen=True)
 class IssuedSession:
     token: str
     identity: SessionIdentity
-
-
-def normalize_email(email: str) -> str:
-    normalized = email.strip().casefold()
-    if (
-        len(normalized) > 320
-        or not normalized
-        or "@" not in normalized
-        or any(character.isspace() for character in normalized)
-    ):
-        raise ValueError("Enter a valid email address.")
-    return normalized
 
 
 def hash_password(password: str) -> str:
@@ -104,11 +94,11 @@ def _memberships(session: Session, user_id: UUID) -> tuple[ActiveMembership, ...
 
 def sign_in(session: Session, *, email: str, password: str, now: datetime) -> IssuedSession:
     try:
-        normalized = normalize_email(email)
+        forms = lookup_forms(email)
     except ValueError:
-        normalized = ""
+        forms = ()
     with session.begin():
-        user = session.scalar(select(User).where(User.email == normalized)) if normalized else None
+        user = session.scalar(select(User).where(User.email.in_(forms))) if forms else None
         valid_password = _verify_password(password, user.password_hash if user else _dummy_hash)
         if user is None or user.disabled_at is not None or not valid_password:
             raise InvalidCredentials("Email or password was not accepted.")
@@ -134,7 +124,15 @@ def issue_session(session: Session, *, user: User, now: datetime) -> IssuedSessi
         expires_at=expires_at,
     )
     session.add(record)
-    identity = SessionIdentity(record.id, user.id, user.email, expires_at, memberships, csrf_token)
+    identity = SessionIdentity(
+        record.id,
+        user.id,
+        user.email,
+        expires_at,
+        memberships,
+        csrf_token,
+        user.email_verified_at is not None,
+    )
     return IssuedSession(token, identity)
 
 
@@ -154,7 +152,13 @@ def read_session(session: Session, *, token: str | None, now: datetime) -> Sessi
     if not hmac.compare_digest(record.csrf_hash, _digest(csrf_token)):
         raise InvalidSession("Sign in to continue.")
     return SessionIdentity(
-        record.id, user.id, user.email, record.expires_at, memberships, csrf_token
+        record.id,
+        user.id,
+        user.email,
+        record.expires_at,
+        memberships,
+        csrf_token,
+        user.email_verified_at is not None,
     )
 
 

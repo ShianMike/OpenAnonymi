@@ -10,8 +10,10 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.accounts.access import require_administrator
+from app.accounts.email_rules import creation_email, lookup_forms
 from app.accounts.recovery import RecoveryMailer
-from app.accounts.security import hash_password, normalize_email
+from app.accounts.security import hash_password
+from app.config import Settings
 from app.contracts import WorkspaceRole
 from app.db.models import Membership, RecoveryToken, User, Workspace
 from app.db.models import Session as StoredSession
@@ -243,14 +245,15 @@ def invite_member(
     email: str,
     role: WorkspaceRole,
     mailer: RecoveryMailer,
+    settings: Settings,
     now: datetime,
 ) -> MemberRecord:
-    normalized = normalize_email(email)
+    normalized = creation_email(email, settings)
     unknown_password_hash = hash_password(secrets.token_urlsafe(32))
     code = secrets.token_urlsafe(24)
     with session.begin():
         require_administrator(session, workspace_id=workspace_id, actor_id=actor_id, lock=True)
-        if session.scalar(select(User).where(User.email == normalized)) is not None:
+        if session.scalar(select(User).where(User.email.in_(lookup_forms(email)))) is not None:
             raise MemberExists("This account already exists. Manage its membership separately.")
         user = User(
             id=uuid4(),

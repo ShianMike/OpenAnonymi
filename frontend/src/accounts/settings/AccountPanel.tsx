@@ -3,6 +3,7 @@ import { KeyRound, LockKeyhole, Mail, ShieldCheck } from 'lucide-react'
 import { changePassword, type SessionView } from '../../api/client'
 import { GlassInput } from '../../ui/GlassField'
 import { InlineNotice, PanelHeading } from '../../ui/WorkspaceControls'
+import { EmailVerification } from './EmailVerification'
 
 export function AccountPanel({
   session,
@@ -45,6 +46,7 @@ export function AccountPanel({
           </span>
           <strong>{session.email}</strong>
         </div>
+        <EmailVerification session={session} />
         <div className="account-privacy-note">
           <ShieldCheck size={18} strokeWidth={1.5} aria-hidden="true" />
           <p>Your documents and decisions stay connected to this account.</p>

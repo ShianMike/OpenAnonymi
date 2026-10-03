@@ -12,6 +12,7 @@ from app.accounts.access import owned_document_record
 from app.contracts import DocumentStatus
 from app.db.custom_rules import DocumentRuleSnapshot
 from app.db.durable import AttemptEvent, ReviewUndoEntry
+from app.db.email_verification import EmailVerification, PendingRegistration
 from app.db.models import AuditEvent, Document, LabelCounter, SourceRevision, Workspace
 from app.db.recovery import RecoverySnapshot
 from app.db.team_review import ReviewHandoff
@@ -98,6 +99,8 @@ def purge_unavailable_content(
             )
 
         session.execute(delete(RecoverySnapshot).where(RecoverySnapshot.expires_at <= now))
+        session.execute(delete(PendingRegistration).where(PendingRegistration.expires_at <= now))
+        session.execute(delete(EmailVerification).where(EmailVerification.expires_at <= now))
         session.execute(
             delete(AttemptEvent).where(AttemptEvent.attempted_at <= now - timedelta(days=1))
         )

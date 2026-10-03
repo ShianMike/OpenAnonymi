@@ -60,6 +60,7 @@ def admin_site():
         database_url=raw_url,
         allowed_origins=[ORIGIN],
         environment="test",
+        email_allow_test_domains=True,
         active_key_id="test",
         content_keys={"test": Fernet.generate_key().decode()},
         _env_file=None,
@@ -73,7 +74,7 @@ def admin_site():
             session.execute(delete(Membership).where(Membership.workspace_id == workspace_id))
             session.execute(delete(Workspace).where(Workspace.id == workspace_id))
             session.execute(delete(User).where(User.id.in_([admin_id, first_id, second_id])))
-            invited = session.scalar(select(User).where(User.email == "invited@example.invalid"))
+            invited = session.scalar(select(User).where(User.email == "invited@openanonymi.test"))
             if invited is not None:
                 session.delete(invited)
         engine.dispose()
@@ -382,7 +383,7 @@ def test_invitation_is_delivered_without_exposing_code_to_admin(admin_site):
         path = f"/api/v1/workspaces/{workspace_id}/members/invitations"
         unavailable = admin.post(
             path,
-            json={"email": "invited@example.invalid", "role": "member"},
+            json={"email": "invited@openanonymi.test", "role": "member"},
             headers=_headers(csrf),
         )
         assert unavailable.status_code == 503
@@ -390,14 +391,14 @@ def test_invitation_is_delivered_without_exposing_code_to_admin(admin_site):
         app.state.recovery_mailer = mailer
         invited = admin.post(
             path,
-            json={"email": "invited@example.invalid", "role": "member"},
+            json={"email": "invited@openanonymi.test", "role": "member"},
             headers=_headers(csrf),
         )
         assert invited.status_code == 201
         assert invited.json()["role"] == "member"
         assert len(mailer.sent) == 1
         recipient, code = mailer.sent[0]
-        assert recipient == "invited@example.invalid"
+        assert recipient == "invited@openanonymi.test"
         assert code not in invited.text
         with Session(engine) as session:
             user = session.scalar(select(User).where(User.email == recipient))
@@ -409,7 +410,7 @@ def test_invitation_is_delivered_without_exposing_code_to_admin(admin_site):
         )
         assert established.status_code == 204
     with TestClient(app) as invited_member:
-        assert _login(invited_member, "invited@example.invalid")
+        assert _login(invited_member, "invited@openanonymi.test")
         assert invited_member.get(f"/api/v1/workspaces/{workspace_id}/members").status_code == 404
 
 
@@ -420,12 +421,12 @@ def test_failed_invitation_delivery_rolls_back_new_account(admin_site):
         csrf = _login(admin, "admin-access@example.invalid")
         failed = admin.post(
             f"/api/v1/workspaces/{workspace_id}/members/invitations",
-            json={"email": "invited@example.invalid", "role": "member"},
+            json={"email": "invited@openanonymi.test", "role": "member"},
             headers=_headers(csrf),
         )
         assert failed.status_code == 503
     with Session(engine) as session:
-        assert session.scalar(select(User).where(User.email == "invited@example.invalid")) is None
+        assert session.scalar(select(User).where(User.email == "invited@openanonymi.test")) is None
 
 
 def test_member_password_change_requires_current_password_and_revokes_all_sessions(admin_site):

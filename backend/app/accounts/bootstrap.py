@@ -5,6 +5,7 @@ Run after migrations. Passwords are read from the terminal, never command argume
 
 import getpass
 import hmac
+import sys
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
@@ -12,8 +13,9 @@ from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.accounts.security import hash_password, normalize_email
-from app.config import ConfigurationError, load_settings
+from app.accounts.email_rules import creation_email
+from app.accounts.security import hash_password
+from app.config import ConfigurationError, Settings, load_settings
 from app.db.models import Membership, User, Workspace
 
 _BOOTSTRAP_LOCK = 612_004_871
@@ -24,9 +26,15 @@ class BootstrapUnavailable(RuntimeError):
 
 
 def bootstrap_admin(
-    session: Session, *, email: str, password: str, workspace_name: str, now: datetime
+    session: Session,
+    *,
+    email: str,
+    password: str,
+    workspace_name: str,
+    now: datetime,
+    settings: Settings,
 ) -> tuple[UUID, UUID]:
-    normalized = normalize_email(email)
+    normalized = creation_email(email, settings)
     name = workspace_name.strip()
     if not 1 <= len(name) <= 120:
         raise ValueError("Workspace name must contain 1 to 120 characters.")
@@ -63,13 +71,22 @@ def bootstrap_admin(
     return user_id, workspace_id
 
 
+def _read_password(prompt: str) -> str:
+    if sys.stdin.isatty():
+        return getpass.getpass(prompt)
+    line = sys.stdin.readline()
+    if not line:
+        raise ValueError("Password input ended before setup completed.")
+    return line.removesuffix("\n").removesuffix("\r")
+
+
 def main() -> None:
     try:
         settings = load_settings()
         email = input("Administrator email: ")
         workspace_name = input("Workspace name: ")
-        password = getpass.getpass("Password (at least 12 characters): ")
-        confirmation = getpass.getpass("Confirm password: ")
+        password = _read_password("Password (at least 12 characters): ")
+        confirmation = _read_password("Confirm password: ")
         if not hmac.compare_digest(password, confirmation):
             raise ValueError("Passwords do not match.")
         engine = create_engine(settings.database_url, pool_pre_ping=True, hide_parameters=True)
@@ -77,6 +94,7 @@ def main() -> None:
             with Session(engine) as session:
                 bootstrap_admin(
                     session,
+                    settings=settings,
                     email=email,
                     password=password,
                     workspace_name=workspace_name,

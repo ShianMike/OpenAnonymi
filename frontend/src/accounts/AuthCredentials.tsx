@@ -1,7 +1,7 @@
 import { LoadingMark } from '../loading/LoadingMark'
 import { useState, type FormEvent } from 'react'
 import { ArrowUpRight, AtSign, LockKeyhole, Layers2 } from 'lucide-react'
-import { signIn, signUp, type SessionView } from '../api/client'
+import { signIn, signUp, verifySignUp, type SessionView } from '../api/client'
 import { GlassInput } from '../ui/GlassField'
 
 type Props = {
@@ -16,6 +16,9 @@ export function AuthCredentials({ mode, onSignedIn, onRecover }: Props) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [workspace, setWorkspace] = useState('')
+  const [code, setCode] = useState('')
+  const [requested, setRequested] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
   const creating = mode === 'sign-up'
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -24,7 +27,14 @@ export function AuthCredentials({ mode, onSignedIn, onRecover }: Props) {
     setPending(true)
     setError(null)
     try {
-      const session = creating ? await signUp(email, password, workspace) : await signIn(email, password)
+      if (creating && !requested) {
+        const receipt = await signUp(email, password, workspace)
+        setMessage(receipt.message)
+        setRequested(true)
+        requestAnimationFrame(() => document.getElementById('signup-code')?.focus())
+        return
+      }
+      const session = creating ? await verifySignUp(email, code, password) : await signIn(email, password)
       setPassword('')
       onSignedIn(session)
     } catch (cause: unknown) {
@@ -41,8 +51,9 @@ export function AuthCredentials({ mode, onSignedIn, onRecover }: Props) {
           {error}
         </p>
       )}
+      {message && <p role="status" className="auth-notice">{message}</p>}
       <fieldset disabled={pending} className="auth-fields">
-        {creating && (
+        {creating && !requested && (
           <div className="auth-field-row">
             <label htmlFor="sign-up-workspace">Workspace name</label>
             <GlassInput
@@ -57,7 +68,7 @@ export function AuthCredentials({ mode, onSignedIn, onRecover }: Props) {
             />
           </div>
         )}
-        <div className="auth-field-row">
+        {!requested && <div className="auth-field-row">
           <label htmlFor="auth-email">Email address</label>
           <GlassInput
             id="auth-email"
@@ -70,8 +81,14 @@ export function AuthCredentials({ mode, onSignedIn, onRecover }: Props) {
             value={email}
             onChange={(event) => setEmail(event.target.value)}
           />
-        </div>
-        <div className="auth-field-row">
+        </div>}
+        {requested && <div className="auth-field-row">
+          <label htmlFor="signup-code">Email code</label>
+          <GlassInput id="signup-code" required autoComplete="one-time-code" maxLength={200}
+            value={code} onChange={(event) => setCode(event.target.value)} aria-describedby="signup-code-help" />
+          <small id="signup-code-help" className="field-hint">Enter the code sent to {email}. Keep this page open; reloading asks for your password again.</small>
+        </div>}
+        {!requested && <div className="auth-field-row">
           <div className="auth-label-row">
             <label htmlFor="auth-password">Password</label>
             {!creating && (
@@ -98,22 +115,25 @@ export function AuthCredentials({ mode, onSignedIn, onRecover }: Props) {
               At least 12 characters. A few memorable words work well.
             </small>
           )}
-        </div>
+        </div>}
         <button type="submit" className="auth-submit">
           {pending && <LoadingMark small />}
           {pending
             ? creating
-              ? 'Creating your workspace…'
+              ? requested ? 'Verifying your code…' : 'Sending your code…'
               : 'Signing in…'
             : creating
-              ? 'Create account'
+              ? requested ? 'Verify and create account' : 'Send sign-up code'
               : 'Sign in'}
           {!pending && <ArrowUpRight size={18} aria-hidden="true" />}
         </button>
+        {requested && <button type="button" className="auth-link" onClick={() => {
+          setRequested(false); setCode(''); setMessage(null); setError(null)
+        }}>Edit sign-up details or request a new code</button>}
       </fieldset>
       {pending && (
         <span className="sr-only" role="status">
-          {creating ? 'Creating account' : 'Signing in'}
+          {creating ? requested ? 'Verifying your code' : 'Sending your code' : 'Signing in'}
         </span>
       )}
     </form>

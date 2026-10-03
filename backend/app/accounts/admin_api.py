@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.accounts.access import WorkspaceAccessDenied
 from app.accounts.api import current_identity, mutation_identity
+from app.accounts.email_rules import EmailRuleError
 from app.accounts.memberships import (
     LastAdministrator,
     MemberExists,
@@ -157,8 +158,11 @@ def create_admin_router(engine: Engine) -> APIRouter:
                     email=body.email,
                     role=body.role,
                     mailer=mailer,
+                    settings=request.app.state.settings,
                     now=datetime.now(UTC),
                 )
+        except EmailRuleError as exc:
+            raise ApiError(exc.status, exc.code, exc.message) from None
         except (WorkspaceAccessDenied, MemberExists, RecoveryDeliveryError, ValueError) as exc:
             _raise_access_error(exc)
         return _member_view(record)

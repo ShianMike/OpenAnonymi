@@ -9,6 +9,7 @@ from app.config import load_settings
 from app.db import (
     custom_rules,  # noqa: F401 -- register rule version/snapshot tables
     durable,  # noqa: F401 -- register persistent content-free limits and undo
+    email_verification,  # noqa: F401 -- register ownership proof and pending accounts
     models,  # noqa: F401 — register all tables with Base.metadata
     recovery,  # noqa: F401 -- register the protected autosave table
     team_review,  # noqa: F401 -- register explicit reviewer grant and protected comments

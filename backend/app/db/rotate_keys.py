@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.config import ConfigurationError, Settings, load_settings
 from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedContentError, ProtectedValue
 from app.db.custom_rules import RuleVersion
+from app.db.email_verification import PendingRegistration
 from app.db.models import Document, SourceRevision
 from app.db.recovery import RecoverySnapshot
 from app.db.team_review import FindingComment
@@ -65,8 +66,13 @@ def rotate_recovery(session: Session, keys: KeyRing) -> int:
 
 
 def rotate_rules(session: Session, keys: KeyRing) -> int:
-    rows = session.scalars(select(RuleVersion).where(RuleVersion.payload_key_id != keys.active_key_id)
-        .order_by(RuleVersion.rule_id, RuleVersion.version).limit(BATCH_SIZE).with_for_update()).all()
+    rows = session.scalars(
+        select(RuleVersion)
+        .where(RuleVersion.payload_key_id != keys.active_key_id)
+        .order_by(RuleVersion.rule_id, RuleVersion.version)
+        .limit(BATCH_SIZE)
+        .with_for_update()
+    ).all()
     for row in rows:
         rotated = keys.rotate_text(ProtectedValue(row.payload_ciphertext, row.payload_key_id))
         row.payload_ciphertext, row.payload_key_id = rotated.ciphertext, rotated.key_id
@@ -74,17 +80,43 @@ def rotate_rules(session: Session, keys: KeyRing) -> int:
 
 
 def rotate_comments(session: Session, keys: KeyRing) -> int:
-    rows = session.scalars(select(FindingComment).where(FindingComment.text_key_id != keys.active_key_id)
-        .order_by(FindingComment.id).limit(BATCH_SIZE).with_for_update()).all()
+    rows = session.scalars(
+        select(FindingComment)
+        .where(FindingComment.text_key_id != keys.active_key_id)
+        .order_by(FindingComment.id)
+        .limit(BATCH_SIZE)
+        .with_for_update()
+    ).all()
     for row in rows:
         protected = keys.rotate_text(ProtectedValue(row.text_ciphertext, row.text_key_id))
         row.text_ciphertext, row.text_key_id = protected.ciphertext, protected.key_id
     return len(rows)
 
 
+def rotate_pending_registrations(session: Session, keys: KeyRing) -> int:
+    rows = session.scalars(
+        select(PendingRegistration)
+        .where(PendingRegistration.key_id != keys.active_key_id)
+        .order_by(PendingRegistration.id)
+        .limit(BATCH_SIZE)
+        .with_for_update()
+    ).all()
+    for row in rows:
+        rotated = keys.rotate_text(ProtectedValue(row.workspace_name_ciphertext, row.key_id))
+        row.workspace_name_ciphertext, row.key_id = rotated.ciphertext, rotated.key_id
+    return len(rows)
+
+
 def rotate_database(settings: Settings, keys: KeyRing) -> dict[str, int]:
     engine = create_engine(settings.database_url, pool_pre_ping=True, hide_parameters=True)
-    totals = {"titles": 0, "source revisions": 0, "working drafts": 0, "rules": 0, "comments": 0}
+    totals = {
+        "titles": 0,
+        "source revisions": 0,
+        "working drafts": 0,
+        "rules": 0,
+        "comments": 0,
+        "pending registrations": 0,
+    }
     try:
         for label, rotate_batch in (
             ("titles", rotate_documents),
@@ -92,6 +124,7 @@ def rotate_database(settings: Settings, keys: KeyRing) -> dict[str, int]:
             ("working drafts", rotate_recovery),
             ("rules", rotate_rules),
             ("comments", rotate_comments),
+            ("pending registrations", rotate_pending_registrations),
         ):
             while True:
                 with Session(engine) as session:
@@ -120,7 +153,8 @@ def main() -> None:
     print(
         f"Rotated {totals['titles']} titles, {totals['source revisions']} source revisions "
         f", {totals['working drafts']} working drafts, {totals['rules']} rule versions "
-        f"and {totals['comments']} finding comments."
+        f", {totals['comments']} finding comments "
+        f"and {totals['pending registrations']} pending registrations."
     )
 
 

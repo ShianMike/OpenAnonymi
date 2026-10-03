@@ -1,6 +1,7 @@
 """Validated process configuration. Never include setting values in errors."""
 
 import secrets
+from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -10,6 +11,7 @@ from pydantic import (
     PrivateAttr,
     SecretStr,
     ValidationError,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -37,6 +39,11 @@ class Settings(BaseSettings):
     smtp_username: str | None = None
     smtp_password: SecretStr | None = Field(default=None, repr=False)
     smtp_from: str | None = None
+    email_check_deliverability: bool = True
+    email_dns_timeout: int = Field(default=5, ge=2, le=10)
+    email_block_disposable: bool = False
+    email_allow_test_domains: bool = False
+    dev_mail_outbox: Path | None = Field(default=None, repr=False)
     # Proxies in front of the app that append to X-Forwarded-For. Zero trusts no header.
     trusted_proxy_hops: int = Field(default=0, ge=0, le=5)
     # libpq connect timeout in seconds; managed databases that suspend may need longer.
@@ -74,6 +81,25 @@ class Settings(BaseSettings):
             ):
                 raise ValueError("allowed origins must be explicit HTTP(S) origins")
         return values
+
+    @field_validator("dev_mail_outbox")
+    @classmethod
+    def require_private_outbox(cls, value: Path | None, info: ValidationInfo):
+        if value is None:
+            return None
+        if info.data.get("environment") == "production":
+            raise ValueError("dev_mail_outbox is forbidden in production")
+        value = value.resolve()
+        if ".local-dev" not in value.parts:
+            raise ValueError("dev_mail_outbox must be inside a .local-dev directory")
+        return value
+
+    @field_validator("email_allow_test_domains")
+    @classmethod
+    def refuse_test_domains_in_production(cls, value: bool, info: ValidationInfo):
+        if value and info.data.get("environment") == "production":
+            raise ValueError("email_allow_test_domains is forbidden in production")
+        return value
 
     @model_validator(mode="after")
     def require_production_security(self) -> "Settings":
@@ -113,7 +139,9 @@ class Settings(BaseSettings):
                 if database.query.get("sslmode") != "verify-full":
                     raise ValueError("production remote databases require sslmode=verify-full")
                 if not database.query.get("sslrootcert"):
-                    raise ValueError("production remote databases require a trusted root certificate")
+                    raise ValueError(
+                        "production remote databases require a trusted root certificate"
+                    )
             if not self.active_key_id:
                 raise ValueError("production requires an active content encryption key")
         return self

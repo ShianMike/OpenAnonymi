@@ -1,6 +1,7 @@
 """FastAPI application factory."""
 
 import asyncio
+import logging
 from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, Response
@@ -12,6 +13,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.accounts.admin_api import create_admin_router
 from app.accounts.api import create_auth_router
+from app.accounts.outbox import OutboxMailer
 from app.accounts.recovery import RecoveryMailer, SmtpRecoveryMailer
 from app.cleanup.api import create_cleanup_router
 from app.cleanup.runner import periodic_cleanup
@@ -57,6 +59,8 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
+        if not settings.email_check_deliverability:
+            logging.getLogger("app.accounts").warning("Email domain checks are disabled")
         cleanup_task = (
             asyncio.create_task(periodic_cleanup(engine))
             if settings.environment != "test"
@@ -87,7 +91,11 @@ def create_app(
     app.state.settings = settings
     app.state.engine = engine
     app.state.recovery_mailer = recovery_mailer or (
-        SmtpRecoveryMailer(settings) if settings.smtp_host else None
+        SmtpRecoveryMailer(settings)
+        if settings.smtp_host
+        else OutboxMailer(settings.dev_mail_outbox)
+        if settings.dev_mail_outbox
+        else None
     )
     # Added innermost first. The body limit sits inside CORS so a 413 still carries CORS
     # headers the website can read; security headers and the access log wrap everything.

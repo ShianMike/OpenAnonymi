@@ -111,6 +111,7 @@ export async function sendJson<T>(
     body: body ? JSON.stringify(body) : undefined,
   }, async (response) => {
     await requireSuccess(response)
+    if (response.status === 204) return undefined as T
     return response.json() as Promise<T>
   })
 }
@@ -148,8 +149,20 @@ export function signIn(email: string, password: string): Promise<SessionView> {
   return post<SessionView>('/auth/sign-in', { email, password })
 }
 
-export function signUp(email: string, password: string, workspaceName: string): Promise<SessionView> {
-  return post<SessionView>('/auth/sign-up', { email, password, workspace_name: workspaceName })
+export function signUp(email: string, password: string, workspaceName: string): Promise<components['schemas']['RegistrationMessage']> {
+  return post('/auth/sign-up', { email, password, workspace_name: workspaceName })
+}
+
+export function verifySignUp(email: string, code: string, password: string): Promise<SessionView> {
+  return post('/auth/sign-up/verify', { email, code, password })
+}
+
+export function requestEmailVerification(csrfToken: string): Promise<components['schemas']['RegistrationMessage']> {
+  return post('/auth/email-verification', {}, csrfToken)
+}
+
+export function confirmEmailVerification(code: string, csrfToken: string): Promise<void> {
+  return post('/auth/email-verification/confirm', { code }, csrfToken)
 }
 
 export async function signOut(csrfToken: string): Promise<void> {

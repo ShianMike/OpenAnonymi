@@ -17,6 +17,7 @@ from app.config import Settings
 from app.db.models import Membership, RecoveryToken, User, Workspace
 from app.db.models import Session as StoredSession
 from app.factory import create_app
+from tests.mail_support import Mailbox
 
 ORIGIN = "http://localhost:5173"
 PASSWORD = "synthetic-password-123"
@@ -311,10 +312,19 @@ def test_expired_recovery_code_is_denied(auth_site):
 @pytest.fixture
 def registered_account(auth_site):
     client, engine, *_ = auth_site
-    email = f"new-{uuid4().hex}@example.invalid"
+    email = f"new-{uuid4().hex}@openanonymi.test"
+    mailer = Mailbox()
+    client.app.state.recovery_mailer = mailer
+    client.app.state.settings.email_allow_test_domains = True
     response = client.post(
         "/api/v1/auth/sign-up",
         json={"email": email, "password": PASSWORD, "workspace_name": "My new workspace"},
+        headers={"Origin": ORIGIN},
+    )
+    assert response.status_code == 202
+    response = client.post(
+        "/api/v1/auth/sign-up/verify",
+        json={"email": email, "password": PASSWORD, "code": mailer.latest(email)},
         headers={"Origin": ORIGIN},
     )
     assert response.status_code == 201
@@ -382,7 +392,7 @@ def test_registration_duplicate_is_atomic_and_never_takes_over_account(registere
         },
         headers={"Origin": ORIGIN},
     )
-    assert response.status_code == 409
+    assert response.status_code == 202
     assert "set-cookie" not in response.headers
     assert client.get("/api/v1/auth/session").json()["user_id"] == identity["user_id"]
     with Session(engine) as session:
@@ -392,6 +402,7 @@ def test_registration_duplicate_is_atomic_and_never_takes_over_account(registere
 
 def test_registration_origin_validation_access_fields_and_throttling(auth_site):
     client, engine, workspace_id, *_ = auth_site
+    client.app.state.recovery_mailer = Mailbox()
     body = {"email": "not-an-email", "password": PASSWORD, "workspace_name": "Workspace"}
     assert client.post("/api/v1/auth/sign-up", json=body).status_code == 403
     assert (
