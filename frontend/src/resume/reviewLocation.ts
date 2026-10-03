@@ -1,3 +1,4 @@
+import { findingCategories } from '../rules/categoryPresentation'
 import type { FindingCategory } from '../api/client'
 
 export type ReviewLocation = {
@@ -13,7 +14,7 @@ export type ReviewLocation = {
   scroll: { page: number; original: number; preview: number; findings: number; editor: number }
 }
 
-const categories = ['all', 'email', 'phone', 'person', 'organization', 'location', 'address', 'identifier', 'custom']
+const categories: string[] = ['all', ...findingCategories]
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const offset = (value: unknown) => typeof value === 'number' && Number.isFinite(value)
   ? Math.max(0, Math.min(10_000_000, value)) : 0

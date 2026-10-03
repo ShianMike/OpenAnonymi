@@ -1,3 +1,4 @@
+import { categoryPresentation, findingCategories } from '../rules/categoryPresentation'
 import { FileText, Pencil, Check, MousePointer2 } from 'lucide-react'
 import type { ReviewController } from './useReviewController'
 import { GlassTextarea } from '../ui/GlassTextarea'
@@ -103,10 +104,10 @@ export function ReviewSource({ review }: { review: ReviewController }) {
                 review.setManualCategory(value as typeof review.manualCategory)
               }
             >
-              {['person', 'organization', 'location', 'address', 'identifier', 'custom', 'email', 'phone'].map(
+              {findingCategories.map(
                 (category) => (
                   <option key={category} value={category}>
-                    {category[0].toUpperCase() + category.slice(1)}
+                    {categoryPresentation[category as keyof typeof categoryPresentation].label}
                   </option>
                 ),
               )}

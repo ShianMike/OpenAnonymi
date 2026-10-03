@@ -1,3 +1,4 @@
+import { categoryPresentation, findingCategories } from './categoryPresentation'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { GlassSelect } from '../ui/GlassSelect'
@@ -49,8 +50,8 @@ export function RuleDialog({ workspace, csrf, rule, trigger, saved, editable = t
           <div><label htmlFor={`${id}-category`}>Finding category</label>
             <GlassSelect id={`${id}-category`} value={body.category} disabled={pending || !editable}
               onValueChange={(category) => patch({ category: category as RuleInput['category'] })}>
-              {['custom', 'person', 'organization', 'location', 'address', 'identifier', 'email', 'phone'].map((category) =>
-                <option key={category} value={category}>{category[0].toUpperCase() + category.slice(1)}</option>)}
+              {findingCategories.map((category) =>
+                <option key={category} value={category}>{categoryPresentation[category].label}</option>)}
             </GlassSelect></div>
         </div>
         <label htmlFor={`${id}-expression`}>{body.kind === 'identifier' ? 'Template' : 'Phrase'}</label>

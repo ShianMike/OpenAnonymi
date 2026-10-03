@@ -14,6 +14,7 @@ from app.db.crypto import KeyRing, ProtectedValue
 from app.db.labels import allocate_group_locked
 from app.db.models import Decision, Document, EntityGroup, Finding, ScanRun, SourceRevision
 from app.db.repository import VersionConflict
+from app.detection.dates import format_for_span
 from app.groups.undo_store import UndoUnavailable, available, capture, remember, replay
 from app.lifecycle import require_transition
 from app.workspace.activity import record_event
@@ -166,7 +167,7 @@ def _current_locked(
 
 def _validated_selection(
     session: Session, version: VersionRef, span: SourceSpan, keys: KeyRing
-) -> None:
+) -> str:
     revision = session.get(SourceRevision, version.source_revision_id)
     if (
         revision is None
@@ -179,6 +180,7 @@ def _validated_selection(
     source = keys.decrypt_text(ProtectedValue(revision.source_ciphertext, revision.source_key_id))
     if not source[span.start : span.end].strip():
         raise ReviewValidationError("invalid_span", "Select visible text to mark.")
+    return source
 
 
 def _active_finding(session: Session, version: VersionRef, finding_id: UUID) -> Finding:
@@ -275,7 +277,7 @@ def add_finding(
 ) -> FindingsSnapshot:
     with Session(engine) as session, session.begin():
         document, version = _current_locked(session, document_id, actor_id, expected, now)
-        _validated_selection(session, version, span, keys)
+        source = _validated_selection(session, version, span, keys)
         _require_nonoverlap(session, version, span)
         created_id = uuid4()
         before = capture(session, [], created=(created_id,))
@@ -285,6 +287,7 @@ def add_finding(
                 document_id=document_id,
                 source_revision_id=version.source_revision_id,
                 category=category.value,
+                date_format=format_for_span(source, span.start, span.end, document.phone_region) if category == FindingCategory.DATE else None,
                 origin="manual",
                 start_offset=span.start,
                 end_offset=span.end,
@@ -321,7 +324,7 @@ def revise_finding(
     with Session(engine) as session, session.begin():
         document, version = _current_locked(session, document_id, actor_id, expected, now)
         finding = _active_finding(session, version, finding_id)
-        _validated_selection(session, version, span, keys)
+        source = _validated_selection(session, version, span, keys)
         _require_nonoverlap(session, version, span, exclude_id=finding_id)
         if (finding.start_offset, finding.end_offset, finding.category) == (
             span.start,
@@ -333,6 +336,7 @@ def revise_finding(
         finding.start_offset = span.start
         finding.end_offset = span.end
         finding.category = category.value
+        finding.date_format = format_for_span(source, span.start, span.end, document.phone_region) if category == FindingCategory.DATE else None
         finding.origin = "manual"
         finding.scan_run_id = None
         finding.rule_id = None
@@ -423,6 +427,7 @@ def add_exact_match(
                 document_id=document_id,
                 source_revision_id=version.source_revision_id,
                 category=source_finding.category,
+                date_format=format_for_span(source, span.start, span.end, document.phone_region) if source_finding.category == FindingCategory.DATE else None,
                 origin="manual",
                 start_offset=span.start,
                 end_offset=span.end,

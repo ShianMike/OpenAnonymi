@@ -7,13 +7,13 @@ import type { DraftState } from './reviewState'
 type Update<T> = Dispatch<SetStateAction<T>>
 
 export function useReviewRecovery({ state, documentId, session, text, categories,
-  phoneRegion, dirty, paused, setText, setEmailEnabled, setPhoneEnabled, setExtraCategories,
-  setPhoneRegion, setEditingSource, setConflict, setNotice }: {
+  phoneRegion, language, dirty, paused, setText, setEmailEnabled, setPhoneEnabled, setExtraCategories,
+  setPhoneRegion, setLanguage, setEditingSource, setConflict, setNotice }: {
   state: DraftState; documentId: string | undefined; session: SessionView
-  text: string; categories: FindingCategory[]; phoneRegion: string
+  text: string; categories: FindingCategory[]; phoneRegion: string; language: string
   dirty: boolean; paused: boolean
   setExtraCategories: Update<FindingCategory[]>; setText: Update<string>; setEmailEnabled: Update<boolean>; setPhoneEnabled: Update<boolean>
-  setPhoneRegion: Update<string>; setEditingSource: Update<boolean>
+  setPhoneRegion: Update<string>; setLanguage: Update<string>; setEditingSource: Update<boolean>
   setConflict: Update<boolean>; setNotice: Update<string | null>
 }) {
   const valid = state.kind === 'ready' && state.saved.can_edit && state.saved.version.document_id === documentId
@@ -23,7 +23,7 @@ export function useReviewRecovery({ state, documentId, session, text, categories
     } : null,
     csrf: session.csrf_token, dirty, paused,
     payload: valid && state.kind === 'ready' ? {
-      source: text, title: state.saved.title, categories, phone_region: phoneRegion,
+      source: text, title: state.saved.title, categories, phone_region: phoneRegion, language,
       retention_days: 7, preset_id: state.saved.preset_id, base_version: state.saved.version,
     } : null,
     onRestore: (view) => {
@@ -33,6 +33,7 @@ export function useReviewRecovery({ state, documentId, session, text, categories
       setPhoneEnabled(view.payload.categories.includes('phone'))
       setExtraCategories(extras(view.payload.categories))
       setPhoneRegion(view.payload.phone_region)
+      setLanguage(view.payload.language ?? 'en')
       if (view.payload.source !== state.saved.text) setEditingSource(true)
       if (view.payload.base_version?.source_revision_id !== state.saved.version.source_revision_id) {
         setConflict(true)

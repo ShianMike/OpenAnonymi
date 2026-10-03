@@ -5,6 +5,7 @@ import type { ReviewController } from './useReviewController'
 import { ReviewRules } from '../rules/ReviewRules'
 import '../rules/rules.css'
 import { extraDetection } from '../detection/categories'
+import { phoneRegions } from '../ui/phoneRegions'
 
 export function ReviewSettings({ review, csrf }: { review: ReviewController; csrf: string }) {
   if (review.state.kind !== 'ready') return null
@@ -54,7 +55,7 @@ export function ReviewSettings({ review, csrf }: { review: ReviewController; csr
               : current.filter((category) => category !== choice.category)); review.setConfirmedPreview(false); review.setPreparedDownload(null) }} />)}</div>
           <div>
             <label className="field-label" htmlFor="scan-phone-region">
-              Phone region
+              {review.extraCategories.includes('date') ? 'Phone and date region' : 'Phone region'}
             </label>
             <GlassSelect
               id="scan-phone-region"
@@ -66,12 +67,7 @@ export function ReviewSettings({ review, csrf }: { review: ReviewController; csr
                 review.setPreparedDownload(null)
               }}
             >
-              <option value="PH">Philippines</option>
-              <option value="US">United States</option>
-              <option value="GB">United Kingdom</option>
-              <option value="CA">Canada</option>
-              <option value="AU">Australia</option>
-              <option value="IN">India</option>
+              {phoneRegions.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
             </GlassSelect>
           </div>
           <button

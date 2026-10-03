@@ -146,6 +146,7 @@ class Document(Base):
         String(300), nullable=False, server_default="email,phone"
     )
     phone_region: Mapped[str] = mapped_column(String(2), nullable=False, server_default="US")
+    language: Mapped[str] = mapped_column(String(2), nullable=False, server_default="en")
     preset_id: Mapped[UUID | None] = mapped_column(PostgreSQLUUID(as_uuid=True))
     preset_version: Mapped[int | None] = mapped_column(Integer)
     preferred_action: Mapped[str] = mapped_column(String(8), nullable=False, server_default="label")
@@ -238,7 +239,7 @@ class EntityGroup(Base):
         ),
         UniqueConstraint("document_id", "label", name="uq_entity_groups_document_label"),
         CheckConstraint(
-            "category IN ('person', 'organization', 'address', 'identifier', 'custom', 'email', 'phone', 'location')",
+            "category IN ('person', 'organization', 'address', 'identifier', 'custom', 'email', 'phone', 'location', 'date', 'url', 'secret', 'national_id')",
             name="valid_category",
         ),
     )
@@ -308,6 +309,7 @@ class Finding(Base):
     origin: Mapped[str] = mapped_column(String(16), nullable=False)
     rule_id: Mapped[str | None] = mapped_column(String(80))
     rule_version: Mapped[str | None] = mapped_column(String(30))
+    date_format: Mapped[str | None] = mapped_column(String(80))
     reason: Mapped[str | None] = mapped_column(String(200))
     scan_run_id: Mapped[UUID | None] = mapped_column(PostgreSQLUUID(as_uuid=True))
     start_offset: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -342,7 +344,7 @@ class Finding(Base):
             name="automatic_finding_metadata",
         ),
         CheckConstraint(
-            "category IN ('person', 'organization', 'address', 'identifier', 'custom', 'email', 'phone', 'location')",
+            "category IN ('person', 'organization', 'address', 'identifier', 'custom', 'email', 'phone', 'location', 'date', 'url', 'secret', 'national_id')",
             name="valid_category",
         ),
         Index("ix_findings_revision", "source_revision_id", "start_offset"),

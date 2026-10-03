@@ -1,0 +1,39 @@
+{
+  "retrieved": "2026-10-03",
+  "license": "Factual codes independently arranged; source publishers retain rights in their publications. No publication text or source code copied.",
+  "sources": [
+    "https://gist.github.com/canhlinh/9b01e9f7e27a4b8ac470a78a8722648d",
+    "https://gist.github.com/eddiemoore/7131781"
+  ],
+  "count": 4,
+  "note": "STFG algorithm facts independently corroborated from two implementers. Arif README disagrees and is not used. M has only one corroborated description, so M remains format-only.",
+  "values": {
+    "weights": [
+      2,
+      7,
+      6,
+      5,
+      4,
+      3,
+      2
+    ],
+    "prefixes": {
+      "S": {
+        "offset": 0,
+        "table": "JZIHGFEDCBA"
+      },
+      "T": {
+        "offset": 4,
+        "table": "JZIHGFEDCBA"
+      },
+      "F": {
+        "offset": 0,
+        "table": "XWUTRQPNMLK"
+      },
+      "G": {
+        "offset": 4,
+        "table": "XWUTRQPNMLK"
+      }
+    }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "license": "CC0-1.0",
+  "author": "OpenAnonymi synthetic validation",
+  "rule_id": "email.common_syntax",
+  "rows": [
+    {
+      "text": "😀 nora@example.test",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 19,
+          "category": "email",
+          "rule_id": "email.common_syntax"
+        }
+      ]
+    },
+    {
+      "text": "😀 sage+work@example.invalid",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 27,
+          "category": "email",
+          "rule_id": "email.common_syntax"
+        }
+      ]
+    },
+    {
+      "text": "icon@2x.png",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "bad..dots@example.test",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "_ops@example.test",
+      "region": "US",
+      "expected": []
+    }
+  ]
+}

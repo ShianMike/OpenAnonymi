@@ -1,0 +1,51 @@
+{
+  "license": "CC0-1.0",
+  "author": "OpenAnonymi synthetic validation",
+  "rule_id": "identifier.ipv6",
+  "rows": [
+    {
+      "text": "😀 2001:db8::8",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 13,
+          "category": "identifier",
+          "rule_id": "identifier.ipv6"
+        }
+      ]
+    },
+    {
+      "text": "😀 ::ffff:192.0.2.9",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 18,
+          "category": "identifier",
+          "rule_id": "identifier.ipv6"
+        }
+      ]
+    },
+    {
+      "text": "::",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "::1",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": ":::",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "2001:db8::8%eth0",
+      "region": "US",
+      "expected": []
+    }
+  ]
+}

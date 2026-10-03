@@ -15,10 +15,17 @@ from app.accounts.access import (
     owned_document,
     review_document,
 )
-from app.contracts import DocumentStatus, FindingCategory, SourceSpan, VersionRef
+from app.contracts import (
+    AUTOMATIC_CATEGORIES,
+    DocumentStatus,
+    FindingCategory,
+    SourceSpan,
+    VersionRef,
+)
 from app.db.crypto import KeyRing, ProtectedValue
 from app.db.models import Document, Finding, ScanRun, SourceRevision
 from app.db.repository import VersionConflict
+from app.detection.dates import format_for_span
 from app.detection.rules import DETECTOR_VERSION, DetectionLimitError, detect_suggestions
 from app.lifecycle import require_transition
 from app.workspace.activity import record_event
@@ -41,6 +48,7 @@ class StoredSuggestion:
     rule_id: str
     rule_version: str
     reason: str
+    date_format: str | None
 
 
 @dataclass(frozen=True)
@@ -99,6 +107,7 @@ def _snapshot(session: Session, version: VersionRef, run: ScanRun | None) -> Sca
                 rule_id=row.rule_id,
                 rule_version=row.rule_version,
                 reason=row.reason,
+                date_format=row.date_format,
             )
             for row in rows
         ),
@@ -141,16 +150,10 @@ def change_scan_settings(
     categories: set[FindingCategory],
     phone_region: str,
     now: datetime,
+    language: str | None = None,
 ) -> VersionRef:
     if not categories.issubset(
-        {
-            FindingCategory.EMAIL,
-            FindingCategory.PHONE,
-            FindingCategory.PERSON,
-            FindingCategory.ORGANIZATION,
-            FindingCategory.LOCATION,
-            FindingCategory.IDENTIFIER,
-        }
+        AUTOMATIC_CATEGORIES
     ):
         raise ValueError("Choose supported automatic suggestion categories.")
     # Detector validation is the single source for supported regions.
@@ -159,16 +162,22 @@ def change_scan_settings(
     region = phone_region.upper()
     if region not in SUPPORTED_REGIONS:
         raise ValueError("Choose a supported phone region.")
+    from app.detection.local_nlp import SUPPORTED_LANGUAGES
+
+    if language is not None and language not in SUPPORTED_LANGUAGES:
+        raise ValueError("Choose a supported language.")
     encoded_categories = ",".join(sorted(category.value for category in categories))
     with Session(engine) as session, session.begin():
         document = owned_document(session, document_id, actor_id, now, lock=True)
         current = _version(document)
         if expected != current:
             raise VersionConflict(current)
-        if document.category_settings == encoded_categories and document.phone_region == region:
+        selected_language = language if language is not None else document.language
+        if document.category_settings == encoded_categories and document.phone_region == region and document.language == selected_language:
             return current
         document.category_settings = encoded_categories
         document.phone_region = region
+        document.language = selected_language
         previous_settings = document.settings_version
         document.settings_version += 1
         from app.groups.undo_store import clear_document
@@ -279,6 +288,7 @@ def scan_document(
             FindingCategory(value) for value in document.category_settings.split(",") if value
         }
         region = document.phone_region
+        language = document.language
         from app.custom_rules.service import load_snapshot
 
         custom_rules = load_snapshot(session, document, keys)
@@ -311,7 +321,7 @@ def scan_document(
         attempt_count = run.attempt_count
 
     try:
-        detected = detect_suggestions(source, categories, region)
+        detected = detect_suggestions(source, categories, region, language)
         from app.custom_rules.matching import detect_custom
 
         detected.extend(
@@ -320,7 +330,7 @@ def scan_document(
         unique = {}
         for suggestion in detected:
             unique.setdefault(
-                (suggestion.span.start, suggestion.span.end, suggestion.category), suggestion
+                (suggestion.span.start, suggestion.span.end, suggestion.category, suggestion.rule_id), suggestion
             )
         detected = list(unique.values())
         if len(detected) > 1_000:
@@ -380,6 +390,10 @@ def scan_document(
                         rule_id=item.rule_id,
                         rule_version=item.rule_version,
                         reason=item.reason,
+                        date_format=item.date_format or (
+                            format_for_span(source, item.span.start, item.span.end, region)
+                            if item.category == FindingCategory.DATE else None
+                        ),
                         start_offset=item.span.start,
                         end_offset=item.span.end,
                         created_at=datetime.now(UTC),

@@ -14,8 +14,9 @@ class RecoveryPayload(BaseModel):
 
     source: str = Field(max_length=MAX_CODE_POINTS)
     title: str | None = Field(default=None, max_length=200)
-    categories: list[FindingCategory] = Field(default_factory=list, max_length=8)
+    categories: list[FindingCategory] = Field(default_factory=list, max_length=12)
     phone_region: str = Field(default="PH", min_length=2, max_length=2)
+    language: str = Field(default="en", min_length=2, max_length=2)
     retention_days: int = Field(default=7, ge=1, le=30)
     preset_id: UUID | None = None
     base_version: VersionRef | None = None
@@ -30,6 +31,10 @@ class RecoveryPayload(BaseModel):
             raise ValueError("Input exceeds the 1 MiB UTF-8 limit.")
         if self.phone_region not in SUPPORTED_REGIONS:
             raise ValueError("Choose a supported phone region.")
+        from app.detection.local_nlp import SUPPORTED_LANGUAGES
+
+        if self.language not in SUPPORTED_LANGUAGES:
+            raise ValueError("Choose a supported language.")
         return self
 
 

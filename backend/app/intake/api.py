@@ -16,6 +16,7 @@ from app.accounts.access import WorkspaceAccessDenied, active_workspace
 from app.accounts.api import current_identity, mutation_identity
 from app.accounts.security import SessionIdentity
 from app.contracts import (
+    AUTOMATIC_CATEGORIES,
     ConflictResponse,
     DocumentStatus,
     ErrorResponse,
@@ -50,6 +51,7 @@ class SourceView(BaseModel):
     title: str | None
     categories: list[FindingCategory]
     phone_region: str
+    language: str
     preset_id: UUID | None
     preset_version: int | None
     preferred_action: str
@@ -71,6 +73,7 @@ class CreateDraftRequest(BaseModel):
     phone_region: str = Field(default="PH", min_length=2, max_length=2)
     retention_days: int | None = Field(default=None, ge=1, le=30)
     preset_id: UUID | None = None
+    language: str = Field(default="en", min_length=2, max_length=2)
 
 
 class EditSourceRequest(BaseModel):
@@ -95,6 +98,7 @@ def _source_view(source: LoadedSource) -> SourceView:
         title=source.title,
         categories=list(source.categories),
         phone_region=source.phone_region,
+        language=source.language,
         preset_id=source.preset_id,
         preset_version=source.preset_version,
         preferred_action=source.preferred_action,
@@ -115,14 +119,7 @@ def _keys(request: Request) -> KeyRing:
 def _categories(values: list[FindingCategory]) -> set[FindingCategory]:
     categories = set(values)
     if not categories.issubset(
-        {
-            FindingCategory.EMAIL,
-            FindingCategory.PHONE,
-            FindingCategory.PERSON,
-            FindingCategory.ORGANIZATION,
-            FindingCategory.LOCATION,
-            FindingCategory.IDENTIFIER,
-        }
+        AUTOMATIC_CATEGORIES
     ):
         raise ApiError(
             422, "invalid_categories", "Choose supported automatic suggestion categories."
@@ -209,6 +206,7 @@ def create_intake_router(engine: Engine) -> APIRouter:
                     title=body.title,
                     categories=_categories(body.categories),
                     phone_region=body.phone_region,
+                    language=body.language,
                     keys=keys,
                     now=now,
                     requested_expiry=(now + timedelta(days=body.retention_days))
@@ -238,6 +236,7 @@ def create_intake_router(engine: Engine) -> APIRouter:
         title: Annotated[str | None, Form(max_length=200)] = None,
         categories: Annotated[str, Form()] = "email,phone",
         phone_region: Annotated[str, Form(min_length=2, max_length=2)] = "PH",
+        language: Annotated[str, Form(min_length=2, max_length=2)] = "en",
         retention_days: Annotated[int | None, Form(ge=1, le=30)] = None,
         preset_id: Annotated[UUID | None, Form()] = None,
     ) -> SavedDraftView:
@@ -281,6 +280,7 @@ def create_intake_router(engine: Engine) -> APIRouter:
                     title=title,
                     categories=_categories(parsed_categories),
                     phone_region=phone_region,
+                    language=language,
                     keys=keys,
                     now=now,
                     requested_expiry=(now + timedelta(days=retention_days))

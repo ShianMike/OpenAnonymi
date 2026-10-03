@@ -24,6 +24,7 @@ FINDING_FIELDS = (
     "rule_id",
     "rule_version",
     "reason",
+    "date_format",
 )
 UUID_FIELDS = ("group_id", "scan_run_id")
 
@@ -165,7 +166,7 @@ def replay(session: Session, *, version: VersionRef, actor_id: UUID, now: dateti
         ):
             raise UndoUnavailable("undo_unavailable")
         for field in FINDING_FIELDS:
-            value = values[field]
+            value = values.get(field) if field == "date_format" else values[field]
             setattr(
                 row, field, UUID(value) if field in UUID_FIELDS and value is not None else value
             )

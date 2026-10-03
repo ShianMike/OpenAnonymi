@@ -5,6 +5,7 @@ import { GlassSelect } from '../ui/GlassSelect'
 import type { ReviewController } from './useReviewController'
 import type { ReviewFinding } from './textSegments'
 import './finding-popover.css'
+import { CategoryBadge } from '../rules/CategoryBadge'
 
 const actions = [
   { value: 'label', title: 'Label', description: 'Use a consistent placeholder', icon: Tag },
@@ -61,7 +62,7 @@ export function FindingPopover({
           aria-labelledby={titleId}
         >
           <div className="finding-popover-heading">
-            <span className="finding-kind">{finding.category.replace('_', ' ')}</span>
+            <CategoryBadge category={finding.category} />
             <Popover.Close className="quiet-icon" aria-label="Close finding options">
               <X size={17} aria-hidden="true" />
             </Popover.Close>

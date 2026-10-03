@@ -1,0 +1,46 @@
+{
+  "license": "CC0-1.0",
+  "author": "OpenAnonymi synthetic validation",
+  "rule_id": "identifier.username",
+  "rows": [
+    {
+      "text": "😀 username: sage_42",
+      "region": "US",
+      "expected": [
+        {
+          "start": 12,
+          "end": 19,
+          "category": "identifier",
+          "rule_id": "identifier.username"
+        }
+      ]
+    },
+    {
+      "text": "😀 user name = luna-seven",
+      "region": "US",
+      "expected": [
+        {
+          "start": 14,
+          "end": 24,
+          "category": "identifier",
+          "rule_id": "identifier.username"
+        }
+      ]
+    },
+    {
+      "text": "login: ab",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "random: sage_42",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "username: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "region": "US",
+      "expected": []
+    }
+  ]
+}

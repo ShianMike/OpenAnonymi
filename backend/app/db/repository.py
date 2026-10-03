@@ -16,7 +16,13 @@ from app.accounts.access import (
     owned_document,
     review_document,
 )
-from app.contracts import DocumentStatus, FindingCategory, SourceSpan, VersionRef
+from app.contracts import (
+    AUTOMATIC_CATEGORIES,
+    DocumentStatus,
+    FindingCategory,
+    SourceSpan,
+    VersionRef,
+)
 from app.db.crypto import KeyRing, ProtectedValue
 from app.db.models import Document, Finding, Preset, SourceRevision
 from app.intake.validation import validate_source
@@ -56,6 +62,7 @@ class LoadedSource:
     preset_id: UUID | None
     preset_version: int | None
     preferred_action: str
+    language: str
 
 
 def _version(document: Document) -> VersionRef:
@@ -82,7 +89,12 @@ def create_document(
     now: datetime,
     requested_expiry: datetime | None = None,
     preset_id: UUID | None = None,
+    language: str = "en",
 ) -> SavedDocument:
+    from app.detection.local_nlp import SUPPORTED_LANGUAGES
+
+    if language not in SUPPORTED_LANGUAGES:
+        raise StorageValidationError("Choose a supported language.")
     validated = validate_source(source)
     if now.tzinfo is None:
         raise StorageValidationError("A timezone-aware time is required.")
@@ -92,7 +104,7 @@ def create_document(
         raise StorageValidationError("Title must be 200 characters or fewer.")
     if phone_region.upper() not in SUPPORTED_REGIONS:
         raise StorageValidationError("Choose a supported phone region.")
-    if not categories.issubset(set(FindingCategory)):
+    if not categories.issubset(AUTOMATIC_CATEGORIES):
         raise StorageValidationError("Choose supported detection categories.")
 
     with session.begin():
@@ -128,6 +140,7 @@ def create_document(
             settings_version=1,
             category_settings=",".join(sorted(category.value for category in categories)),
             phone_region=phone_region.upper(),
+            language=language,
             preset_id=selected_preset.id if selected_preset else None,
             preset_version=selected_preset.version if selected_preset else None,
             preferred_action=selected_preset.preferred_action if selected_preset else "label",
@@ -201,6 +214,7 @@ def load_current_source(
         document.preset_id,
         document.preset_version,
         document.preferred_action,
+        document.language,
     )
 
 

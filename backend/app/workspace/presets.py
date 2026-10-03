@@ -9,7 +9,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.accounts.access import active_workspace, require_administrator
-from app.contracts import FindingCategory
+from app.contracts import AUTOMATIC_CATEGORIES, FindingCategory
 from app.db.models import Preset
 from app.workspace.activity import record_event
 
@@ -77,7 +77,7 @@ def save_preset(
     phone_region = phone_region.upper()
     if not name or len(name) > 100:
         raise ValueError("Choose a name of 1 to 100 characters.")
-    if not categories.issubset({FindingCategory.EMAIL, FindingCategory.PHONE, FindingCategory.PERSON, FindingCategory.ORGANIZATION, FindingCategory.LOCATION, FindingCategory.IDENTIFIER}):
+    if not categories.issubset(AUTOMATIC_CATEGORIES):
         raise ValueError("Choose supported automatic suggestion categories.")
     if phone_region not in SUPPORTED_REGIONS:
         raise ValueError("Choose a supported phone region.")

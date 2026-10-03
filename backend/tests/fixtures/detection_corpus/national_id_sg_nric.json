@@ -1,0 +1,82 @@
+{
+  "license": "CC0-1.0",
+  "author": "OpenAnonymi synthetic validation",
+  "rule_id": "national_id.sg_nric",
+  "rows": [
+    {
+      "text": "😀 S1234567D",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 11,
+          "category": "national_id",
+          "rule_id": "national_id.sg_nric"
+        }
+      ]
+    },
+    {
+      "text": "😀 T1234567J",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 11,
+          "category": "national_id",
+          "rule_id": "national_id.sg_nric"
+        }
+      ]
+    },
+    {
+      "text": "😀 F1234567N",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 11,
+          "category": "national_id",
+          "rule_id": "national_id.sg_nric"
+        }
+      ]
+    },
+    {
+      "text": "😀 G1234567X",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 11,
+          "category": "national_id",
+          "rule_id": "national_id.sg_nric"
+        }
+      ]
+    },
+    {
+      "text": "😀 M1234567A",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 11,
+          "category": "national_id",
+          "rule_id": "national_id.sg_nric"
+        }
+      ]
+    },
+    {
+      "text": "S1234567A",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "X1234567A",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "s1234567d",
+      "region": "US",
+      "expected": []
+    }
+  ]
+}

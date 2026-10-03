@@ -31,6 +31,27 @@ class FindingCategory(StrEnum):
     CUSTOM = "custom"
     EMAIL = "email"
     PHONE = "phone"
+    DATE = "date"
+    URL = "url"
+    SECRET = "secret"
+    NATIONAL_ID = "national_id"
+
+
+LABEL_PREFIXES = {
+    FindingCategory.PERSON: "PERSON",
+    FindingCategory.ORGANIZATION: "ORGANIZATION",
+    FindingCategory.LOCATION: "LOCATION",
+    FindingCategory.ADDRESS: "ADDRESS",
+    FindingCategory.IDENTIFIER: "IDENTIFIER",
+    FindingCategory.CUSTOM: "CUSTOM",
+    FindingCategory.EMAIL: "EMAIL",
+    FindingCategory.PHONE: "PHONE",
+    FindingCategory.DATE: "DATE",
+    FindingCategory.URL: "URL",
+    FindingCategory.SECRET: "SECRET",
+    FindingCategory.NATIONAL_ID: "ID",
+}
+AUTOMATIC_CATEGORIES = frozenset(set(FindingCategory) - {FindingCategory.CUSTOM})
 
 
 class DecisionAction(StrEnum):

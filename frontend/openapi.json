@@ -5885,6 +5885,13 @@
             "title": "Phone Region",
             "default": "PH"
           },
+          "language": {
+            "type": "string",
+            "maxLength": 2,
+            "minLength": 2,
+            "title": "Language",
+            "default": "en"
+          },
           "retention_days": {
             "anyOf": [
               {
@@ -6355,6 +6362,13 @@
               }
             ],
             "title": "Preset Id"
+          },
+          "language": {
+            "type": "string",
+            "maxLength": 2,
+            "minLength": 2,
+            "title": "Language",
+            "default": "en"
           }
         },
         "type": "object",
@@ -6926,7 +6940,11 @@
           "identifier",
           "custom",
           "email",
-          "phone"
+          "phone",
+          "date",
+          "url",
+          "secret",
+          "national_id"
         ],
         "title": "FindingCategory"
       },
@@ -7802,7 +7820,7 @@
               "$ref": "#/components/schemas/FindingCategory"
             },
             "type": "array",
-            "maxItems": 8,
+            "maxItems": 12,
             "title": "Categories"
           },
           "phone_region": {
@@ -7811,6 +7829,13 @@
             "minLength": 2,
             "title": "Phone Region",
             "default": "PH"
+          },
+          "language": {
+            "type": "string",
+            "maxLength": 2,
+            "minLength": 2,
+            "title": "Language",
+            "default": "en"
           },
           "retention_days": {
             "type": "integer",
@@ -8457,6 +8482,19 @@
             "maxLength": 2,
             "minLength": 2,
             "title": "Phone Region"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2,
+                "minLength": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
           }
         },
         "type": "object",
@@ -8820,6 +8858,10 @@
             "type": "string",
             "title": "Phone Region"
           },
+          "language": {
+            "type": "string",
+            "title": "Language"
+          },
           "preset_id": {
             "anyOf": [
               {
@@ -8859,6 +8901,7 @@
           "title",
           "categories",
           "phone_region",
+          "language",
           "preset_id",
           "preset_version",
           "preferred_action"
@@ -8922,6 +8965,17 @@
           "reason": {
             "type": "string",
             "title": "Reason"
+          },
+          "date_format": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Format"
           }
         },
         "type": "object",
@@ -8931,7 +8985,8 @@
           "category",
           "rule_id",
           "rule_version",
-          "reason"
+          "reason",
+          "date_format"
         ],
         "title": "SuggestionView"
       },

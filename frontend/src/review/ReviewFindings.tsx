@@ -1,3 +1,5 @@
+import { categoryPresentation, findingCategories } from '../rules/categoryPresentation'
+import { CategoryBadge } from '../rules/CategoryBadge'
 import { ArrowRight, RotateCcw, ListFilter, Plus, ChevronDown, Sparkles } from 'lucide-react'
 import { GlassSelect } from '../ui/GlassSelect'
 import type { ReviewController } from './useReviewController'
@@ -76,21 +78,11 @@ export function ReviewFindings({ review }: { review: ReviewController }) {
                 review.setCategoryFilter(value as typeof review.categoryFilter)
               }
             >
-              {[
-                'all',
-                'person',
-                'organization',
-                'location',
-                'address',
-                'identifier',
-                'custom',
-                'email',
-                'phone',
-              ].map((category) => (
+              {['all', ...findingCategories].map((category) => (
                 <option key={category} value={category}>
                   {category === 'all'
                     ? 'All categories'
-                    : category[0].toUpperCase() + category.slice(1)}
+                    : categoryPresentation[category as keyof typeof categoryPresentation].label}
                 </option>
               ))}
             </GlassSelect>
@@ -137,7 +129,7 @@ export function ReviewFindings({ review }: { review: ReviewController }) {
             <FindingPopover finding={item} review={review}>
               <button type="button" className="finding-card-trigger">
                 <span className="finding-card-top">
-                  <span className="finding-kind">{item.category}</span>
+                  <CategoryBadge category={item.category} />
                   <span className="finding-state" data-action={item.action || 'pending'}>
                     {item.action === 'label'
                       ? 'Labeled'

@@ -1,0 +1,66 @@
+{
+  "license": "CC0-1.0",
+  "author": "OpenAnonymi synthetic validation",
+  "rule_id": "identifier.handle",
+  "rows": [
+    {
+      "text": "😀 @river.sage",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 13,
+          "category": "identifier",
+          "rule_id": "identifier.handle"
+        }
+      ]
+    },
+    {
+      "text": "😀 @luna_8",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 9,
+          "category": "identifier",
+          "rule_id": "identifier.handle"
+        }
+      ]
+    },
+    {
+      "text": "@media",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "@import",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "@override",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "@everyone",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "email@example.test",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "@.bad",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "@bad.",
+      "region": "US",
+      "expected": []
+    }
+  ]
+}

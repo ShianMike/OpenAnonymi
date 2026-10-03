@@ -82,17 +82,17 @@ export function IntakeOptions({ intake }: { intake: IntakeController }) {
               description={choice.description} checked={intake.extraCategories.includes(choice.category)}
               disabled={!!intake.presetId || pending} onChange={(checked) => intake.setExtraCategories((current) =>
                 checked ? [...current, choice.category] : current.filter((category) => category !== choice.category))} />)}
-            <p className="field-note">Name and place suggestions use an English model on this server. It can miss or misclassify details; you still review the full text.</p>
+            <p className="field-note">Name and place suggestions support English. All suggestions need review; inspect the full text for misses. National IDs cover hyphenated US SSNs, UK NI numbers, Singapore NRIC/FIN and hyphenated Malaysian MyKad. Singapore M-prefix IDs use format only.</p>
           </div>
           <div>
             <label className="field-label" htmlFor="phone-region">
-              Phone region
+              {intake.extraCategories.includes('date') ? 'Phone and date region' : 'Phone region'}
             </label>
             <GlassSelect
               id="phone-region"
               value={intake.phoneRegion}
               onValueChange={intake.setPhoneRegion}
-              disabled={!!intake.presetId || pending || !intake.phoneEnabled}
+              disabled={!!intake.presetId || pending || (!intake.phoneEnabled && !intake.extraCategories.includes('date'))}
             >
               {phoneRegions.map(([code, label]) => (
                 <option key={code} value={code}>
@@ -101,6 +101,7 @@ export function IntakeOptions({ intake }: { intake: IntakeController }) {
               ))}
             </GlassSelect>
           </div>
+          {intake.extraCategories.includes('date') && <p className="field-note">Ambiguous numeric dates use month first for the US and day first elsewhere. Month names and address words are English.</p>}
           <div className="intake-retention">
             <label className="field-label" htmlFor="retention-days">
               <span className="retention-heading">

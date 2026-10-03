@@ -1328,6 +1328,11 @@ export interface components {
              * @default PH
              */
             phone_region: string;
+            /**
+             * Language
+             * @default en
+             */
+            language: string;
             /** Retention Days */
             retention_days?: number | null;
             /** Preset Id */
@@ -1536,6 +1541,11 @@ export interface components {
             retention_days?: number | null;
             /** Preset Id */
             preset_id?: string | null;
+            /**
+             * Language
+             * @default en
+             */
+            language: string;
         };
         /**
          * DecisionAction
@@ -1785,7 +1795,7 @@ export interface components {
          * FindingCategory
          * @enum {string}
          */
-        FindingCategory: "person" | "organization" | "location" | "address" | "identifier" | "custom" | "email" | "phone";
+        FindingCategory: "person" | "organization" | "location" | "address" | "identifier" | "custom" | "email" | "phone" | "date" | "url" | "secret" | "national_id";
         /** FindingView */
         FindingView: {
             /**
@@ -2107,6 +2117,11 @@ export interface components {
              */
             phone_region: string;
             /**
+             * Language
+             * @default en
+             */
+            language: string;
+            /**
              * Retention Days
              * @default 7
              */
@@ -2400,6 +2415,8 @@ export interface components {
             categories?: components["schemas"]["FindingCategory"][];
             /** Phone Region */
             phone_region: string;
+            /** Language */
+            language?: string | null;
         };
         /** ScanSettingsView */
         ScanSettingsView: {
@@ -2552,6 +2569,8 @@ export interface components {
             categories: components["schemas"]["FindingCategory"][];
             /** Phone Region */
             phone_region: string;
+            /** Language */
+            language: string;
             /** Preset Id */
             preset_id: string | null;
             /** Preset Version */
@@ -2585,6 +2604,8 @@ export interface components {
             rule_version: string;
             /** Reason */
             reason: string;
+            /** Date Format */
+            date_format: string | null;
         };
         /** TeammateView */
         TeammateView: {

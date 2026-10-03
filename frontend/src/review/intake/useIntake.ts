@@ -42,6 +42,7 @@ export function useIntake(session: SessionView) {
   const [phoneEnabled, setPhoneEnabled] = useState(true)
   const [extraCategories, setExtraCategories] = useState<FindingCategory[]>([])
   const [phoneRegion, setPhoneRegion] = useState('PH')
+  const [language, setLanguage] = useState('en')
   const [presetId, setPresetId] = useState('')
   const [retentionDays, setRetentionDays] = useState(7)
   const [submitting, setPending] = useState(false)
@@ -118,7 +119,7 @@ export function useIntake(session: SessionView) {
     try {
       const saved = await createPastedDraft({ workspace_id: workspaceId,
         source: mode === 'paste' ? source : fileText, title: title.trim() || null,
-        categories: categories as FindingCategory[], phone_region: phoneRegion,
+        categories: categories as FindingCategory[], phone_region: phoneRegion, language,
         retention_days: retentionDays, preset_id: presetId || null,
       }, session.csrf_token)
       await recovery.clear().catch(() => undefined)
@@ -141,7 +142,7 @@ export function useIntake(session: SessionView) {
     source.length > 0 ||
     file !== null ||
     title.trim().length > 0 ||
-    workspaceId !== initialWorkspace ||
+    workspaceId !== initialWorkspace || language !== 'en' ||
     (defaults.kind === 'ready' &&
       (presetId !== (initialPreset?.id ?? '') ||
         emailEnabled !== (initialPreset?.categories.includes('email') ?? true) ||
@@ -160,7 +161,7 @@ export function useIntake(session: SessionView) {
     payload: defaults.kind === 'ready' ? {
       source: previewText, title, categories: [
         ...(emailEnabled ? ['email' as const] : []), ...(phoneEnabled ? ['phone' as const] : []), ...extraCategories,
-      ], phone_region: phoneRegion, retention_days: retentionDays,
+      ], phone_region: phoneRegion, language, retention_days: retentionDays,
       preset_id: presetId || null, base_version: null,
     } : null,
     onRestore: (view) => {
@@ -174,6 +175,7 @@ export function useIntake(session: SessionView) {
       setPhoneEnabled(view.payload.categories.includes('phone'))
       setExtraCategories(extras(view.payload.categories))
       setPhoneRegion(view.payload.phone_region)
+      setLanguage(view.payload.language ?? 'en')
       setPresetId(defaults.kind === 'ready' && defaults.presets.some((item) => item.id === view.payload.preset_id)
         ? view.payload.preset_id ?? '' : '')
       setRetentionDays(defaults.kind === 'ready'
@@ -213,6 +215,8 @@ export function useIntake(session: SessionView) {
     setPhoneEnabled,
     phoneRegion,
     setPhoneRegion,
+    language,
+    setLanguage,
     presetId,
     setPresetId,
     retentionDays,

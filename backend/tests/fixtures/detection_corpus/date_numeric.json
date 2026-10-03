@@ -1,0 +1,68 @@
+{
+  "license": "CC0-1.0",
+  "author": "OpenAnonymi synthetic validation",
+  "rule_id": "date.numeric",
+  "rows": [
+    {
+      "text": "😀 2024-02-29",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 12,
+          "category": "date",
+          "rule_id": "date.numeric"
+        }
+      ]
+    },
+    {
+      "text": "😀 13/4/2026",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 11,
+          "category": "date",
+          "rule_id": "date.numeric"
+        }
+      ]
+    },
+    {
+      "text": "😀 03.04.2026",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 12,
+          "category": "date",
+          "rule_id": "date.numeric"
+        }
+      ]
+    },
+    {
+      "text": "2023-02-29",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "31/4/2026",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "3/4/26",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "12:34:56",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "v3.4.2026.8",
+      "region": "US",
+      "expected": []
+    }
+  ]
+}

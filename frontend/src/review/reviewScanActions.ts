@@ -7,11 +7,11 @@ import type { ProtectedDraftController } from '../recovery/useProtectedDraft'
 type Update<T> = Dispatch<SetStateAction<T>>
 type Download = { url: string; filename: string; version: VersionRef } | null
 
-export function createReviewScanActions({ documentId, state, dirty, settingsDirty, selectedCategories, phoneRegion,
+export function createReviewScanActions({ documentId, state, dirty, settingsDirty, selectedCategories, phoneRegion, language,
   csrf, recovery, refreshPreview, setScanPending, setError, setNotice, setScan, setSummary,
   setConfirmedPreview, setPreparedDownload, setState, setFindings, setConflict, setSettingsPending, setPreview, setPreviewError }: {
   documentId: string | undefined; state: DraftState; dirty: boolean; settingsDirty: boolean;
-  selectedCategories: FindingCategory[]; phoneRegion: string; csrf: string; recovery: ProtectedDraftController;
+  selectedCategories: FindingCategory[]; phoneRegion: string; language: string; csrf: string; recovery: ProtectedDraftController;
   refreshPreview: (id: string, version: VersionRef) => Promise<void>;
   setScanPending: Update<boolean>; setError: Update<string | null>; setNotice: Update<string | null>;
   setScan: Update<ScanView | null>; setSummary: Update<ReviewSummaryView | null>;
@@ -83,6 +83,7 @@ export function createReviewScanActions({ documentId, state, dirty, settingsDirt
         selectedCategories,
         phoneRegion,
         csrf,
+        language,
       )
       setState({
         kind: 'ready',
@@ -92,6 +93,7 @@ export function createReviewScanActions({ documentId, state, dirty, settingsDirt
           status: 'draft',
           categories: selectedCategories,
           phone_region: phoneRegion,
+          language,
         },
       })
       setScan({

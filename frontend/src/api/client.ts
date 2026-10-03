@@ -451,11 +451,11 @@ export function startScan(
 
 export function updateScanSettings(
   documentId: string, expected: VersionRef, categories: FindingCategory[],
-  phoneRegion: string, csrfToken: string,
+  phoneRegion: string, csrfToken: string, language?: string,
 ): Promise<ScanSettingsView> {
   return sendJson<ScanSettingsView>(
     'PUT', `/documents/${encodeURIComponent(documentId)}/scan-settings`,
-    { expected, categories, phone_region: phoneRegion }, csrfToken,
+    { expected, categories, phone_region: phoneRegion, language }, csrfToken,
   )
 }
 

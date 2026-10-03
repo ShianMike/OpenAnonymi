@@ -158,7 +158,7 @@ def test_late_scan_never_attaches_findings_to_new_source(intake_site, monkeypatc
     version = created.json()["version"]
     path = f"/api/v1/documents/{version['document_id']}/scan"
 
-    def edit_during_scan(source, categories, region):
+    def edit_during_scan(source, categories, region, language="en"):
         with Session(engine) as session:
             append_source_revision(
                 session,
@@ -169,7 +169,7 @@ def test_late_scan_never_attaches_findings_to_new_source(intake_site, monkeypatc
                 keys=KeyRing.from_settings(owner.app.state.settings),
                 now=datetime.now(UTC),
             )
-        return real_detect_suggestions(source, categories, region)
+        return real_detect_suggestions(source, categories, region, language)
 
     monkeypatch.setattr("app.detection.service.detect_suggestions", edit_during_scan)
     late = owner.post(path, json={"expected": version}, headers=headers)
@@ -241,11 +241,11 @@ def test_membership_revocation_during_scan_discards_result(intake_site, monkeypa
     )
     version = created.json()["version"]
 
-    def revoke_during_scan(source, categories, region):
+    def revoke_during_scan(source, categories, region, language="en"):
         with Session(engine) as session, session.begin():
             membership = session.get(Membership, (workspace_id, owner_id))
             membership.revoked_at = datetime.now(UTC)
-        return real_detect_suggestions(source, categories, region)
+        return real_detect_suggestions(source, categories, region, language)
 
     monkeypatch.setattr("app.detection.service.detect_suggestions", revoke_during_scan)
     response = owner.post(

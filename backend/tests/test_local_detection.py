@@ -1,5 +1,7 @@
 """The installed CPU model and syntax/checksum rules, with real Unicode spans."""
 
+from itertools import pairwise
+
 import pytest
 
 from app.contracts import FindingCategory
@@ -68,3 +70,17 @@ def test_missing_model_is_explicit_failure(monkeypatch):
             detect_entities("A fictional person", {FindingCategory.PERSON})
     finally:
         pipeline.cache_clear()
+
+
+def test_chunk_context_preserves_unicode_offsets_without_duplicate_entities():
+    from app.detection.local_nlp import CHUNK_POINTS, CONTEXT_POINTS, chunks
+
+    padding = 'neutral notes. ' * 330
+    source = '😀 ' + padding + 'Nora Caldwell works at Microsoft in London. ' + 'neutral notes. ' * 500
+    windows = list(chunks(source))
+    assert len(windows) >= 2 and all(len(text) <= CHUNK_POINTS for _,text in windows)
+    assert all(start + len(text) >= following for (start,text),(following,_) in pairwise(windows))
+    assert len(windows[0][1]) >= 2*CONTEXT_POINTS
+    detected = detect_entities(source, {FindingCategory.PERSON})
+    names = [item for item in detected if source[item.span.start:item.span.end] == 'Nora Caldwell']
+    assert len(names) == 1 and names[0].span.start == source.index('Nora Caldwell')

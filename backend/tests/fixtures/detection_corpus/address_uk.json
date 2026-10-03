@@ -1,0 +1,46 @@
+{
+  "license": "CC0-1.0",
+  "author": "OpenAnonymi synthetic validation",
+  "rule_id": "address.uk",
+  "rows": [
+    {
+      "text": "😀 10 Rose Street, London SW1A 1AA",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 33,
+          "category": "address",
+          "rule_id": "address.uk"
+        }
+      ]
+    },
+    {
+      "text": "😀 10 Rose Street\nLondon SW1A 1AA",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 32,
+          "category": "address",
+          "rule_id": "address.uk"
+        }
+      ]
+    },
+    {
+      "text": "SW1A 1AA",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "10 Rose Street SW1A 1CI",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "10 Rose Street\nneutral\nLondon SW1A 1AA",
+      "region": "US",
+      "expected": []
+    }
+  ]
+}

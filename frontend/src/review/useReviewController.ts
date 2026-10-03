@@ -103,6 +103,7 @@ export function useReviewController(session: SessionView) {
   const [phoneEnabled, setPhoneEnabled] = useState(true)
   const [extraCategories, setExtraCategories] = useState<FindingCategory[]>([])
   const [phoneRegion, setPhoneRegion] = useState('PH')
+  const [language, setLanguage] = useState('en')
   const canEdit = state.kind === 'ready' && state.saved.can_edit
   const handoff = useReviewHandoff({ saved: state.kind === 'ready' ? state.saved : null,
     onChanged: () => setConflict(true),
@@ -118,12 +119,12 @@ export function useReviewController(session: SessionView) {
   ].sort() as FindingCategory[]
   const settingsDirty = state.kind === 'ready' &&
     (state.saved.categories.join(',') !== selectedCategories.join(',') ||
-      state.saved.phone_region !== phoneRegion)
+      state.saved.phone_region !== phoneRegion || state.saved.language !== language)
   const recovery = useReviewRecovery({
-    state, documentId, session, text, categories: selectedCategories, phoneRegion,
+    state, documentId, session, text, categories: selectedCategories, phoneRegion, language,
     dirty: dirty || settingsDirty,
     paused: pending || settingsPending,
-    setText, setEmailEnabled, setPhoneEnabled, setExtraCategories, setPhoneRegion, setEditingSource,
+    setText, setEmailEnabled, setPhoneEnabled, setExtraCategories, setPhoneRegion, setLanguage, setEditingSource,
     setConflict, setNotice,
   })
   const mutationPending =
@@ -150,6 +151,7 @@ export function useReviewController(session: SessionView) {
         setPhoneEnabled(saved.categories.includes('phone'))
         setExtraCategories(extras(saved.categories))
         setPhoneRegion(saved.phone_region)
+        setLanguage(saved.language)
       }
       setConflict(false)
       setError(null)
@@ -217,6 +219,7 @@ export function useReviewController(session: SessionView) {
         setPhoneEnabled(saved.categories.includes('phone'))
         setExtraCategories(extras(saved.categories))
         setPhoneRegion(saved.phone_region)
+        setLanguage(saved.language)
         setScan(scanResult)
         setFindings(findingResult)
         setPreview(previewResult)
@@ -378,7 +381,7 @@ export function useReviewController(session: SessionView) {
   }
 
   const { scanDraft, saveSettings, refreshScan } = createReviewScanActions({
-    documentId, state, dirty, settingsDirty, selectedCategories, phoneRegion, csrf: session.csrf_token,
+    documentId, state, dirty, settingsDirty, selectedCategories, phoneRegion, language, csrf: session.csrf_token,
     recovery, refreshPreview, setScanPending, setError, setNotice, setScan, setSummary,
     setConfirmedPreview, setPreparedDownload, setState, setFindings, setConflict, setSettingsPending, setPreview, setPreviewError,
   })
@@ -781,6 +784,8 @@ export function useReviewController(session: SessionView) {
     plainPreview,
     phoneEnabled,
     phoneRegion,
+    language,
+    setLanguage,
     preparedDownload,
     preview,
     previewError,

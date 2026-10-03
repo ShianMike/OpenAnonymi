@@ -1,0 +1,41 @@
+{
+  "license": "CC0-1.0",
+  "author": "OpenAnonymi synthetic validation",
+  "rule_id": "date.birth",
+  "rows": [
+    {
+      "text": "😀 DOB: 3 October 2026",
+      "region": "US",
+      "expected": [
+        {
+          "start": 7,
+          "end": 21,
+          "category": "date",
+          "rule_id": "date.birth"
+        }
+      ]
+    },
+    {
+      "text": "😀 born 2000-02-29",
+      "region": "US",
+      "expected": [
+        {
+          "start": 7,
+          "end": 17,
+          "category": "date",
+          "rule_id": "date.birth"
+        }
+      ]
+    },
+    {
+      "text": "DOB unknown",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "birthday 31/2/2026",
+      "region": "US",
+      "expected": []
+    }
+  ]
+}
