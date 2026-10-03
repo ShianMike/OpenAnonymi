@@ -16,6 +16,7 @@ from app.db.email_verification import EmailVerification, PendingRegistration
 from app.db.models import AuditEvent, Document, LabelCounter, SourceRevision, Workspace
 from app.db.models import Session as StoredSession
 from app.db.recovery import RecoverySnapshot
+from app.db.replacement_secrets import DocumentReplacementSecret
 from app.db.second_factor import AuthChallenge, UserSecondFactor
 from app.db.team_review import ReviewHandoff
 from app.workspace.activity import record_event
@@ -68,6 +69,11 @@ def purge_document(session: Session, document: Document, now: datetime) -> bool:
         )
     session.execute(delete(ReviewHandoff).where(ReviewHandoff.document_id == document.id))
     session.execute(delete(ReviewUndoEntry).where(ReviewUndoEntry.document_id == document.id))
+    session.execute(
+        delete(DocumentReplacementSecret).where(
+            DocumentReplacementSecret.document_id == document.id
+        )
+    )
     document.current_revision_id = None
     document.title_ciphertext = None
     document.title_key_id = None

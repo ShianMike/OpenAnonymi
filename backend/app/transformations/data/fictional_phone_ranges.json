@@ -1,0 +1,331 @@
+{
+  "retrieved": "2026-10-03",
+  "license": "Factual number ranges independently arranged. Publication rights remain with NANPA, Ofcom and ACMA; no publication prose copied.",
+  "sources": {
+    "NANP": [
+      "https://nanpa.com/numbering/555-line-numbers",
+      "https://www.nanpa.com/sites/default/files/reports/annual-reports/2023_NANPA_AnnualReport_0.pdf"
+    ],
+    "GB": [
+      "https://www.ofcom.org.uk/phones-and-broadband/phone-numbers/numbers-for-drama?language=en"
+    ],
+    "AU": [
+      "https://www.acma.gov.au/phone-numbers-use-tv-shows-films-and-creative-works"
+    ]
+  },
+  "count": 70,
+  "NANP": {
+    "country_code": 1,
+    "exchange": "555",
+    "line_min": 100,
+    "line_max": 199
+  },
+  "GB": [
+    {
+      "kind": "geographic",
+      "prefix": "1134960",
+      "digits": 3
+    },
+    {
+      "kind": "geographic",
+      "prefix": "1144960",
+      "digits": 3
+    },
+    {
+      "kind": "geographic",
+      "prefix": "1154960",
+      "digits": 3
+    },
+    {
+      "kind": "geographic",
+      "prefix": "1164960",
+      "digits": 3
+    },
+    {
+      "kind": "geographic",
+      "prefix": "1174960",
+      "digits": 3
+    },
+    {
+      "kind": "geographic",
+      "prefix": "1184960",
+      "digits": 3
+    },
+    {
+      "kind": "geographic",
+      "prefix": "1214960",
+      "digits": 3
+    },
+    {
+      "kind": "geographic",
+      "prefix": "1314960",
+      "digits": 3
+    },
+    {
+      "kind": "geographic",
+      "prefix": "1414960",
+      "digits": 3
+    },
+    {
+      "kind": "geographic",
+      "prefix": "1514960",
+      "digits": 3
+    },
+    {
+      "kind": "geographic",
+      "prefix": "1614960",
+      "digits": 3
+    },
+    {
+      "kind": "geographic",
+      "prefix": "2079460",
+      "digits": 3
+    },
+    {
+      "kind": "geographic",
+      "prefix": "1914980",
+      "digits": 3
+    },
+    {
+      "kind": "geographic",
+      "prefix": "2896496",
+      "digits": 3
+    },
+    {
+      "kind": "geographic",
+      "prefix": "2920180",
+      "digits": 3
+    },
+    {
+      "kind": "geographic",
+      "prefix": "1632960",
+      "digits": 3
+    },
+    {
+      "kind": "mobile",
+      "prefix": "7700900",
+      "digits": 3
+    },
+    {
+      "kind": "freephone",
+      "prefix": "8081570",
+      "digits": 3
+    },
+    {
+      "kind": "premium",
+      "prefix": "9098790",
+      "digits": 3
+    },
+    {
+      "kind": "national",
+      "prefix": "3069990",
+      "digits": 3
+    }
+  ],
+  "AU": [
+    {
+      "kind": "geographic",
+      "prefix": "25550",
+      "digits": 4
+    },
+    {
+      "kind": "geographic",
+      "prefix": "27010",
+      "digits": 4
+    },
+    {
+      "kind": "geographic",
+      "prefix": "35550",
+      "digits": 4
+    },
+    {
+      "kind": "geographic",
+      "prefix": "37010",
+      "digits": 4
+    },
+    {
+      "kind": "geographic",
+      "prefix": "75550",
+      "digits": 4
+    },
+    {
+      "kind": "geographic",
+      "prefix": "77010",
+      "digits": 4
+    },
+    {
+      "kind": "geographic",
+      "prefix": "85550",
+      "digits": 4
+    },
+    {
+      "kind": "geographic",
+      "prefix": "87010",
+      "digits": 4
+    },
+    {
+      "kind": "mobile",
+      "number": "491570006"
+    },
+    {
+      "kind": "mobile",
+      "number": "491570156"
+    },
+    {
+      "kind": "mobile",
+      "number": "491570157"
+    },
+    {
+      "kind": "mobile",
+      "number": "491570158"
+    },
+    {
+      "kind": "mobile",
+      "number": "491570159"
+    },
+    {
+      "kind": "mobile",
+      "number": "491570110"
+    },
+    {
+      "kind": "mobile",
+      "number": "491570313"
+    },
+    {
+      "kind": "mobile",
+      "number": "491570737"
+    },
+    {
+      "kind": "mobile",
+      "number": "491571266"
+    },
+    {
+      "kind": "mobile",
+      "number": "491571491"
+    },
+    {
+      "kind": "mobile",
+      "number": "491571804"
+    },
+    {
+      "kind": "mobile",
+      "number": "491572549"
+    },
+    {
+      "kind": "mobile",
+      "number": "491572665"
+    },
+    {
+      "kind": "mobile",
+      "number": "491572983"
+    },
+    {
+      "kind": "mobile",
+      "number": "491573770"
+    },
+    {
+      "kind": "mobile",
+      "number": "491573087"
+    },
+    {
+      "kind": "mobile",
+      "number": "491574118"
+    },
+    {
+      "kind": "mobile",
+      "number": "491574632"
+    },
+    {
+      "kind": "mobile",
+      "number": "491575254"
+    },
+    {
+      "kind": "mobile",
+      "number": "491575789"
+    },
+    {
+      "kind": "mobile",
+      "number": "491576398"
+    },
+    {
+      "kind": "mobile",
+      "number": "491576801"
+    },
+    {
+      "kind": "mobile",
+      "number": "491577426"
+    },
+    {
+      "kind": "mobile",
+      "number": "491577644"
+    },
+    {
+      "kind": "mobile",
+      "number": "491578957"
+    },
+    {
+      "kind": "mobile",
+      "number": "491578148"
+    },
+    {
+      "kind": "mobile",
+      "number": "491578888"
+    },
+    {
+      "kind": "mobile",
+      "number": "491579212"
+    },
+    {
+      "kind": "mobile",
+      "number": "491579760"
+    },
+    {
+      "kind": "mobile",
+      "number": "491579455"
+    },
+    {
+      "kind": "freephone",
+      "number": "1800160401"
+    },
+    {
+      "kind": "freephone",
+      "number": "1800975707"
+    },
+    {
+      "kind": "freephone",
+      "number": "1800975708"
+    },
+    {
+      "kind": "freephone",
+      "number": "1800975709"
+    },
+    {
+      "kind": "freephone",
+      "number": "1800975710"
+    },
+    {
+      "kind": "freephone",
+      "number": "1800975711"
+    },
+    {
+      "kind": "national",
+      "number": "1300975707"
+    },
+    {
+      "kind": "national",
+      "number": "1300975708"
+    },
+    {
+      "kind": "national",
+      "number": "1300975709"
+    },
+    {
+      "kind": "national",
+      "number": "1300975710"
+    },
+    {
+      "kind": "national",
+      "number": "1300975711"
+    }
+  ]
+}

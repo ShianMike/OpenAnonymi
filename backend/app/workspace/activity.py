@@ -23,6 +23,7 @@ EVENT_CODES = frozenset(
         "document_expired",
         "preset_created",
         "preset_updated",
+        "preset_defaults_applied",
         "workspace_rule_saved",
         "review_handoff_changed",
         "review_second_approved",

@@ -35,6 +35,7 @@ class PresetRecord:
     preferred_action: str
     version: int
     is_default: bool
+    category_defaults: dict
 
 
 def _record(preset: Preset) -> PresetRecord:
@@ -46,6 +47,7 @@ def _record(preset: Preset) -> PresetRecord:
         preferred_action=preset.preferred_action,
         version=preset.version,
         is_default=preset.is_default,
+        category_defaults=preset.category_defaults,
     )
 
 
@@ -72,7 +74,13 @@ def save_preset(
     preferred_action: str,
     is_default: bool,
     now: datetime,
+    category_defaults: dict | None = None,
 ) -> PresetRecord:
+    from app.transformations.defaults import validate_defaults
+
+    validated_defaults = (
+        validate_defaults(category_defaults) if category_defaults is not None else None
+    )
     name = name.strip()
     phone_region = phone_region.upper()
     if not name or len(name) > 100:
@@ -112,6 +120,8 @@ def save_preset(
         preset.categories = ",".join(sorted(value.value for value in categories))
         preset.phone_region = phone_region
         preset.preferred_action = preferred_action
+        if validated_defaults is not None or preset_id is None:
+            preset.category_defaults = validated_defaults or {}
         preset.is_default = False
         session.flush()
         if is_default:

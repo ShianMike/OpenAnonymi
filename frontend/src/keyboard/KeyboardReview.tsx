@@ -7,12 +7,15 @@ import { GlassSelect } from '../ui/GlassSelect'
 import { shortcutGuide } from './shortcuts'
 import { useKeyboardReview } from './useKeyboardReview'
 import './keyboard-review.css'
+import { availableChoices, styleLabel, styleDisclosure, choiceKey } from '../review/useStyleControls'
 
 export function KeyboardReview({ review, userId, compact = false }: { review: ReviewController; userId: string; compact?: boolean }) {
   const mode = useKeyboardReview(review, userId)
   const saved = review.state.kind === 'ready' ? review.state.saved : null
   const finding = review.activeFindings.find((item) => item.finding_id === mode.keep?.finding)
   const currentKeep = mode.keep && saved && sameVersion(mode.keep.version, saved.version)
+  const dateFinding = review.activeFindings.find((item) => item.finding_id === mode.generalize?.finding)
+  const currentGeneralize = mode.generalize && saved && sameVersion(mode.generalize.version, saved.version)
   return <section className={`keyboard-review${compact ? ' keyboard-review--compact' : ''}`} aria-label="Keyboard review controls">
     <span className="keyboard-review-icon"><Keyboard size={20} strokeWidth={1.5} aria-hidden="true" /></span>
     <ChoiceSwitch label="Keyboard review mode" checked={mode.enabled} onChange={mode.toggle}
@@ -43,6 +46,17 @@ export function KeyboardReview({ review, userId, compact = false }: { review: Re
           <button type="button" className="button-primary" disabled={!finding || !currentKeep || !mode.reason || mode.blocked || mode.pending}
             onClick={() => { if (finding && mode.reason) void mode.perform('keep', finding.finding_id, mode.reason) }}>Keep with this reason</button>
         </div>
+      </DialogFrame>
+    </Dialog.Root>
+    <Dialog.Root open={Boolean(mode.generalize)} onOpenChange={(open) => { if (!open && !mode.pending) mode.setGeneralize(null) }}>
+      <DialogFrame title="Generalize this date" description="Choose which parts stay visible." busy={mode.pending}>
+        {dateFinding && <p className="keyboard-keep-value">{review.codePoints.slice(dateFinding.span.start, dateFinding.span.end).join('')}</p>}
+        {!currentGeneralize && <p role="alert">The review version changed. Close this dialog and review the date again.</p>}
+        {dateFinding && availableChoices(review.preview, dateFinding, 'redact').filter((choice) => choice.style === 'generalize').map((choice) =>
+          <div key={choiceKey(choice)}><button type="button" disabled={!currentGeneralize || mode.blocked || mode.pending}
+            onClick={() => void mode.perform('redact', dateFinding.finding_id, undefined, choice)}>{styleLabel(choice, 'redact')}</button><p className="field-note">{styleDisclosure(choice)}</p></div>)}
+        {review.error && <p role="alert">{review.error}</p>}
+        <Dialog.Close asChild><button type="button" disabled={mode.pending}>Cancel</button></Dialog.Close>
       </DialogFrame>
     </Dialog.Root>
   </section>

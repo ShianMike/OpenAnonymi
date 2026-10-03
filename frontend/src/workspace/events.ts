@@ -8,6 +8,7 @@ const names: Record<string, string> = {
   document_expired: 'Review expired',
   preset_created: 'Rules preset created',
   preset_updated: 'Rules preset updated',
+  preset_defaults_applied: 'Preset defaults refreshed',
   workspace_rule_saved: 'Detection rule saved',
   review_handoff_changed: 'Reviewer assignment changed',
   review_second_approved: 'Second review approved',

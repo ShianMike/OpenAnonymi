@@ -950,6 +950,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/{document_id}/category-defaults/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh Defaults Route */
+        post: operations["refresh_defaults_route_api_v1_documents__document_id__category_defaults_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents/{document_id}/review/undo": {
         parameters: {
             query?: never;
@@ -1348,6 +1365,22 @@ export interface components {
              */
             workspace_id: string;
         };
+        /** CategoryDefault */
+        CategoryDefault: {
+            /**
+             * Style
+             * @default token
+             * @enum {string}
+             */
+            style: "token" | "stand_in" | "date_shift" | "partial_mask" | "generalize";
+            /** Style Option */
+            style_option?: ("full" | "last4" | "first_letters" | "email_domain" | "email_first" | "url_host" | "secret_prefix" | "month_year" | "year" | "age_band") | null;
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "label" | "redact" | "keep";
+        };
         /** ChallengeView */
         ChallengeView: {
             /**
@@ -1565,6 +1598,14 @@ export interface components {
             group_scope: boolean;
             /** Affected Finding Ids */
             affected_finding_ids: string[];
+            /**
+             * Style
+             * @default token
+             * @enum {string}
+             */
+            style: "token" | "stand_in" | "date_shift" | "partial_mask" | "generalize";
+            /** Style Option */
+            style_option?: string | null;
         };
         /** DeletedView */
         DeletedView: {
@@ -1824,6 +1865,15 @@ export interface components {
             action: ("label" | "redact" | "keep") | null;
             /** Keep Reason */
             keep_reason: string | null;
+            /**
+             * Style
+             * @enum {string}
+             */
+            style: "token" | "stand_in" | "date_shift" | "partial_mask" | "generalize";
+            /** Style Option */
+            style_option: ("full" | "last4" | "first_letters" | "email_domain" | "email_first" | "url_host" | "secret_prefix" | "month_year" | "year" | "age_band") | null;
+            /** Date Format */
+            date_format: string | null;
         };
         /** FindingsView */
         FindingsView: {
@@ -2015,6 +2065,10 @@ export interface components {
              * @default false
              */
             is_default: boolean;
+            /** Category Defaults */
+            category_defaults?: {
+                [key: string]: components["schemas"]["CategoryDefault"];
+            } | null;
         };
         /** PresetView */
         PresetView: {
@@ -2038,6 +2092,10 @@ export interface components {
             version: number;
             /** Is Default */
             is_default: boolean;
+            /** Category Defaults */
+            category_defaults: {
+                [key: string]: components["schemas"]["CategoryDefault"];
+            };
         };
         /** PreviewView */
         PreviewView: {
@@ -2058,6 +2116,16 @@ export interface components {
                 string,
                 string
             ][];
+            /** Fictional Finding Ids */
+            fictional_finding_ids?: string[];
+            /** Stand In Fallback Ids */
+            stand_in_fallback_ids?: string[];
+            /** Style Capabilities */
+            style_capabilities?: {
+                [key: string]: {
+                    [key: string]: components["schemas"]["StyleChoice"][];
+                };
+            };
         };
         /** RecoveryCompletion */
         RecoveryCompletion: {
@@ -2171,6 +2239,11 @@ export interface components {
             document_id?: string | null;
             payload: components["schemas"]["RecoveryPayload"];
         };
+        /** RefreshDefaultsRequest */
+        RefreshDefaultsRequest: {
+            /** Expected Decision Version */
+            expected_decision_version: number;
+        };
         /** RefreshRulesInput */
         RefreshRulesInput: {
             expected: components["schemas"]["VersionRef"];
@@ -2224,6 +2297,14 @@ export interface components {
             counts_by_action: {
                 [key: string]: number;
             };
+            /** Counts By Action And Style */
+            counts_by_action_and_style: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** Fictional Replacements */
+            fictional_replacements: number;
         };
         /** ReviseFindingRequest */
         ReviseFindingRequest: {
@@ -2575,8 +2656,15 @@ export interface components {
             preset_id: string | null;
             /** Preset Version */
             preset_version: number | null;
-            /** Preferred Action */
-            preferred_action: string;
+            /**
+             * Preferred Action
+             * @enum {string}
+             */
+            preferred_action: "label" | "redact";
+            /** Category Defaults */
+            category_defaults: {
+                [key: string]: components["schemas"]["CategoryDefault"];
+            };
         };
         /** SpanMappingView */
         SpanMappingView: {
@@ -2588,6 +2676,17 @@ export interface components {
             source_span: components["schemas"]["SourceSpan"];
             preview_span: components["schemas"]["SourceSpan"];
             action: components["schemas"]["DecisionAction"] | null;
+        };
+        /** StyleChoice */
+        StyleChoice: {
+            /**
+             * Style
+             * @default token
+             * @enum {string}
+             */
+            style: "token" | "stand_in" | "date_shift" | "partial_mask" | "generalize";
+            /** Style Option */
+            style_option?: ("full" | "last4" | "first_letters" | "email_domain" | "email_first" | "url_host" | "secret_prefix" | "month_year" | "year" | "age_band") | null;
         };
         /** SuggestionView */
         SuggestionView: {
@@ -2636,6 +2735,10 @@ export interface components {
              * @default false
              */
             is_default: boolean;
+            /** Category Defaults */
+            category_defaults?: {
+                [key: string]: components["schemas"]["CategoryDefault"];
+            } | null;
             /** Expected Version */
             expected_version: number;
         };
@@ -6263,6 +6366,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["DecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingsView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refresh_defaults_route_api_v1_documents__document_id__category_defaults_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshDefaultsRequest"];
             };
         };
         responses: {

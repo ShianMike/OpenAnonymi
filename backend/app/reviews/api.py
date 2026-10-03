@@ -39,6 +39,8 @@ class ReviewSummaryView(BaseModel):
     finding_count: int
     counts_by_category: dict[str, int]
     counts_by_action: dict[str, int]
+    counts_by_action_and_style: dict[str, dict[str, int]]
+    fictional_replacements: int
 
 
 def create_reviews_router(engine: Engine) -> APIRouter:
@@ -92,6 +94,7 @@ def create_reviews_router(engine: Engine) -> APIRouter:
     @router.get("/{document_id}/summary", response_model=ReviewSummaryView)
     def summary_route(
         document_id: UUID,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(current_identity)],
     ) -> ReviewSummaryView:
         try:
@@ -100,6 +103,7 @@ def create_reviews_router(engine: Engine) -> APIRouter:
                 document_id=document_id,
                 actor_id=identity.user_id,
                 now=datetime.now(UTC),
+                keys=KeyRing.from_settings(request.app.state.settings),
             )
             return ReviewSummaryView(
                 version=result.version,
@@ -108,6 +112,8 @@ def create_reviews_router(engine: Engine) -> APIRouter:
                 finding_count=result.finding_count,
                 counts_by_category=result.counts_by_category,
                 counts_by_action=result.counts_by_action,
+                counts_by_action_and_style=result.counts_by_action_and_style,
+                fictional_replacements=result.fictional_replacements,
             )
         except DocumentNotFound:
             raise ApiError(404, "document_not_found", "Document not found.") from None
@@ -115,5 +121,7 @@ def create_reviews_router(engine: Engine) -> APIRouter:
             raise ApiError(410, "content_expired", "Document content is unavailable.") from None
         except CompletionRejected as exc:
             raise ApiError(409, exc.code, str(exc)) from None
+        except (ContentKeyUnavailable, ProtectedContentError):
+            raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
 
     return router

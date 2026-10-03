@@ -1,4 +1,4 @@
-import type { SourceView, SourceSpan, VersionRef } from '../api/client'
+import type { SourceView, SourceSpan, VersionRef, StyleChoice } from '../api/client'
 
 export type DraftState =
   | { kind: 'loading' }
@@ -8,6 +8,7 @@ export type DraftState =
 export type GroupConfirmation = {
   findingId: string
   action: 'label' | 'redact' | 'keep'
+  choice?: StyleChoice
   affectedIds: string[]
   spans: SourceSpan[]
   version: VersionRef

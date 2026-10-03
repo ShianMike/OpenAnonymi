@@ -13,6 +13,7 @@ from app.db import (
     maintenance,  # noqa: F401 -- register content-free cleanup run health
     models,  # noqa: F401 — register all tables with Base.metadata
     recovery,  # noqa: F401 -- register the protected autosave table
+    replacement_secrets,  # noqa: F401 -- encrypted replacement seed/date offset
     second_factor,  # noqa: F401 -- register encrypted TOTP and content-free challenges
     team_review,  # noqa: F401 -- register explicit reviewer grant and protected comments
 )

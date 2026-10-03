@@ -1,3 +1,4 @@
+import { createReviewDecisionActions } from './reviewDecisionActions'
 import { useUndoState } from './useUndoState'
 import { createReviewScanActions } from './reviewScanActions'
 import { useReviewHandoff } from '../team/useReviewHandoff'
@@ -14,9 +15,7 @@ import { useParams } from 'react-router-dom'
 import {
   ApiConflictError,
   ApiRequestError,
-  addExactMatch,
   addManualFinding,
-  decideFindings,
   getDraft,
   getExactMatches,
   getFindings,
@@ -24,11 +23,8 @@ import {
   getReviewSummary,
   getScan,
   getWorkspaceDocuments,
-  mergeFindings,
   removeFinding,
   reviseFinding,
-  splitFinding,
-  undoReviewEdit,
   type ExactMatchesView,
   type FindingCategory,
   type FindingsView,
@@ -567,146 +563,15 @@ export function useReviewController(session: SessionView) {
     }
   }
 
-  async function changeReview(
-    operation: 'exact' | 'merge' | 'split' | 'decision',
-    findingId: string,
-    options?: { span?: SourceSpan; action?: 'label' | 'redact' | 'keep'; groupScope?: boolean; keepReason?: 'false_match' | 'intended_disclosure' },
-  ) {
-    if (
-      !documentId ||
-      state.kind !== 'ready' ||
-      !findings ||
-      dirty ||
-      settingsDirty ||
-      actionPending ||
-      conflict
-    )
-      return
-    if (!sameVersion(findings.version, state.saved.version)) {
-      setConflict(true)
-      setError('The findings changed. Reload the saved review before deciding.')
-      return
-    }
-    const item = findings.findings.find((candidate) => candidate.finding_id === findingId)
-    if (!item) return
-    const members =
-      options?.groupScope && item.group_id
-        ? findings.findings.filter((candidate) => candidate.group_id === item.group_id)
-        : [item]
-    setFindingPending(true)
-    setError(null)
-    setNotice(null)
-    try {
-      let result: FindingsView
-      if (operation === 'exact' && options?.span) {
-        result = await addExactMatch(
-          documentId,
-          findingId,
-          state.saved.version,
-          options.span,
-          session.csrf_token,
-        )
-      } else if (operation === 'merge' && mergeTargets[findingId]) {
-        result = await mergeFindings(
-          documentId,
-          findingId,
-          mergeTargets[findingId],
-          state.saved.version,
-          session.csrf_token,
-        )
-      } else if (operation === 'split') {
-        result = await splitFinding(documentId, findingId, state.saved.version, session.csrf_token)
-      } else if (operation === 'decision' && options?.action) {
-        result = await decideFindings(
-          documentId,
-          findingId,
-          state.saved.version,
-          options.action,
-          options.action === 'keep' ? options.keepReason ?? keepReason : null,
-          Boolean(options.groupScope),
-          members.map((member) => member.finding_id),
-          session.csrf_token,
-        )
-      } else return
-      setFindings(result)
-      if (operation === 'merge') {
-        setMergeTargets((current) => ({ ...current, [findingId]: '' }))
-      }
-      setState({
-        kind: 'ready',
-        saved: { ...state.saved, version: result.version, status: 'needs_review' },
-      })
-      setSummary(null)
-      setConfirmedPreview(false)
-      setPreparedDownload(null)
-      setExactMatches(null)
-      setGroupConfirmation(null)
-      await refreshPreview(documentId, result.version)
-      setNotice('Review change saved.')
-      return true
-    } catch (cause: unknown) {
-      if (cause instanceof ApiConflictError) setConflict(true)
-      setError(messageFrom(cause))
-    } finally {
-      setFindingPending(false)
-    }
-  }
-
-  async function undoReview() {
-    if (!documentId || state.kind !== 'ready' || dirty || settingsDirty || undoCount === 0) return
-    setFindingPending(true)
-    setError(null)
-    try {
-      const result = await undoReviewEdit(documentId, state.saved.version, session.csrf_token)
-      setFindings(result)
-      setState({
-        kind: 'ready',
-        saved: { ...state.saved, version: result.version, status: 'needs_review' },
-      })
-      setSummary(null)
-      setConfirmedPreview(false)
-      setPreparedDownload(null)
-      setExactMatches(null)
-      setGroupConfirmation(null)
-      await refreshPreview(documentId, result.version)
-      setNotice('Last review edit undone. Review the current findings before completion.')
-    } catch (cause: unknown) {
-      if (cause instanceof ApiConflictError) setConflict(true)
-      setError(messageFrom(cause))
-    } finally {
-      setFindingPending(false)
-    }
-  }
-
-  function confirmGroupDecision() {
-    if (!groupConfirmation || state.kind !== 'ready' || !findings) return
-    const item = findings.findings.find(
-      (candidate) => candidate.finding_id === groupConfirmation.findingId,
-    )
-    const currentIds = item?.group_id
-      ? findings.findings
-          .filter((candidate) => candidate.group_id === item.group_id)
-          .map((candidate) => candidate.finding_id)
-      : []
-    if (
-      !sameVersion(groupConfirmation.version, state.saved.version) ||
-      currentIds.length !== groupConfirmation.affectedIds.length ||
-      !currentIds.every((id) => groupConfirmation.affectedIds.includes(id))
-    ) {
-      setGroupConfirmation(null)
-      setError('This group changed. Review its occurrences again before applying a decision.')
-      return
-    }
-    const { findingId, action } = groupConfirmation
-    setGroupConfirmation(null)
-    lastFocusedRef.current = groupTriggerRef.current
-    void changeReview('decision', findingId, { action, groupScope: true })
-  }
-
-  function cancelGroupDecision() {
-    setGroupConfirmation(null)
-    requestAnimationFrame(() => groupTriggerRef.current?.focus())
-  }
+  const decisionActions = createReviewDecisionActions({
+    documentId, state, findings, preview, dirty, settingsDirty, actionPending, conflict, mergeTargets,
+    keepReason, csrf: session.csrf_token, undoCount, groupConfirmation,
+    refreshPreview, setFindingPending, setError, setNotice, setFindings, setMergeTargets, setState,
+    setSummary, setConfirmedPreview, setPreparedDownload, setExactMatches, setGroupConfirmation, setConflict,
+  })
+  const { changeReview, undoReview, useLatestDefaults } = decisionActions
+  function confirmGroupDecision() { lastFocusedRef.current = groupTriggerRef.current; decisionActions.confirmGroupDecision() }
+  function cancelGroupDecision() { decisionActions.cancelGroupDecision(); requestAnimationFrame(() => groupTriggerRef.current?.focus()) }
 
   const { locateFinding, nextUnresolved } = createReviewNavigation({
     state, findings, blocked: dirty || settingsDirty, selectedFindingId,
@@ -829,6 +694,7 @@ export function useReviewController(session: SessionView) {
     text,
     undoCount,
     undoReview,
+    useLatestDefaults,
     visibleFindings,
   }
 }

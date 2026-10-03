@@ -14,6 +14,7 @@ from app.accounts.api import current_identity, mutation_identity
 from app.accounts.security import SessionIdentity
 from app.contracts import ErrorResponse, FindingCategory
 from app.errors import ApiError
+from app.transformations.contracts import CategoryDefault
 from app.workspace.presets import (
     PresetExists,
     PresetNotFound,
@@ -32,6 +33,7 @@ class PresetView(BaseModel):
     preferred_action: Literal["label", "redact"]
     version: int
     is_default: bool
+    category_defaults: dict[FindingCategory, CategoryDefault]
 
 
 class PresetInput(BaseModel):
@@ -40,6 +42,9 @@ class PresetInput(BaseModel):
     phone_region: str = Field(min_length=2, max_length=2)
     preferred_action: Literal["label", "redact"] = "label"
     is_default: bool = False
+    category_defaults: dict[FindingCategory, CategoryDefault] | None = Field(
+        default=None, max_length=12
+    )
 
 
 class UpdatePresetInput(PresetInput):
@@ -72,6 +77,12 @@ def _save(
                 preferred_action=body.preferred_action,
                 is_default=body.is_default,
                 now=datetime.now(UTC),
+                category_defaults={
+                    category.value: choice.model_dump(mode="json")
+                    for category, choice in body.category_defaults.items()
+                }
+                if body.category_defaults is not None
+                else None,
             )
     except (WorkspaceAccessDenied, PresetNotFound):
         raise ApiError(404, "preset_not_found", "Preset or workspace not found.") from None

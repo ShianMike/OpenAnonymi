@@ -18,6 +18,7 @@ from sqlalchemy import (
     inspect,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.orm import Session as OrmSession
@@ -150,6 +151,9 @@ class Document(Base):
     preset_id: Mapped[UUID | None] = mapped_column(PostgreSQLUUID(as_uuid=True))
     preset_version: Mapped[int | None] = mapped_column(Integer)
     preferred_action: Mapped[str] = mapped_column(String(8), nullable=False, server_default="label")
+    category_defaults: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
     created_at: Mapped[datetime] = timestamp_column()
     updated_at: Mapped[datetime] = timestamp_column()
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -183,6 +187,10 @@ class Document(Base):
             name="valid_document_preset_snapshot",
         ),
         CheckConstraint("preferred_action IN ('label', 'redact')", name="valid_preferred_action"),
+        CheckConstraint(
+            "jsonb_typeof(category_defaults)='object' AND octet_length(category_defaults::text)<=8192",
+            name="bounded_category_defaults",
+        ),
         CheckConstraint("expires_at > created_at", name="expiry_after_creation"),
         CheckConstraint(
             "(title_ciphertext IS NULL AND title_key_id IS NULL) OR "
@@ -360,6 +368,8 @@ class Decision(Base):
         primary_key=True,
     )
     action: Mapped[str] = mapped_column(String(12), nullable=False)
+    style: Mapped[str] = mapped_column(String(16), nullable=False, server_default="token")
+    style_option: Mapped[str | None] = mapped_column(String(24))
     keep_reason: Mapped[str | None] = mapped_column(String(32))
     decided_by: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
@@ -369,6 +379,14 @@ class Decision(Base):
 
     __table_args__ = (
         CheckConstraint("action IN ('label', 'redact', 'keep')", name="valid_action"),
+        CheckConstraint(
+            "(action='label' AND style IN ('token','stand_in','date_shift')) OR (action='redact' AND style IN ('token','partial_mask','generalize')) OR (action='keep' AND style='token')",
+            name="valid_action_style",
+        ),
+        CheckConstraint(
+            "(style IN ('token','stand_in','date_shift') AND style_option IS NULL) OR (style='partial_mask' AND style_option IS NOT NULL AND style_option IN ('full','last4','first_letters','email_domain','email_first','url_host','secret_prefix')) OR (style='generalize' AND style_option IS NOT NULL AND style_option IN ('month_year','year','age_band'))",
+            name="valid_style_option",
+        ),
         CheckConstraint(
             "(action = 'keep' AND keep_reason IS NOT NULL) OR "
             "(action <> 'keep' AND keep_reason IS NULL)",
@@ -447,6 +465,9 @@ class Preset(Base):
     categories: Mapped[str] = mapped_column(String(300), nullable=False)
     phone_region: Mapped[str] = mapped_column(String(2), nullable=False)
     preferred_action: Mapped[str] = mapped_column(String(8), nullable=False, server_default="label")
+    category_defaults: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
     version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     is_default: Mapped[bool] = mapped_column(nullable=False, server_default="false")
     created_at: Mapped[datetime] = timestamp_column()
@@ -460,6 +481,10 @@ class Preset(Base):
             postgresql_where=text("is_default"),
         ),
         CheckConstraint("version > 0", name="positive_version"),
+        CheckConstraint(
+            "jsonb_typeof(category_defaults)='object' AND octet_length(category_defaults::text)<=8192",
+            name="bounded_category_defaults",
+        ),
         CheckConstraint("preferred_action IN ('label', 'redact')", name="valid_preferred_action"),
     )
 

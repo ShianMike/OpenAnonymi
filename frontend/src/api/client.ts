@@ -36,6 +36,8 @@ export type ExportEventView = components['schemas']['ExportEventView']
 export type ExactMatchesView = components['schemas']['ExactMatchesView']
 export type SourceSpan = components['schemas']['SourceSpan']
 export type FindingCategory = components['schemas']['FindingCategory']
+export type StyleChoice = components['schemas']['StyleChoice']
+export type CategoryDefault = components['schemas']['CategoryDefault']
 type ErrorResponse = components['schemas']['ErrorResponse']
 
 export class ApiRequestError extends Error {
@@ -542,12 +544,18 @@ export function decideFindings(
   documentId: string, findingId: string, expected: VersionRef,
   action: 'label' | 'redact' | 'keep', keepReason: 'false_match' | 'intended_disclosure' | null,
   groupScope: boolean, affectedFindingIds: string[], csrfToken: string,
+  choice: StyleChoice = { style: 'token', style_option: null },
 ): Promise<FindingsView> {
   return post<FindingsView>(
     `/documents/${encodeURIComponent(documentId)}/findings/${encodeURIComponent(findingId)}/decision`,
     { expected, action, keep_reason: keepReason, group_scope: groupScope,
-      affected_finding_ids: affectedFindingIds }, csrfToken,
+      affected_finding_ids: affectedFindingIds, ...choice }, csrfToken,
   )
+}
+
+export function refreshCategoryDefaults(documentId: string, expectedDecisionVersion: number, csrfToken: string): Promise<FindingsView> {
+  return post<FindingsView>(`/documents/${encodeURIComponent(documentId)}/category-defaults/refresh`,
+    { expected_decision_version: expectedDecisionVersion }, csrfToken)
 }
 
 export function undoReviewEdit(

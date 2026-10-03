@@ -6,6 +6,9 @@ import * as Dialog from '@radix-ui/react-dialog'
 import type { PresetInput, PresetView } from '../../api/client'
 import { GlassSelect } from '../../ui/GlassSelect'
 import { ChoiceSwitch, DialogFrame, InlineNotice } from '../../ui/WorkspaceControls'
+import type { CategoryDefault } from '../../api/client'
+import { PresetDefaults } from './PresetDefaults'
+import { choiceKey, presetChoices, tokenChoice } from '../../review/useStyleControls'
 
 export function PresetDialog({
   preset,
@@ -24,6 +27,7 @@ export function PresetDialog({
   const [phoneRegion, setPhoneRegion] = useState('PH')
   const [preferredAction, setPreferredAction] = useState<'label' | 'redact'>('label')
   const [isDefault, setIsDefault] = useState(false)
+  const [categoryDefaults, setCategoryDefaults] = useState<Record<string, CategoryDefault>>({})
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fieldId = preset?.id ?? 'new'
@@ -37,6 +41,7 @@ export function PresetDialog({
       setPhoneRegion(preset?.phone_region ?? 'PH')
       setPreferredAction(preset?.preferred_action ?? 'label')
       setIsDefault(preset?.is_default ?? false)
+      setCategoryDefaults(preset?.category_defaults ?? {})
       setError(null)
     }
     setOpen(next)
@@ -53,6 +58,10 @@ export function PresetDialog({
         phone_region: phoneRegion,
         preferred_action: preferredAction,
         is_default: isDefault,
+        category_defaults: Object.fromEntries(Object.entries(categoryDefaults).map(([category, choice]) => [category, {
+          action: choice.action, ...(presetChoices(category as FindingCategory, choice.action, phoneRegion)
+            .find((candidate) => choiceKey(candidate) === choiceKey(choice)) ?? tokenChoice),
+        }])),
       })
       setOpen(false)
     } catch (cause) {
@@ -136,6 +145,7 @@ export function PresetDialog({
             onChange={setIsDefault}
             disabled={pending}
           />
+          <PresetDefaults value={categoryDefaults} onChange={setCategoryDefaults} region={phoneRegion} disabled={pending} />
           {error && <InlineNotice error>{error}</InlineNotice>}
           <div className="dialog-actions">
             <Dialog.Close asChild>

@@ -19,6 +19,11 @@ export function ReviewSetup({ review }: { review: ReviewController }) {
         <div><dt>Expires</dt><dd>{new Date(saved.expires_at).toLocaleString()}</dd></div>
       </dl>
       {saved.preset_id && <p>Started with a Rules preset. Preferred action: {saved.preferred_action}. Later preset changes do not update this review.</p>}
+      {saved.preset_id && review.canEdit && <>
+        <p>Using the latest replacement defaults keeps your saved decisions and suggestion settings. You will need to confirm the output again.</p>
+        <button type="button" disabled={review.actionPending || review.dirty || review.settingsDirty || review.conflict}
+          onClick={() => void review.useLatestDefaults()}>Use the latest preset defaults</button>
+      </>}
     </details>
   )
 }

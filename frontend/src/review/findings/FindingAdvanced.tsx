@@ -100,7 +100,7 @@ export function FindingAdvanced({
                   linked
                 </button>
               ))}
-              {groupConfirmation?.findingId === item.finding_id && (
+              {groupConfirmation?.findingId === item.finding_id && !groupConfirmation.choice && (
                 <div role="group" aria-label="Confirm group decision">
                   <p>
                     Apply {groupConfirmation.action} to {groupConfirmation.affectedIds.length}{' '}

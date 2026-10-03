@@ -1,7 +1,7 @@
 """Authenticated source intake, saved drafts, and immutable source edits."""
 
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
@@ -38,6 +38,7 @@ from app.db.repository import (
 from app.errors import ApiError
 from app.intake.imports import MAX_FILE_BYTES, extract_import
 from app.intake.validation import SourceValidationError
+from app.transformations.contracts import CategoryDefault
 from app.workspace.presets import PresetNotFound
 
 
@@ -54,7 +55,8 @@ class SourceView(BaseModel):
     language: str
     preset_id: UUID | None
     preset_version: int | None
-    preferred_action: str
+    preferred_action: Literal["label", "redact"]
+    category_defaults: dict[FindingCategory, CategoryDefault]
 
 
 class IntakeDefaultsView(BaseModel):
@@ -102,6 +104,7 @@ def _source_view(source: LoadedSource) -> SourceView:
         preset_id=source.preset_id,
         preset_version=source.preset_version,
         preferred_action=source.preferred_action,
+        category_defaults=source.category_defaults,
     )
 
 
@@ -118,9 +121,7 @@ def _keys(request: Request) -> KeyRing:
 
 def _categories(values: list[FindingCategory]) -> set[FindingCategory]:
     categories = set(values)
-    if not categories.issubset(
-        AUTOMATIC_CATEGORIES
-    ):
+    if not categories.issubset(AUTOMATIC_CATEGORIES):
         raise ApiError(
             422, "invalid_categories", "Choose supported automatic suggestion categories."
         )

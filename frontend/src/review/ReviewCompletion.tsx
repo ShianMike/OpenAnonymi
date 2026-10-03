@@ -5,6 +5,8 @@ import { GlassCheckbox } from '../ui/GlassCheckbox'
 import { LoadingMark } from '../loading/LoadingMark'
 import { ReviewerCompletion } from '../team/ReviewerCompletion'
 
+const styleCountLabels: Record<string, string> = { stand_in: 'Fictional stand-ins', date_shift: 'Shifted dates', partial_mask: 'Partial masks', generalize: 'Generalized dates' }
+
 export function ReviewCompletion({ review }: { review: ReviewController }) {
   const { state, canConfirm, canExport, currentSummary, preparedDownload } = review
   if (state.kind !== 'ready') return null
@@ -112,6 +114,9 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
                 )
                 .join(' · ') || 'No findings marked'}
             </p>
+            <dl className="summary-style-counts">{Object.entries(currentSummary.counts_by_action_and_style).flatMap(([action, styles]) =>
+              Object.entries(styles).filter(([, count]) => count > 0).map(([style, count]) => <div key={`${action}-${style}`}><dt>{styleCountLabels[style] ?? (action === 'label' ? 'Category labels' : action === 'redact' ? '[REDACTED]' : 'Original text kept')}</dt><dd>{count}</dd></div>))}</dl>
+            {currentSummary.fictional_replacements > 0 && <p>{currentSummary.fictional_replacements} replacements are fictional stand-ins; they are not real people, organizations, places or contacts.</p>}
             <p>
               Confirmed {new Date(currentSummary.confirmed_at).toLocaleString()}.{' '}
               {currentSummary.last_output_generated_at

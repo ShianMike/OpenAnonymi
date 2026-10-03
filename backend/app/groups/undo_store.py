@@ -54,7 +54,14 @@ def capture(session: Session, rows: list[Finding], *, created: tuple[UUID, ...] 
         findings[str(row.id)] = values
         decision = decisions.get(row.id)
         before_decisions[str(row.id)] = (
-            {"action": decision.action, "keep_reason": decision.keep_reason} if decision else None
+            {
+                "action": decision.action,
+                "keep_reason": decision.keep_reason,
+                "style": decision.style,
+                "style_option": decision.style_option,
+            }
+            if decision
+            else None
         )
     return {
         "findings": findings,
@@ -181,6 +188,10 @@ def replay(session: Session, *, version: VersionRef, actor_id: UUID, now: dateti
                 decision = Decision(finding_id=row.id)
                 session.add(decision)
             decision.action, decision.keep_reason = prior["action"], prior["keep_reason"]
+            decision.style, decision.style_option = (
+                prior.get("style", "token"),
+                prior.get("style_option"),
+            )
             decision.decided_by, decision.decided_at = actor_id, now
             decision.decision_version = version.decision_version + 1
     session.delete(entry)

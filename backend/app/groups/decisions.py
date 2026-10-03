@@ -1,0 +1,134 @@
+"""Locked occurrence/group decisions and encrypted replacement style admission."""
+
+from datetime import UTC, datetime
+from uuid import UUID
+
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
+
+from app.contracts import DecisionAction, SourceSpan, VersionRef
+from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedValue
+from app.db.models import Decision, SourceRevision
+from app.groups.service import (
+    FindingsSnapshot,
+    ReviewValidationError,
+    _active_finding,
+    _current_locked,
+    _group_for_finding,
+    _require_nonoverlap,
+    _rows,
+    _snapshot,
+    _touch_review,
+    _version,
+)
+from app.groups.undo_store import capture, remember
+from app.transformations.secrets import ensure_secret
+from app.transformations.styles import StyleUnavailable, validate_style
+from app.workspace.activity import record_event
+
+
+def decide_findings(
+    engine: Engine,
+    *,
+    document_id: UUID,
+    actor_id: UUID,
+    finding_id: UUID,
+    expected: VersionRef,
+    action: DecisionAction,
+    keep_reason: str | None,
+    affected_ids: set[UUID],
+    group_scope: bool,
+    now: datetime,
+    style: str = "token",
+    style_option: str | None = None,
+    keys: KeyRing | None = None,
+) -> FindingsSnapshot:
+    if action == DecisionAction.KEEP:
+        if keep_reason not in {"false_match", "intended_disclosure"}:
+            raise ReviewValidationError("keep_reason_required", "Choose a Keep reason.")
+    elif keep_reason is not None:
+        raise ReviewValidationError("unexpected_keep_reason", "Only Keep uses a reason.")
+    with Session(engine) as session, session.begin():
+        document, version = _current_locked(session, document_id, actor_id, expected, now)
+        finding = _active_finding(session, version, finding_id)
+        if group_scope:
+            if finding.group_id is None:
+                raise ReviewValidationError("not_grouped", "This occurrence is not in a group.")
+            rows = [row for row in _rows(session, version) if row.group_id == finding.group_id]
+        else:
+            rows = [finding]
+        if affected_ids != {row.id for row in rows}:
+            raise ReviewValidationError(
+                "affected_occurrences_changed", "Review the affected occurrences again."
+            )
+        for row in rows:
+            _require_nonoverlap(
+                session,
+                version,
+                SourceSpan(start=row.start_offset, end=row.end_offset),
+                exclude_id=row.id,
+            )
+        try:
+            for row in rows:
+                validate_style(action.value, style, style_option, row.category)
+            if style != "token":
+                if keys is None:
+                    raise ContentKeyUnavailable("Content encryption is unavailable.")
+                revision = session.get(SourceRevision, version.source_revision_id)
+                source = keys.decrypt_text(
+                    ProtectedValue(revision.source_ciphertext, revision.source_key_id)
+                )
+                secret = (
+                    ensure_secret(session, document.id, keys, now)
+                    if style in {"stand_in", "date_shift"}
+                    else None
+                )
+                for row in rows:
+                    validate_style(
+                        action.value,
+                        style,
+                        style_option,
+                        row.category,
+                        value=source[row.start_offset : row.end_offset],
+                        date_format=row.date_format,
+                        region=document.phone_region,
+                        offset=secret.offset if secret else None,
+                        created=document.created_at.astimezone(UTC).date(),
+                    )
+        except StyleUnavailable as error:
+            raise ReviewValidationError(error.code, str(error)) from None
+        before = capture(session, rows)
+        if action == DecisionAction.LABEL:
+            for row in rows:
+                _group_for_finding(session, document, row, now)
+        _touch_review(document, now)
+        for row in rows:
+            decision = session.get(Decision, row.id)
+            if decision is None:
+                decision = Decision(finding_id=row.id)
+                session.add(decision)
+            decision.action = action.value
+            decision.style, decision.style_option = style, style_option
+            decision.keep_reason = keep_reason
+            decision.decided_by = actor_id
+            decision.decision_version = document.decision_version
+            decision.decided_at = now
+        session.flush()
+        remember(
+            session,
+            actor_id=actor_id,
+            before=version,
+            after=_version(document),
+            payload=before,
+            now=now,
+        )
+        snapshot = _snapshot(session, _version(document), actor_id, now)
+        record_event(
+            session,
+            workspace_id=document.workspace_id,
+            actor_id=actor_id,
+            document_id=document.id,
+            event_code="review_decision_saved",
+            now=now,
+        )
+    return snapshot

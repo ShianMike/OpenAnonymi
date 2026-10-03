@@ -130,6 +130,7 @@ export function ReviewFindings({ review }: { review: ReviewController }) {
               <button type="button" className="finding-card-trigger">
                 <span className="finding-card-top">
                   <CategoryBadge category={item.category} />
+                  {review.preview?.fictional_finding_ids?.includes(item.finding_id) && <span className="fictional-badge"><Sparkles size={11} aria-hidden="true" /> Fictional</span>}
                   <span className="finding-state" data-action={item.action || 'pending'}>
                     {item.action === 'label'
                       ? 'Labeled'

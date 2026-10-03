@@ -4684,6 +4684,59 @@
         }
       }
     },
+    "/api/v1/documents/{document_id}/category-defaults/refresh": {
+      "post": {
+        "tags": [
+          "findings"
+        ],
+        "summary": "Refresh Defaults Route",
+        "operationId": "refresh_defaults_route_api_v1_documents__document_id__category_defaults_refresh_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshDefaultsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FindingsView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/documents/{document_id}/review/undo": {
       "post": {
         "tags": [
@@ -5945,6 +5998,60 @@
         ],
         "title": "Body_preview_route_api_v1_documents_import_preview_post"
       },
+      "CategoryDefault": {
+        "properties": {
+          "style": {
+            "type": "string",
+            "enum": [
+              "token",
+              "stand_in",
+              "date_shift",
+              "partial_mask",
+              "generalize"
+            ],
+            "title": "Style",
+            "default": "token"
+          },
+          "style_option": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "last4",
+                  "first_letters",
+                  "email_domain",
+                  "email_first",
+                  "url_host",
+                  "secret_prefix",
+                  "month_year",
+                  "year",
+                  "age_band"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Style Option"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "label",
+              "redact",
+              "keep"
+            ],
+            "title": "Action"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "title": "CategoryDefault"
+      },
       "ChallengeView": {
         "properties": {
           "status": {
@@ -6419,6 +6526,30 @@
             "type": "array",
             "uniqueItems": true,
             "title": "Affected Finding Ids"
+          },
+          "style": {
+            "type": "string",
+            "enum": [
+              "token",
+              "stand_in",
+              "date_shift",
+              "partial_mask",
+              "generalize"
+            ],
+            "title": "Style",
+            "default": "token"
+          },
+          "style_option": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 24
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Style Option"
           }
         },
         "type": "object",
@@ -7051,6 +7182,51 @@
               }
             ],
             "title": "Keep Reason"
+          },
+          "style": {
+            "type": "string",
+            "enum": [
+              "token",
+              "stand_in",
+              "date_shift",
+              "partial_mask",
+              "generalize"
+            ],
+            "title": "Style"
+          },
+          "style_option": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "last4",
+                  "first_letters",
+                  "email_domain",
+                  "email_first",
+                  "url_host",
+                  "secret_prefix",
+                  "month_year",
+                  "year",
+                  "age_band"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Style Option"
+          },
+          "date_format": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date Format"
           }
         },
         "type": "object",
@@ -7065,7 +7241,10 @@
           "group_id",
           "label",
           "action",
-          "keep_reason"
+          "keep_reason",
+          "style",
+          "style_option",
+          "date_format"
         ],
         "title": "FindingView"
       },
@@ -7571,6 +7750,24 @@
             "type": "boolean",
             "title": "Is Default",
             "default": false
+          },
+          "category_defaults": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/CategoryDefault"
+                },
+                "propertyNames": {
+                  "$ref": "#/components/schemas/FindingCategory"
+                },
+                "type": "object",
+                "maxProperties": 12
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Defaults"
           }
         },
         "type": "object",
@@ -7617,6 +7814,16 @@
           "is_default": {
             "type": "boolean",
             "title": "Is Default"
+          },
+          "category_defaults": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/CategoryDefault"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/FindingCategory"
+            },
+            "type": "object",
+            "title": "Category Defaults"
           }
         },
         "type": "object",
@@ -7627,7 +7834,8 @@
           "phone_region",
           "preferred_action",
           "version",
-          "is_default"
+          "is_default",
+          "category_defaults"
         ],
         "title": "PresetView"
       },
@@ -7689,6 +7897,35 @@
             },
             "type": "array",
             "title": "Overlaps"
+          },
+          "fictional_finding_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Fictional Finding Ids"
+          },
+          "stand_in_fallback_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Stand In Fallback Ids"
+          },
+          "style_capabilities": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "items": {
+                  "$ref": "#/components/schemas/StyleChoice"
+                },
+                "type": "array"
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Style Capabilities"
           }
         },
         "type": "object",
@@ -7974,6 +8211,20 @@
         ],
         "title": "RecoveryWrite"
       },
+      "RefreshDefaultsRequest": {
+        "properties": {
+          "expected_decision_version": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Expected Decision Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expected_decision_version"
+        ],
+        "title": "RefreshDefaultsRequest"
+      },
       "RefreshRulesInput": {
         "properties": {
           "expected": {
@@ -8089,6 +8340,20 @@
             },
             "type": "object",
             "title": "Counts By Action"
+          },
+          "counts_by_action_and_style": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Counts By Action And Style"
+          },
+          "fictional_replacements": {
+            "type": "integer",
+            "title": "Fictional Replacements"
           }
         },
         "type": "object",
@@ -8098,7 +8363,9 @@
           "last_output_generated_at",
           "finding_count",
           "counts_by_category",
-          "counts_by_action"
+          "counts_by_action",
+          "counts_by_action_and_style",
+          "fictional_replacements"
         ],
         "title": "ReviewSummaryView"
       },
@@ -8887,7 +9154,21 @@
           },
           "preferred_action": {
             "type": "string",
+            "enum": [
+              "label",
+              "redact"
+            ],
             "title": "Preferred Action"
+          },
+          "category_defaults": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/CategoryDefault"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/FindingCategory"
+            },
+            "type": "object",
+            "title": "Category Defaults"
           }
         },
         "type": "object",
@@ -8904,7 +9185,8 @@
           "language",
           "preset_id",
           "preset_version",
-          "preferred_action"
+          "preferred_action",
+          "category_defaults"
         ],
         "title": "SourceView"
       },
@@ -8940,6 +9222,48 @@
           "action"
         ],
         "title": "SpanMappingView"
+      },
+      "StyleChoice": {
+        "properties": {
+          "style": {
+            "type": "string",
+            "enum": [
+              "token",
+              "stand_in",
+              "date_shift",
+              "partial_mask",
+              "generalize"
+            ],
+            "title": "Style",
+            "default": "token"
+          },
+          "style_option": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "last4",
+                  "first_letters",
+                  "email_domain",
+                  "email_first",
+                  "url_host",
+                  "secret_prefix",
+                  "month_year",
+                  "year",
+                  "age_band"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Style Option"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "StyleChoice"
       },
       "SuggestionView": {
         "properties": {
@@ -9043,6 +9367,24 @@
             "type": "boolean",
             "title": "Is Default",
             "default": false
+          },
+          "category_defaults": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/CategoryDefault"
+                },
+                "propertyNames": {
+                  "$ref": "#/components/schemas/FindingCategory"
+                },
+                "type": "object",
+                "maxProperties": 12
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Defaults"
           },
           "expected_version": {
             "type": "integer",

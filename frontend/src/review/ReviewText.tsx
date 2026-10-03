@@ -39,7 +39,7 @@ export function ReviewText({
               className="inline-finding"
               data-finding-id={finding.finding_id}
               data-action={finding.action || 'pending'}
-              aria-label={`${finding.category}: ${segment.text}. ${finding.action || 'Needs decision'}. Open options`}
+              aria-label={`${finding.category}: ${segment.text}. ${finding.action || 'Needs decision'}.${variant === 'preview' && review.preview?.fictional_finding_ids?.includes(finding.finding_id) ? ' Fictional stand-in.' : ''} Open options`}
               data-selected={review.selectedFindingId === finding.finding_id || undefined}
               disabled={review.dirty || review.settingsDirty}
             >

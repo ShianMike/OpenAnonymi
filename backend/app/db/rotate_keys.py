@@ -14,6 +14,7 @@ from app.db.custom_rules import RuleVersion
 from app.db.email_verification import PendingRegistration
 from app.db.models import Document, SourceRevision
 from app.db.recovery import RecoverySnapshot
+from app.db.replacement_secrets import DocumentReplacementSecret
 from app.db.second_factor import UserSecondFactor
 from app.db.team_review import FindingComment
 
@@ -122,6 +123,20 @@ def rotate_second_factors(session: Session, keys: KeyRing) -> int:
     return len(rows)
 
 
+def rotate_replacement_secrets(session: Session, keys: KeyRing) -> int:
+    rows = session.scalars(
+        select(DocumentReplacementSecret)
+        .where(DocumentReplacementSecret.key_id != keys.active_key_id)
+        .order_by(DocumentReplacementSecret.document_id)
+        .limit(BATCH_SIZE)
+        .with_for_update()
+    ).all()
+    for row in rows:
+        rotated = keys.rotate_text(ProtectedValue(row.secret_ciphertext, row.key_id))
+        row.secret_ciphertext, row.key_id = rotated.ciphertext, rotated.key_id
+    return len(rows)
+
+
 def rotate_database(settings: Settings, keys: KeyRing) -> dict[str, int]:
     engine = create_engine(settings.database_url, pool_pre_ping=True, hide_parameters=True)
     totals = {
@@ -132,6 +147,7 @@ def rotate_database(settings: Settings, keys: KeyRing) -> dict[str, int]:
         "comments": 0,
         "pending registrations": 0,
         "authenticator secrets": 0,
+        "replacement secrets": 0,
     }
     try:
         for label, rotate_batch in (
@@ -142,6 +158,7 @@ def rotate_database(settings: Settings, keys: KeyRing) -> dict[str, int]:
             ("comments", rotate_comments),
             ("pending registrations", rotate_pending_registrations),
             ("authenticator secrets", rotate_second_factors),
+            ("replacement secrets", rotate_replacement_secrets),
         ):
             while True:
                 with Session(engine) as session:
@@ -172,7 +189,8 @@ def main() -> None:
         f", {totals['working drafts']} working drafts, {totals['rules']} rule versions "
         f", {totals['comments']} finding comments "
         f", {totals['pending registrations']} pending registrations "
-        f"and {totals['authenticator secrets']} authenticator secrets."
+        f", {totals['authenticator secrets']} authenticator secrets "
+        f"and {totals['replacement secrets']} replacement secrets."
     )
 
 

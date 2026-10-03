@@ -6,6 +6,7 @@ import type { ReviewController } from './useReviewController'
 import type { ReviewFinding } from './textSegments'
 import './finding-popover.css'
 import { CategoryBadge } from '../rules/CategoryBadge'
+import { StyleControls } from './StyleControls'
 
 const actions = [
   { value: 'label', title: 'Label', description: 'Use a consistent placeholder', icon: Tag },
@@ -109,6 +110,7 @@ export function FindingPopover({
             <option value="false_match">False match</option>
             <option value="intended_disclosure">Intended disclosure</option>
           </GlassSelect>
+          {open && <StyleControls finding={finding} review={review} />}
           {review.findingPending && (
             <p role="status" className="finding-popover-feedback">
               Saving decision…

@@ -53,6 +53,8 @@ export function ReviewPreview({ review }: { review: ReviewController }) {
                 ? `${preview.unresolved_finding_ids.length} details still need a decision. This output is provisional.`
                 : 'All marked details have decisions. Read the full output before confirming.'}
           </p>
+          {(preview.fictional_finding_ids?.length ?? 0) > 0 && <p className="fictional-legend"><strong>Fictional stand-ins</strong> · These replacements are not real people, organizations, places or contacts.</p>}
+          {(preview.stand_in_fallback_ids?.length ?? 0) > 0 && <p className="fictional-legend">A unique fictional stand-in was unavailable for {preview.stand_in_fallback_ids?.length} occurrences. Their category labels are used instead.</p>}
           {!plainPreview && (
             <ReviewText
               text={preview.text as string}

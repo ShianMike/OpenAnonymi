@@ -9,7 +9,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from app.accounts.access import ContentUnavailable, review_document
-from app.contracts import DecisionAction, DocumentStatus, FindingCategory, SourceSpan, VersionRef
+from app.contracts import DocumentStatus, FindingCategory, SourceSpan, VersionRef
 from app.db.crypto import KeyRing, ProtectedValue
 from app.db.labels import allocate_group_locked
 from app.db.models import Decision, Document, EntityGroup, Finding, ScanRun, SourceRevision
@@ -43,6 +43,9 @@ class FindingItem:
     label: str | None
     action: str | None
     keep_reason: str | None
+    style: str
+    style_option: str | None
+    date_format: str | None
 
 
 @dataclass(frozen=True)
@@ -135,6 +138,9 @@ def _snapshot(
                 label=groups[row.group_id].label if row.group_id in groups else None,
                 action=decisions[row.id].action if row.id in decisions else None,
                 keep_reason=decisions[row.id].keep_reason if row.id in decisions else None,
+                style=decisions[row.id].style if row.id in decisions else "token",
+                style_option=decisions[row.id].style_option if row.id in decisions else None,
+                date_format=row.date_format,
             )
             for row in rows
         ),
@@ -287,7 +293,9 @@ def add_finding(
                 document_id=document_id,
                 source_revision_id=version.source_revision_id,
                 category=category.value,
-                date_format=format_for_span(source, span.start, span.end, document.phone_region) if category == FindingCategory.DATE else None,
+                date_format=format_for_span(source, span.start, span.end, document.phone_region)
+                if category == FindingCategory.DATE
+                else None,
                 origin="manual",
                 start_offset=span.start,
                 end_offset=span.end,
@@ -336,7 +344,11 @@ def revise_finding(
         finding.start_offset = span.start
         finding.end_offset = span.end
         finding.category = category.value
-        finding.date_format = format_for_span(source, span.start, span.end, document.phone_region) if category == FindingCategory.DATE else None
+        finding.date_format = (
+            format_for_span(source, span.start, span.end, document.phone_region)
+            if category == FindingCategory.DATE
+            else None
+        )
         finding.origin = "manual"
         finding.scan_run_id = None
         finding.rule_id = None
@@ -427,7 +439,9 @@ def add_exact_match(
                 document_id=document_id,
                 source_revision_id=version.source_revision_id,
                 category=source_finding.category,
-                date_format=format_for_span(source, span.start, span.end, document.phone_region) if source_finding.category == FindingCategory.DATE else None,
+                date_format=format_for_span(source, span.start, span.end, document.phone_region)
+                if source_finding.category == FindingCategory.DATE
+                else None,
                 origin="manual",
                 start_offset=span.start,
                 end_offset=span.end,
@@ -554,78 +568,11 @@ def merge_findings(
     return snapshot
 
 
-def decide_findings(
-    engine: Engine,
-    *,
-    document_id: UUID,
-    actor_id: UUID,
-    finding_id: UUID,
-    expected: VersionRef,
-    action: DecisionAction,
-    keep_reason: str | None,
-    affected_ids: set[UUID],
-    group_scope: bool,
-    now: datetime,
-) -> FindingsSnapshot:
-    if action == DecisionAction.KEEP:
-        if keep_reason not in {"false_match", "intended_disclosure"}:
-            raise ReviewValidationError("keep_reason_required", "Choose a Keep reason.")
-    elif keep_reason is not None:
-        raise ReviewValidationError("unexpected_keep_reason", "Only Keep uses a reason.")
-    with Session(engine) as session, session.begin():
-        document, version = _current_locked(session, document_id, actor_id, expected, now)
-        finding = _active_finding(session, version, finding_id)
-        if group_scope:
-            if finding.group_id is None:
-                raise ReviewValidationError("not_grouped", "This occurrence is not in a group.")
-            rows = [row for row in _rows(session, version) if row.group_id == finding.group_id]
-        else:
-            rows = [finding]
-        if affected_ids != {row.id for row in rows}:
-            raise ReviewValidationError(
-                "affected_occurrences_changed", "Review the affected occurrences again."
-            )
-        for row in rows:
-            _require_nonoverlap(
-                session,
-                version,
-                SourceSpan(start=row.start_offset, end=row.end_offset),
-                exclude_id=row.id,
-            )
-        before = capture(session, rows)
-        if action == DecisionAction.LABEL:
-            for row in rows:
-                _group_for_finding(session, document, row, now)
-        _touch_review(document, now)
-        for row in rows:
-            decision = session.get(Decision, row.id)
-            if decision is None:
-                decision = Decision(finding_id=row.id)
-                session.add(decision)
-            decision.action = action.value
-            decision.keep_reason = keep_reason
-            decision.decided_by = actor_id
-            decision.decision_version = document.decision_version
-            decision.decided_at = now
-        session.flush()
-        remember(
-            session,
-            actor_id=actor_id,
-            before=version,
-            after=_version(document),
-            payload=before,
-            now=now,
-        )
-        snapshot = _snapshot(session, _version(document), actor_id, now)
-        record_event(
-            session,
-            workspace_id=document.workspace_id,
-            actor_id=actor_id,
-            document_id=document.id,
-            event_code="review_decision_saved",
-            now=now,
-        )
-    return snapshot
+def decide_findings(engine: Engine, **kwargs) -> FindingsSnapshot:
+    """Compatibility entry point; decision handling lives in its own module."""
+    from app.groups.decisions import decide_findings as apply_decision
+
+    return apply_decision(engine, **kwargs)
 
 
 def undo_last_review_edit(

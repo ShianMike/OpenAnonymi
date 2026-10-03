@@ -5,7 +5,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.engine import Engine
 
 from app.accounts.access import ContentUnavailable, DocumentNotFound
@@ -14,6 +14,7 @@ from app.accounts.security import SessionIdentity
 from app.contracts import DecisionAction, ErrorResponse, SourceSpan, VersionRef
 from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedContentError
 from app.errors import ApiError
+from app.transformations.contracts import StyleChoice
 from app.transformations.engine import InvalidTransformation, PreviewStatus
 from app.transformations.service import load_preview
 
@@ -32,6 +33,9 @@ class PreviewView(BaseModel):
     mappings: list[SpanMappingView]
     unresolved_finding_ids: list[UUID]
     overlaps: list[tuple[UUID, UUID]]
+    fictional_finding_ids: list[UUID] = Field(default_factory=list)
+    stand_in_fallback_ids: list[UUID] = Field(default_factory=list)
+    style_capabilities: dict[str, dict[str, list[StyleChoice]]] = Field(default_factory=dict)
 
 
 def create_transform_router(engine: Engine) -> APIRouter:
@@ -76,6 +80,11 @@ def create_transform_router(engine: Engine) -> APIRouter:
                 ],
                 unresolved_finding_ids=list(snapshot.unresolved_ids),
                 overlaps=list(snapshot.overlaps),
+                fictional_finding_ids=list(snapshot.fictional_ids),
+                stand_in_fallback_ids=list(snapshot.stand_in_fallback_ids),
+                style_capabilities={
+                    str(key): value for key, value in (snapshot.style_capabilities or {}).items()
+                },
             )
         except DocumentNotFound:
             raise ApiError(404, "document_not_found", "Document not found.") from None

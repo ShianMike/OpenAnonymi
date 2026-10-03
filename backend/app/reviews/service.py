@@ -41,6 +41,8 @@ class ReviewSummary:
     finding_count: int
     counts_by_category: dict[str, int]
     counts_by_action: dict[str, int]
+    counts_by_action_and_style: dict[str, dict[str, int]]
+    fictional_replacements: int
 
 
 def current_completion(session: Session, document: Document) -> ReviewCompletion:
@@ -136,7 +138,7 @@ def confirm_review(
 
 
 def load_review_summary(
-    engine: Engine, *, document_id: UUID, actor_id: UUID, now: datetime
+    engine: Engine, *, document_id: UUID, actor_id: UUID, now: datetime, keys: KeyRing | None = None
 ) -> ReviewSummary:
     with Session(engine) as session, session.begin():
         document = review_document(session, document_id, actor_id, now, lock=True)
@@ -144,6 +146,24 @@ def load_review_summary(
         findings = _snapshot(session, _version(document))
         category_counts = Counter(item.category.value for item in findings.findings)
         action_counts = Counter(item.action for item in findings.findings if item.action)
+        from app.transformations.styles import ACTION_STYLES
+
+        style_counts = {
+            action: {style: 0 for style in sorted(styles)}
+            for action, styles in ACTION_STYLES.items()
+        }
+        for item in findings.findings:
+            if item.action:
+                style_counts[item.action][item.style] += 1
+        fictional = 0
+        if style_counts["label"]["stand_in"]:
+            if keys is None:
+                from app.db.crypto import ContentKeyUnavailable
+
+                raise ContentKeyUnavailable("Content encryption is unavailable.")
+            fictional = len(
+                build_current_preview(session, document=document, keys=keys).fictional_ids
+            )
         last_generated = session.scalar(
             select(func.max(ExportEvent.occurred_at)).where(
                 ExportEvent.document_id == document_id,
@@ -157,4 +177,6 @@ def load_review_summary(
             finding_count=len(findings.findings),
             counts_by_category=dict(category_counts),
             counts_by_action=dict(action_counts),
+            counts_by_action_and_style=style_counts,
+            fictional_replacements=fictional,
         )

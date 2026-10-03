@@ -1,5 +1,6 @@
 """Protected document storage. Public HTTP handlers will use these guarded operations."""
 
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
@@ -63,6 +64,7 @@ class LoadedSource:
     preset_version: int | None
     preferred_action: str
     language: str
+    category_defaults: dict
 
 
 def _version(document: Document) -> VersionRef:
@@ -144,6 +146,9 @@ def create_document(
             preset_id=selected_preset.id if selected_preset else None,
             preset_version=selected_preset.version if selected_preset else None,
             preferred_action=selected_preset.preferred_action if selected_preset else "label",
+            category_defaults=deepcopy(selected_preset.category_defaults)
+            if selected_preset
+            else {},
             created_at=now,
             updated_at=now,
             expires_at=expiry,
@@ -215,6 +220,7 @@ def load_current_source(
         document.preset_version,
         document.preferred_action,
         document.language,
+        deepcopy(document.category_defaults),
     )
 
 

@@ -38,6 +38,7 @@ from app.groups.service import (
     split_finding,
     undo_last_review_edit,
 )
+from app.transformations.contracts import StyleName, StyleOption
 
 
 class FindingView(BaseModel):
@@ -52,6 +53,9 @@ class FindingView(BaseModel):
     label: str | None
     action: Literal["label", "redact", "keep"] | None
     keep_reason: str | None
+    style: StyleName
+    style_option: StyleOption | None
+    date_format: str | None
 
 
 class FindingsView(BaseModel):
@@ -97,6 +101,12 @@ class DecisionRequest(BaseModel):
     keep_reason: str | None = None
     group_scope: bool = False
     affected_finding_ids: set[UUID]
+    style: Literal["token", "stand_in", "date_shift", "partial_mask", "generalize"] = "token"
+    style_option: str | None = Field(default=None, max_length=24)
+
+
+class RefreshDefaultsRequest(BaseModel):
+    expected_decision_version: int = Field(ge=0)
 
 
 def _view(snapshot: FindingsSnapshot) -> FindingsView:
@@ -117,6 +127,9 @@ def _view(snapshot: FindingsSnapshot) -> FindingsView:
                 label=item.label,
                 action=item.action,
                 keep_reason=item.keep_reason,
+                style=item.style,
+                style_option=item.style_option,
+                date_format=item.date_format,
             )
             for item in snapshot.findings
         ],
@@ -426,6 +439,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
         document_id: UUID,
         finding_id: UUID,
         body: DecisionRequest,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ) -> FindingsView | JSONResponse:
         try:
@@ -440,6 +454,9 @@ def create_groups_router(engine: Engine) -> APIRouter:
                     keep_reason=body.keep_reason,
                     affected_ids=body.affected_finding_ids,
                     group_scope=body.group_scope,
+                    style=body.style,
+                    style_option=body.style_option,
+                    keys=_keys(request),
                     now=datetime.now(UTC),
                 )
             )
@@ -447,6 +464,37 @@ def create_groups_router(engine: Engine) -> APIRouter:
             VersionConflict,
             DocumentNotFound,
             FindingNotFound,
+            ContentUnavailable,
+            ReviewValidationError,
+            ContentKeyUnavailable,
+            ProtectedContentError,
+        ) as exc:
+            result = _error(exc)
+            if isinstance(result, ApiError):
+                raise result from None
+            return result
+
+    @router.post("/{document_id}/category-defaults/refresh", response_model=FindingsView)
+    def refresh_defaults_route(
+        document_id: UUID,
+        body: RefreshDefaultsRequest,
+        identity: Annotated[SessionIdentity, Depends(mutation_identity)],
+    ):
+        from app.transformations.defaults import refresh_defaults
+
+        try:
+            return _view(
+                refresh_defaults(
+                    engine,
+                    document_id=document_id,
+                    actor_id=identity.user_id,
+                    expected_decision_version=body.expected_decision_version,
+                    now=datetime.now(UTC),
+                )
+            )
+        except (
+            VersionConflict,
+            DocumentNotFound,
             ContentUnavailable,
             ReviewValidationError,
         ) as exc:
