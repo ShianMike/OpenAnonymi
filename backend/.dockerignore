@@ -6,6 +6,7 @@
 !.python-version
 !alembic.ini
 !app/
+!certs/
 !migrations/
 !docker-entrypoint.sh
 **/__pycache__

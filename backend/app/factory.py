@@ -22,6 +22,7 @@ from app.custom_rules.api import create_custom_rules_router
 from app.detection.api import create_detection_router
 from app.edge import (
     AccessLogMiddleware,
+    ContentFreeErrorsMiddleware,
     RequestBodyLimitMiddleware,
     RequestTooLarge,
     SecurityHeadersMiddleware,
@@ -74,7 +75,15 @@ def create_app(
     production = settings.environment == "production"
     # Interactive docs and the public schema are development aids only.
     docs = {} if not production else {"docs_url": None, "redoc_url": None, "openapi_url": None}
-    app = FastAPI(title="OpenAnonymi API", version="0.1.0", lifespan=lifespan, **docs)
+    # TLS terminates at the host proxy. A slash redirect would otherwise use the
+    # internal HTTP scheme, potentially resending a request body to an insecure URL.
+    app = FastAPI(
+        title="OpenAnonymi API",
+        version="0.1.0",
+        lifespan=lifespan,
+        redirect_slashes=not production,
+        **docs,
+    )
     app.state.settings = settings
     app.state.engine = engine
     app.state.recovery_mailer = recovery_mailer or (
@@ -82,6 +91,7 @@ def create_app(
     )
     # Added innermost first. The body limit sits inside CORS so a 413 still carries CORS
     # headers the website can read; security headers and the access log wrap everything.
+    app.add_middleware(ContentFreeErrorsMiddleware)
     app.add_middleware(RequestBodyLimitMiddleware)
     app.add_middleware(
         CORSMiddleware,

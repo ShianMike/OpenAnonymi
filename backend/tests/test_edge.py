@@ -191,7 +191,7 @@ def test_access_log_records_route_templates_without_identifiers_or_queries(caplo
         and '"GET /api/v1/documents/{document_id}/source" 401' in line
         for line in lines
     )
-    assert any('"GET /api/v1/unknown/{id}" 404' in line for line in lines)
+    assert any('"GET [unmatched]" 404' in line for line in lines)
     assert not any("/health/live" in line for line in lines)
     joined = "\n".join(lines)
     assert DOCUMENT_ID not in joined

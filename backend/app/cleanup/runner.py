@@ -17,6 +17,7 @@ INTERVAL_SECONDS = 3600
 
 async def periodic_cleanup(engine: Engine) -> None:
     while True:
+        documents, activity = 0, 0
         try:
             while True:
                 result = await asyncio.to_thread(
@@ -24,8 +25,13 @@ async def periodic_cleanup(engine: Engine) -> None:
                     engine,
                     now=datetime.now(UTC),
                 )
+                documents += result.documents_purged
+                activity += result.activity_removed
                 if result.documents_purged == 0:
                     break
+            LOGGER.info(
+                "Content cleanup complete: %d documents, %d activity rows.", documents, activity
+            )
         except asyncio.CancelledError:
             raise
         except SQLAlchemyError:
