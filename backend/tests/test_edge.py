@@ -3,10 +3,11 @@
 import logging
 
 from cryptography.fernet import Fernet
+from fastapi import Response
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 
-from app.accounts.api import _session_cookie
+from app.accounts.api import clear_session_cookie, set_session_cookie
 from app.config import Settings
 from app.edge import MAX_REQUEST_BYTES, attempt_key, client_address
 from app.factory import create_app
@@ -63,8 +64,10 @@ def test_attempt_key_groups_ipv6_subscriber_prefixes():
 
 def test_production_session_cookie_is_cross_site_and_cleared_with_the_same_attributes():
     settings = _production()
-    issued = _session_cookie("synthetic-token", max_age=43200, settings=settings)
-    cleared = _session_cookie("", max_age=0, settings=settings)
+    issuing, clearing = Response(), Response()
+    set_session_cookie(issuing, "synthetic-token", settings)
+    clear_session_cookie(clearing, settings)
+    issued, cleared = issuing.headers["set-cookie"], clearing.headers["set-cookie"]
     assert issued == (
         "openanonymi_session=synthetic-token; Max-Age=43200; Path=/api/v1; "
         "HttpOnly; Secure; SameSite=None; Partitioned"
@@ -75,7 +78,9 @@ def test_production_session_cookie_is_cross_site_and_cleared_with_the_same_attri
 
 
 def test_development_session_cookie_stays_lax_for_plain_http():
-    issued = _session_cookie("synthetic-token", max_age=43200, settings=_settings())
+    response = Response()
+    set_session_cookie(response, "synthetic-token", _settings())
+    issued = response.headers["set-cookie"]
     assert issued.endswith("HttpOnly; SameSite=Lax")
     assert "Secure" not in issued and "Partitioned" not in issued
 

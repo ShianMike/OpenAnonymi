@@ -13,6 +13,7 @@ from app.contracts import DocumentStatus
 from app.db.batches import ScanJob
 from app.db.column_rules import DocumentColumnRules
 from app.db.custom_rules import DocumentRuleSnapshot
+from app.db.document_preferences import DocumentPreference
 from app.db.durable import AttemptEvent, ReviewUndoEntry
 from app.db.email_verification import EmailVerification, PendingRegistration
 from app.db.models import AuditEvent, Document, LabelCounter, SourceRevision, Workspace
@@ -57,6 +58,7 @@ def purge_document(session: Session, document: Document, now: datetime) -> bool:
         and document.expires_at > now
     ):
         return False
+    session.execute(delete(DocumentPreference).where(DocumentPreference.document_id == document.id))
     if document.current_revision_id is None and document.title_ciphertext is None:
         return False
     if document.deleted_at is None and document.status != DocumentStatus.EXPIRED:

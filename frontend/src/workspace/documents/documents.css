@@ -3,6 +3,23 @@
   --document-header-offset: 78px;
   container: documents / inline-size;
 }
+.document-select-col { width: 44px; }
+.documents-page .workspace-picker label { flex-shrink: 0; white-space: nowrap; }
+.documents-table .document-select-cell { padding: 10px; width: 44px; }
+.document-select-cell input, .document-select-visible input { width: 18px; height: 18px; accent-color: var(--blue); }
+.document-select-visible { display: flex; align-items: center; gap: 8px; font-size: .8rem; }
+.document-flag { display: inline-flex; align-items: center; gap: 4px; }
+.document-bulk { padding: 14px 22px; border-bottom: 1px solid var(--border); }
+.document-bulk-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: .82rem; }
+.document-bulk-controls small { color: var(--muted); }
+.document-bulk-controls > div { min-width: 180px; max-width: 100%; }
+.document-bulk-controls button { font-size: .8rem; }
+.document-bulk-results { margin-top: 16px; }
+.document-bulk-results h2 { font-size: .87rem; }
+.document-bulk-results ul { list-style: none; padding: 0; margin: 0; }
+.document-bulk-results li { display: flex; flex-wrap: wrap; gap: 5px 16px; padding: 7px 0; font-size: .8rem; }
+.document-bulk-results strong { overflow-wrap: anywhere; }
+.document-bulk-results span { color: var(--muted); }
 .document-collection {
   background: linear-gradient(120deg, var(--tone-paper, #1b211e), var(--tone-paper, #191f1c));
   border-radius: 20px;
@@ -556,12 +573,12 @@
   font-size: 0.83rem;
 }
 .document-dialog-actions .document-confirm-delete {
-  color: var(--on-accent, #ffd1cb);
+  color: #fff5f2;
   border-color: transparent;
   background: var(--tone-danger-solid, #603a36);
 }
 .document-dialog-actions .document-confirm-delete:hover:not(:disabled) {
-  color: var(--on-accent, #ffe5e1);
+  color: #fff5f2;
   border-color: transparent;
   background: var(--tone-danger-solid-hover, #75403a);
 }
@@ -614,6 +631,8 @@
   }
 }
 @container documents (max-width: 760px) {
+  .documents-table .document-select-cell { grid-row: 1; grid-column: 1; width: 28px; z-index: 1; }
+  .documents-table tbody .document-row > .document-name-cell { padding-left: 36px; }
   .document-controls {
     padding: 0 17px;
   }
@@ -705,6 +724,12 @@
   }
 }
 @container documents (max-width: 580px) {
+  .document-quick-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  .document-quick-filters button { padding: 12px 0; justify-content: space-between; }
+  .document-bulk { padding: 14px 17px; }
+  .document-bulk-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .document-bulk-controls > label, .document-bulk-controls > span, .document-bulk-controls > div { grid-column: 1 / -1; }
+  .document-bulk-controls > div { min-width: 0; }
   .document-filter-topline {
     min-height: 55px;
     margin-bottom: 12px;

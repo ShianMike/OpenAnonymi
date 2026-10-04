@@ -1482,6 +1482,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/search/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Search Route */
+        post: operations["search_route_api_v1_search_documents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Preference Route */
+        patch: operations["preference_route_api_v1_documents__document_id__preferences_patch"];
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/documents/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bulk Route */
+        post: operations["bulk_route_api_v1_workspaces__workspace_id__documents_bulk_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/presets": {
         parameters: {
             query?: never;
@@ -1859,6 +1910,38 @@ export interface components {
         Body_upload_route_api_v1_batches__batch_id__documents_post: {
             /** File */
             file: string;
+        };
+        /** BulkDocumentOutcome */
+        BulkDocumentOutcome: {
+            /**
+             * Document Id
+             * Format: uuid
+             */
+            document_id: string;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "updated" | "deleted" | "not_found" | "unavailable" | "session_ended";
+            /** Favorite */
+            favorite?: boolean | null;
+            /** Pinned */
+            pinned?: boolean | null;
+        };
+        /** BulkDocumentsRequest */
+        BulkDocumentsRequest: {
+            /** Document Ids */
+            document_ids: string[];
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "favorite" | "unfavorite" | "pin" | "unpin" | "delete";
+        };
+        /** BulkDocumentsView */
+        BulkDocumentsView: {
+            /** Outcomes */
+            outcomes: components["schemas"]["BulkDocumentOutcome"][];
         };
         /** CategoryDefault */
         CategoryDefault: {
@@ -2391,6 +2474,82 @@ export interface components {
             finding_count: number;
             /** Decided Count */
             decided_count: number;
+            /** Favorite */
+            favorite: boolean;
+            /** Pinned */
+            pinned: boolean;
+        };
+        /** DocumentPreferenceRequest */
+        DocumentPreferenceRequest: {
+            /** Favorite */
+            favorite?: boolean | null;
+            /** Pinned */
+            pinned?: boolean | null;
+        };
+        /** DocumentPreferenceView */
+        DocumentPreferenceView: {
+            /**
+             * Document Id
+             * Format: uuid
+             */
+            document_id: string;
+            /** Favorite */
+            favorite: boolean;
+            /** Pinned */
+            pinned: boolean;
+        };
+        /** DocumentSearchItem */
+        DocumentSearchItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Workspace Id
+             * Format: uuid
+             */
+            workspace_id: string;
+            /** Workspace Name */
+            workspace_name: string;
+            /** Title */
+            title: string | null;
+            status: components["schemas"]["DocumentStatus"];
+            /** Is Owner */
+            is_owner: boolean;
+            /** Favorite */
+            favorite: boolean;
+            /** Pinned */
+            pinned: boolean;
+        };
+        /** DocumentSearchRequest */
+        DocumentSearchRequest: {
+            /**
+             * Query
+             * @default
+             */
+            query: string;
+            cursor?: components["schemas"]["SearchCursor"] | null;
+            /** Workspace Id */
+            workspace_id?: string | null;
+            /**
+             * Favorites Only
+             * @default false
+             */
+            favorites_only: boolean;
+            /**
+             * Limit
+             * @default 20
+             */
+            limit: number;
+        };
+        /** DocumentSearchView */
+        DocumentSearchView: {
+            /** Items */
+            items: components["schemas"]["DocumentSearchItem"][];
+            next_cursor: components["schemas"]["SearchCursor"] | null;
+            /** Scanned Count */
+            scanned_count: number;
         };
         /**
          * DocumentStatus
@@ -3288,6 +3447,19 @@ export interface components {
             suggestions: components["schemas"]["SuggestionView"][];
             /** Dropped Suggestions */
             dropped_suggestions: number;
+        };
+        /** SearchCursor */
+        SearchCursor: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
         };
         /** SecondFactorState */
         SecondFactorState: {
@@ -8855,6 +9027,271 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_route_api_v1_search_documents_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentSearchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentSearchView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gone */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    preference_route_api_v1_documents__document_id__preferences_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DocumentPreferenceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentPreferenceView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gone */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    bulk_route_api_v1_workspaces__workspace_id__documents_bulk_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BulkDocumentsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BulkDocumentsView"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Gone */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

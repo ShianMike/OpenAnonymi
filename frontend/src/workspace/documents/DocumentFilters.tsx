@@ -66,6 +66,7 @@ export function DocumentFilters({
             ['all', 'All documents'],
             ['needs_review', 'Needs review'],
             ['complete', 'Completed'],
+            ['favorites', 'Favorites'],
           ].map(([value, label]) => (
             <button type="button" key={value} aria-pressed={status === value} onClick={() => onStatus(value)}>
               {label}
@@ -73,7 +74,7 @@ export function DocumentFilters({
             </button>
           ))}
         </div>
-        <span className="document-owner-note">Your reviews</span>
+        <span className="document-owner-note">Owned and assigned reviews</span>
       </div>
       <div className="document-filter-fields">
         <div className="document-search-field">
@@ -100,6 +101,7 @@ export function DocumentFilters({
           </label>
           <GlassSelect id="document-status" value={status} onValueChange={onStatus}>
             <option value="all">All statuses</option>
+            <option value="favorites">Favorites</option>
             <option value="needs_review" data-description="Findings still need your decision">
               Needs review
             </option>

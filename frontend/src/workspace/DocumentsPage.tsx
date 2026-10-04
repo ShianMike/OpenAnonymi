@@ -3,7 +3,13 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { CheckCircle2, FileSearch, Plus } from 'lucide-react'
 import {
+  ApiRequestError,
   deleteDocument,
+  bulkDocuments,
+  updateDocumentPreference,
+  type DocumentPreferenceRequest,
+  type BulkDocumentsRequest,
+  type BulkDocumentsView,
   getWorkspaceDocuments,
   type DocumentIndexView,
   type SessionView,
@@ -13,6 +19,8 @@ import { GlassSelect } from '../ui/GlassSelect'
 import { DocumentTable } from './documents/DocumentTable'
 import { DocumentFilters } from './documents/DocumentFilters'
 import { DocumentDeleteDialog } from './documents/DocumentDeleteDialog'
+import { BulkDeleteDialog } from './documents/BulkDeleteDialog'
+import { DocumentBulkActions } from './documents/DocumentBulkActions'
 import { documentLabel, matchesStatus, type DocumentSort } from './documents/documentPresentation'
 import './documents/documents.css'
 
@@ -35,6 +43,13 @@ export function DocumentsPage({ session }: { session: SessionView }) {
   const [actionError, setActionError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
+  const [selected, setSelected] = useState(new Set<string>())
+  const [bulkAction, setBulkAction] = useState<BulkDocumentsRequest['action']>('favorite')
+  const [bulkPending, setBulkPending] = useState(false)
+  const [bulkConfirm, setBulkConfirm] = useState(false)
+  const [preferencePending, setPreferencePending] = useState(new Set<string>())
+  const [bulkResults, setBulkResults] = useState<{ value: BulkDocumentsView; items: DocumentIndexView[] } | null>(null)
+  const currentWorkspace = useRef(workspaceId)
   const pageRef = useRef<HTMLElement>(null)
   const noticeRef = useRef<HTMLParagraphElement>(null)
 
@@ -53,12 +68,19 @@ export function DocumentsPage({ session }: { session: SessionView }) {
       .then((items) => {
         if (!controller.signal.aborted) {
           setData({ kind: 'ready', items })
+          setSelected((current) => new Set([...current].filter((id) => items.some((item) => item.id === id))))
           setRefreshError(null)
         }
       })
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return
         const message = cause instanceof Error ? cause.message : 'Documents could not be loaded.'
+        if (cause instanceof ApiRequestError && [401, 403, 404].includes(cause.status)) {
+          setData({ kind: 'error', message })
+          setSelected(new Set())
+          setBulkResults(null)
+          return
+        }
         setRefreshError(message)
         setData((current) => (current.kind === 'ready' ? current : { kind: 'error', message }))
       })
@@ -78,12 +100,58 @@ export function DocumentsPage({ session }: { session: SessionView }) {
                 documentLabel(item).toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())),
           )
           .sort((left, right) => {
+            if (left.pinned !== right.pinned) return left.pinned ? -1 : 1
             if (sort === 'title') return documentLabel(left).localeCompare(documentLabel(right))
             if (sort === 'expiring') return left.expires_at.localeCompare(right.expires_at)
             if (sort === 'oldest') return left.created_at.localeCompare(right.created_at)
             return right.created_at.localeCompare(left.created_at)
           })
       : []
+
+  async function preference(item: DocumentIndexView, value: DocumentPreferenceRequest) {
+    if (preferencePending.has(item.id) || bulkPending) return
+    const scope = workspaceId
+    setPreferencePending((current) => new Set(current).add(item.id))
+    setActionError(null)
+    try {
+      const result = await updateDocumentPreference(item.id, value, session.csrf_token)
+      if (currentWorkspace.current !== scope) return
+      setData((current) => current.kind === 'ready' ? { kind: 'ready', items: current.items.map((row) => row.id === item.id ? { ...row, favorite: result.favorite, pinned: result.pinned } : row) } : current)
+    } catch (cause) {
+      if (currentWorkspace.current === scope && cause instanceof ApiRequestError && [404, 410].includes(cause.status)) {
+        setData((current) => current.kind === 'ready' ? { kind: 'ready', items: current.items
+          .filter((row) => row.id !== item.id || cause.status !== 404)
+          .map((row) => row.id === item.id ? { ...row, title: null, status: 'expired', favorite: false, pinned: false } : row) } : current)
+        setAttempt((current) => current + 1)
+      }
+      if (currentWorkspace.current === scope) setActionError(cause instanceof Error ? cause.message : 'Preferences could not be saved.')
+    } finally {
+      setPreferencePending((current) => { const next = new Set(current); next.delete(item.id); return next })
+    }
+  }
+
+  async function applyBulk() {
+    if (bulkPending || !selected.size || data.kind !== 'ready') return
+    const scope = workspaceId
+    const items = data.items.filter((item) => selected.has(item.id))
+    setBulkPending(true)
+    setActionError(null)
+    setBulkResults(null)
+    try {
+      const result = await bulkDocuments(scope, { document_ids: items.map((item) => item.id), action: bulkAction }, session.csrf_token)
+      if (currentWorkspace.current !== scope) return
+      const outcomes = new Map(result.outcomes.map((item) => [item.document_id, item]))
+      setData((current) => current.kind === 'ready' ? { kind: 'ready', items: current.items
+        .filter((row) => !['deleted', 'not_found'].includes(outcomes.get(row.id)?.outcome ?? ''))
+        .map((row) => { const change = outcomes.get(row.id); return change?.outcome === 'updated' ? { ...row, favorite: change.favorite ?? row.favorite, pinned: change.pinned ?? row.pinned } : change?.outcome === 'unavailable' ? { ...row, title: null, status: 'expired', favorite: false, pinned: false } : row }) } : current)
+      setSelected(new Set(result.outcomes.filter((item) => item.outcome === 'unavailable').map((item) => item.document_id)))
+      setBulkResults({ value: result, items: items.map((item) => ['not_found', 'unavailable'].includes(outcomes.get(item.id)?.outcome ?? '') ? { ...item, title: null, status: 'expired' } : item) })
+      setRefreshing(true)
+      setAttempt((current) => current + 1)
+    } catch (cause) {
+      if (currentWorkspace.current === scope) setActionError(cause instanceof Error ? cause.message : 'The bulk action could not be completed. Refresh documents to check their current state.')
+    } finally { setBulkPending(false); setBulkConfirm(false) }
+  }
 
   async function removeDocument() {
     if (!confirmation || deleting) return
@@ -140,10 +208,15 @@ export function DocumentsPage({ session }: { session: SessionView }) {
           <GlassSelect
             id="documents-workspace"
             value={workspaceId}
+            disabled={bulkPending || deleting || preferencePending.size > 0}
             onValueChange={(value) => {
               setWorkspaceId(value)
+              currentWorkspace.current = value
               setData({ kind: 'loading' })
               setRefreshError(null)
+              setSelected(new Set())
+              setBulkResults(null)
+              setActionError(null)
             }}
           >
             {session.memberships.map((membership, index) => (
@@ -179,14 +252,20 @@ export function DocumentsPage({ session }: { session: SessionView }) {
             sort={sort}
             refreshing={refreshing}
             pageRef={pageRef}
-            onSearch={setSearch}
-            onStatus={setStatus}
+            onSearch={(value) => { setSearch(value); setSelected(new Set()) }}
+            onStatus={(value) => { setStatus(value); setSelected(new Set()) }}
             onSort={setSort}
             onRefresh={() => {
               setRefreshing(true)
               setAttempt((value) => value + 1)
             }}
           />
+          {actionError && !confirmation && <p className="document-refresh-error" role="alert">{actionError}</p>}
+          <DocumentBulkActions count={selected.size} action={bulkAction} pending={bulkPending || deleting || preferencePending.size > 0}
+            onAction={setBulkAction} onApply={() => { if (bulkAction === 'delete') setBulkConfirm(true); else void applyBulk() }}
+            onClear={() => setSelected(new Set())} results={bulkResults}
+            allVisibleSelected={visible.length > 0 && visible.slice(0, 50).every((item) => selected.has(item.id))}
+            hasVisible={visible.length > 0} onSelectVisible={(value) => setSelected(value ? new Set(visible.slice(0, 50).map((item) => item.id)) : new Set())} />
           {refreshError && (
             <p className="document-refresh-error" role="alert">
               {refreshError} Your last loaded list is still shown.
@@ -228,6 +307,9 @@ export function DocumentsPage({ session }: { session: SessionView }) {
                 setActionError(null)
                 setConfirmation({ item, trigger })
               }}
+              selected={selected} pending={bulkPending || deleting} preferencePending={preferencePending}
+              onSelect={(id, value) => setSelected((current) => { const next = new Set(current); if (value && next.size < 50) next.add(id); else next.delete(id); return next })}
+              onPreference={(item, value) => void preference(item, value)}
             />
           )}
           {visible.length > 0 && (
@@ -249,6 +331,7 @@ export function DocumentsPage({ session }: { session: SessionView }) {
           onConfirm={() => void removeDocument()}
         />
       )}
+      {bulkConfirm && <BulkDeleteDialog count={selected.size} pending={bulkPending} onCancel={() => setBulkConfirm(false)} onConfirm={() => void applyBulk()} />}
     </section>
   )
 }

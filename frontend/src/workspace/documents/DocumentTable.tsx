@@ -1,6 +1,6 @@
-import { Check, Clock3, FileText } from 'lucide-react'
+import { Check, Clock3, FileText, Pin, Star } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import type { DocumentIndexView } from '../../api/client'
+import type { DocumentIndexView, DocumentPreferenceRequest } from '../../api/client'
 import { StatusBadge } from '../../ui/StatusBadge'
 import { DocumentActions } from './DocumentActions'
 import { documentLabel, relativeEdit, retention, shortDate } from './documentPresentation'
@@ -39,15 +39,26 @@ export function DocumentTable({
   workspaceId,
   now,
   onDelete,
+  selected,
+  pending,
+  preferencePending,
+  onSelect,
+  onPreference,
 }: {
   items: DocumentIndexView[]
   workspaceId: string
   now: number
   onDelete: (item: DocumentIndexView, trigger: HTMLButtonElement | null) => void
+  selected: Set<string>
+  pending: boolean
+  preferencePending: Set<string>
+  onSelect: (id: string, value: boolean) => void
+  onPreference: (item: DocumentIndexView, value: DocumentPreferenceRequest) => void
 }) {
   return (
     <table className="documents-table" aria-label="Documents">
       <colgroup>
+        <col className="document-select-col" />
         <col className="document-name-col" />
         <col className="document-status-col" />
         <col className="document-progress-col" />
@@ -56,6 +67,7 @@ export function DocumentTable({
       </colgroup>
       <thead>
         <tr>
+          <th scope="col" className="document-select-cell"><span className="sr-only">Selection</span></th>
           <th scope="col">Document</th>
           <th scope="col">Status</th>
           <th scope="col">Review progress</th>
@@ -74,6 +86,9 @@ export function DocumentTable({
           const displayTitle = example ? title.slice('Example · '.length) : title
           return (
             <tr key={item.id} className="document-row">
+              <td className="document-select-cell"><input type="checkbox" aria-label={`Select ${title}`}
+                checked={selected.has(item.id)} disabled={pending || (!selected.has(item.id) && selected.size >= 50)}
+                onChange={(event) => onSelect(item.id, event.target.checked)} /></td>
               <th scope="row" className="document-name-cell">
                 <div className="document-identity">
                   <span
@@ -90,6 +105,8 @@ export function DocumentTable({
                       </Link>
                     )}
                     <div className="document-meta">
+                      {item.favorite && <span className="document-flag"><Star size={12} aria-hidden="true" /> Favorite</span>}
+                      {item.pinned && <span className="document-flag"><Pin size={12} aria-hidden="true" /> Pinned</span>}
                       {!item.is_owner && <span className="document-example">Assigned to you</span>}
                       {example && <span className="document-example">Example</span>}
                       <time
@@ -134,6 +151,8 @@ export function DocumentTable({
                   workspaceId={workspaceId}
                   unavailable={unavailable}
                   onDelete={onDelete}
+                  preferencePending={pending || preferencePending.has(item.id)}
+                  onPreference={onPreference}
                 />
               </td>
             </tr>

@@ -10,6 +10,7 @@ from app.db import (
     batches,  # noqa: F401 -- encrypted batch snapshots and durable scan jobs
     column_rules,  # noqa: F401 -- encrypted immutable CSV column settings
     custom_rules,  # noqa: F401 -- register rule version/snapshot tables
+    document_preferences,  # noqa: F401 -- personal document flags, separate from grants
     durable,  # noqa: F401 -- register persistent content-free limits and undo
     email_verification,  # noqa: F401 -- register ownership proof and pending accounts
     maintenance,  # noqa: F401 -- register content-free cleanup run health

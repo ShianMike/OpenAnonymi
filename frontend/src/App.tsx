@@ -11,6 +11,7 @@ import { RouteLoading } from './loading/RouteLoading'
 import { PageLoadBoundary } from './loading/PageLoadBoundary'
 import { LoadingFailure } from './loading/LoadingFailure'
 import { NotificationLink } from './notifications/NotificationLink'
+import { SESSION_ENDED_EVENT, matchesSessionScope, setSessionScope } from './api/sessionEvents'
 import './App.css'
 
 const SignInPage = lazy(() => import('./accounts/SignInPage').then((module) => ({ default: module.SignInPage })))
@@ -29,6 +30,7 @@ const NotificationsPage = lazy(() => import('./notifications/NotificationsPage')
 const DocumentsPage = lazy(() =>
   import('./workspace/DocumentsPage').then((module) => ({ default: module.DocumentsPage })),
 )
+const GlobalSearch = lazy(() => import('./search/GlobalSearch').then((module) => ({ default: module.GlobalSearch })))
 const ContinueReviewPage = lazy(() =>
   import('./resume/ContinueReviewPage').then((module) => ({ default: module.ContinueReviewPage })),
 )
@@ -66,6 +68,25 @@ function App() {
   const navRef = useRef<HTMLElement>(null)
   const mainRef = useRef<HTMLElement>(null)
   const previousPathRef = useRef(pathname)
+  const authenticationScope = authentication.kind === 'signed-in' ? authentication.session.csrf_token : ''
+
+  useEffect(() => {
+    const scope = authenticationScope
+    setSessionScope(scope)
+    function sessionEnded(event: Event) {
+      if (!matchesSessionScope(event, scope)) return
+      setAuthentication((current) => {
+        if (current.kind !== 'signed-in' || current.session.csrf_token !== scope) return current
+        return { kind: 'signed-out' }
+      })
+      setSignInNotice('Your session has ended. Sign in again to continue.')
+      setUnsavedPage(false)
+      setSignOutConfirm(false)
+      setMenuOpen(false)
+    }
+    window.addEventListener(SESSION_ENDED_EVENT, sessionEnded)
+    return () => { window.removeEventListener(SESSION_ENDED_EVENT, sessionEnded); setSessionScope('') }
+  }, [authenticationScope])
 
   const activePage = pages.find((page) => page.path === pathname)
   const pageTitle =
@@ -269,6 +290,7 @@ function App() {
             <strong>{pageTitle}</strong>
           </div>
           <div className="topbar-account">
+            <Suspense fallback={null}><GlobalSearch key={authentication.session.user_id} session={authentication.session} /></Suspense>
             <NotificationLink key={authentication.session.user_id} userId={authentication.session.user_id} />
             <span title={authentication.session.email}>{authentication.session.email}</span>
             <button

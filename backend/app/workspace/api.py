@@ -30,6 +30,8 @@ class DocumentIndexView(BaseModel):
     current_revision_id: UUID | None
     finding_count: int
     decided_count: int
+    favorite: bool
+    pinned: bool
 
 
 class OverviewView(BaseModel):
@@ -140,6 +142,7 @@ def create_workspace_router(engine: Engine) -> APIRouter:
                 keys=keys,
                 now=datetime.now(UTC),
             )
+            current_identity(request)
             return [
                 DocumentIndexView.model_validate(record, from_attributes=True) for record in records
             ]

@@ -6906,6 +6906,333 @@
         }
       }
     },
+    "/api/v1/search/documents": {
+      "post": {
+        "tags": [
+          "document organization"
+        ],
+        "summary": "Search Route",
+        "operationId": "search_route_api_v1_search_documents_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentSearchView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Gone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/preferences": {
+      "patch": {
+        "tags": [
+          "document organization"
+        ],
+        "summary": "Preference Route",
+        "operationId": "preference_route_api_v1_documents__document_id__preferences_patch",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentPreferenceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentPreferenceView"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/documents/bulk": {
+      "post": {
+        "tags": [
+          "document organization"
+        ],
+        "summary": "Bulk Route",
+        "operationId": "bulk_route_api_v1_workspaces__workspace_id__documents_bulk_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkDocumentsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkDocumentsView"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/presets": {
       "get": {
         "tags": [
@@ -7952,6 +8279,102 @@
           "file"
         ],
         "title": "Body_upload_route_api_v1_batches__batch_id__documents_post"
+      },
+      "BulkDocumentOutcome": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Document Id"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "updated",
+              "deleted",
+              "not_found",
+              "unavailable",
+              "session_ended"
+            ],
+            "title": "Outcome"
+          },
+          "favorite": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Favorite"
+          },
+          "pinned": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pinned"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "outcome"
+        ],
+        "title": "BulkDocumentOutcome"
+      },
+      "BulkDocumentsRequest": {
+        "properties": {
+          "document_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Document Ids"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "favorite",
+              "unfavorite",
+              "pin",
+              "unpin",
+              "delete"
+            ],
+            "title": "Action"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "document_ids",
+          "action"
+        ],
+        "title": "BulkDocumentsRequest"
+      },
+      "BulkDocumentsView": {
+        "properties": {
+          "outcomes": {
+            "items": {
+              "$ref": "#/components/schemas/BulkDocumentOutcome"
+            },
+            "type": "array",
+            "title": "Outcomes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "outcomes"
+        ],
+        "title": "BulkDocumentsView"
       },
       "CategoryDefault": {
         "properties": {
@@ -9260,6 +9683,14 @@
           "decided_count": {
             "type": "integer",
             "title": "Decided Count"
+          },
+          "favorite": {
+            "type": "boolean",
+            "title": "Favorite"
+          },
+          "pinned": {
+            "type": "boolean",
+            "title": "Pinned"
           }
         },
         "type": "object",
@@ -9273,9 +9704,199 @@
           "expires_at",
           "current_revision_id",
           "finding_count",
-          "decided_count"
+          "decided_count",
+          "favorite",
+          "pinned"
         ],
         "title": "DocumentIndexView"
+      },
+      "DocumentPreferenceRequest": {
+        "properties": {
+          "favorite": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Favorite"
+          },
+          "pinned": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pinned"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "DocumentPreferenceRequest"
+      },
+      "DocumentPreferenceView": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Document Id"
+          },
+          "favorite": {
+            "type": "boolean",
+            "title": "Favorite"
+          },
+          "pinned": {
+            "type": "boolean",
+            "title": "Pinned"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "favorite",
+          "pinned"
+        ],
+        "title": "DocumentPreferenceView"
+      },
+      "DocumentSearchItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Workspace Id"
+          },
+          "workspace_name": {
+            "type": "string",
+            "title": "Workspace Name"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DocumentStatus"
+          },
+          "is_owner": {
+            "type": "boolean",
+            "title": "Is Owner"
+          },
+          "favorite": {
+            "type": "boolean",
+            "title": "Favorite"
+          },
+          "pinned": {
+            "type": "boolean",
+            "title": "Pinned"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "workspace_id",
+          "workspace_name",
+          "title",
+          "status",
+          "is_owner",
+          "favorite",
+          "pinned"
+        ],
+        "title": "DocumentSearchItem"
+      },
+      "DocumentSearchRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Query",
+            "default": ""
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SearchCursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
+          },
+          "favorites_only": {
+            "type": "boolean",
+            "title": "Favorites Only",
+            "default": false
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 20
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "DocumentSearchRequest"
+      },
+      "DocumentSearchView": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentSearchItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SearchCursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scanned_count": {
+            "type": "integer",
+            "title": "Scanned Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor",
+          "scanned_count"
+        ],
+        "title": "DocumentSearchView"
       },
       "DocumentStatus": {
         "type": "string",
@@ -11604,6 +12225,27 @@
           "dropped_suggestions"
         ],
         "title": "ScanView"
+      },
+      "SearchCursor": {
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "created_at",
+          "id"
+        ],
+        "title": "SearchCursor"
       },
       "SecondFactorState": {
         "properties": {

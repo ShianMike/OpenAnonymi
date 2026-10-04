@@ -43,6 +43,7 @@ export function retention(item: DocumentIndexView, now: number) {
 export function matchesStatus(item: DocumentIndexView, status: string): boolean {
   return (
     status === 'all' ||
+    (status === 'favorites' && item.favorite) ||
     (status === 'complete' ? ['ready', 'exported'].includes(item.status) : item.status === status)
   )
 }

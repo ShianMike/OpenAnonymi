@@ -1,5 +1,6 @@
 import { API_CREDENTIALS, apiUrl } from './base'
 import { trackedRequest } from './requestActivity'
+import { reportEndedScope, reportSessionEnded } from './sessionEvents'
 import type { components } from './schema'
 
 export type ServiceMetadata = components['schemas']['ServiceMetadata']
@@ -31,6 +32,12 @@ export type PreviewView = components['schemas']['PreviewView']
 export type CompletionView = components['schemas']['CompletionView']
 export type ReviewSummaryView = components['schemas']['ReviewSummaryView']
 export type DocumentIndexView = components['schemas']['DocumentIndexView']
+export type DocumentSearchView = components['schemas']['DocumentSearchView']
+export type DocumentSearchRequest = components['schemas']['DocumentSearchRequest']
+export type DocumentPreferenceView = components['schemas']['DocumentPreferenceView']
+export type DocumentPreferenceRequest = components['schemas']['DocumentPreferenceRequest']
+export type BulkDocumentsView = components['schemas']['BulkDocumentsView']
+export type BulkDocumentsRequest = components['schemas']['BulkDocumentsRequest']
 export type OverviewView = components['schemas']['OverviewView']
 export type DeletedView = components['schemas']['DeletedView']
 export type ActivityView = components['schemas']['ActivityView']
@@ -104,6 +111,7 @@ export async function requireSuccess(response: Response): Promise<void> {
     throw new ApiConflictError(body.current_version as VersionRef, body.message)
   }
   if (isErrorResponse(body)) {
+    reportSessionEnded(response, body.code)
     throw new ApiRequestError(response.status, body.code, body.message)
   }
   throw new ApiRequestError(response.status, 'request_failed', `Request failed (${response.status}).`)
@@ -289,6 +297,23 @@ export function getWorkspaceOverview(
   workspaceId: string, signal?: AbortSignal,
 ): Promise<OverviewView> {
   return get<OverviewView>(`/workspaces/${encodeURIComponent(workspaceId)}/overview`, signal)
+}
+
+export function searchDocuments(body: DocumentSearchRequest, csrfToken: string, signal?: AbortSignal): Promise<DocumentSearchView> {
+  return trackedRequest(apiUrl('/search/documents'), {
+    method: 'POST', credentials: API_CREDENTIALS, cache: 'no-store', signal,
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+    body: JSON.stringify(body),
+  }, async (response) => { await requireSuccess(response); return response.json() })
+}
+
+export function updateDocumentPreference(documentId: string, body: DocumentPreferenceRequest, csrfToken: string): Promise<DocumentPreferenceView> {
+  return sendJson('PATCH', `/documents/${encodeURIComponent(documentId)}/preferences`, body, csrfToken)
+}
+
+export function bulkDocuments(workspaceId: string, body: BulkDocumentsRequest, csrfToken: string): Promise<BulkDocumentsView> {
+  return sendJson<BulkDocumentsView>('POST', `/workspaces/${encodeURIComponent(workspaceId)}/documents/bulk`, body, csrfToken)
+    .then((result) => { if (result.outcomes.some((item) => item.outcome === 'session_ended')) reportEndedScope(csrfToken); return result })
 }
 
 export function getWorkspaceActivity(

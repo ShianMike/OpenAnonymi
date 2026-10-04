@@ -52,6 +52,7 @@ from app.reviews.state_api import create_review_state_router
 from app.team_review.api import create_team_router
 from app.transformations.api import create_transform_router
 from app.workspace.api import create_workspace_router
+from app.workspace.organize_api import create_organize_router
 from app.workspace.presets_api import create_presets_router
 
 
@@ -171,6 +172,7 @@ def create_app(
     app.include_router(create_exports_router(engine))
     app.include_router(create_render_router(engine))
     app.include_router(create_workspace_router(engine))
+    app.include_router(create_organize_router(engine, settings))
     app.include_router(create_presets_router(engine))
     app.include_router(create_cleanup_router(engine))
     app.include_router(create_maintenance_router(engine, settings))

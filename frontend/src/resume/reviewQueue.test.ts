@@ -7,7 +7,7 @@ function item(id: string, changes: Partial<DocumentIndexView> = {}): DocumentInd
   return { id, is_owner: true, title: 'Fictional review', status: 'needs_review',
     created_at: '2026-10-01T09:00:00Z', updated_at: '2026-10-01T10:00:00Z',
     expires_at: '2026-10-08T09:00:00Z', current_revision_id: 'revision', finding_count: 3,
-    decided_count: 1, ...changes }
+    decided_count: 1, favorite: false, pinned: false, ...changes }
 }
 
 describe('available reviews to continue', () => {
