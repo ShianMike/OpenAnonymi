@@ -1,11 +1,10 @@
 """Owner-scoped document index and content-free workspace counts."""
 
-from collections import Counter
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
@@ -14,6 +13,7 @@ from app.contracts import DocumentStatus, WorkspaceRole
 from app.db.crypto import KeyRing, ProtectedValue
 from app.db.document_preferences import DocumentPreference
 from app.db.models import Decision, Document, Finding, Membership
+from app.workspace.analytics import OverviewAnalytics, load_analytics
 
 
 @dataclass(frozen=True)
@@ -39,6 +39,7 @@ class OverviewCounts:
     own_created_last_30_days: int
     own_by_status: dict[str, int]
     workspace_total: int | None
+    analytics: OverviewAnalytics
 
 
 def _effective_status(document: Document, now: datetime) -> DocumentStatus:
@@ -169,29 +170,63 @@ def load_overview(
 ) -> OverviewCounts:
     with Session(engine) as session:
         active_workspace(session, workspace_id, actor_id)
-        membership = session.get(Membership, (workspace_id, actor_id))
-        own = session.scalars(
-            select(Document).where(
-                Document.workspace_id == workspace_id,
-                Document.owner_id == actor_id,
-                Document.deleted_at.is_(None),
+        own_scope = (
+            Document.workspace_id == workspace_id,
+            Document.owner_id == actor_id,
+            Document.deleted_at.is_(None),
+        )
+        status = case(
+            (Document.status == DocumentStatus.DELETED, DocumentStatus.DELETED.value),
+            (
+                or_(Document.expires_at <= now, Document.status == DocumentStatus.EXPIRED),
+                DocumentStatus.EXPIRED.value,
+            ),
+            else_=Document.status,
+        )
+        by_status = dict(
+            session.execute(
+                select(status, func.count(Document.id)).where(*own_scope).group_by(status)
+            ).all()
+        )
+        created_recently = session.scalar(
+            select(func.count(Document.id)).where(
+                *own_scope,
+                Document.created_at >= now - timedelta(days=30),
+                Document.created_at <= now,
             )
-        ).all()
-        by_status = Counter(_effective_status(document, now).value for document in own)
+        )
+        analytics = load_analytics(session, workspace_id=workspace_id, actor_id=actor_id, now=now)
+        # Counts reveal workspace activity too. Refresh access and role after all
+        # aggregate work instead of trusting an ORM-cached administrator grant.
+        active_workspace(session, workspace_id, actor_id)
+        role = session.scalar(
+            select(Membership.role).where(
+                Membership.workspace_id == workspace_id,
+                Membership.user_id == actor_id,
+                Membership.revoked_at.is_(None),
+            )
+        )
         workspace_total = None
-        if membership.role == WorkspaceRole.ADMINISTRATOR:
+        if role == WorkspaceRole.ADMINISTRATOR:
             workspace_total = session.scalar(
                 select(func.count(Document.id)).where(
                     Document.workspace_id == workspace_id,
                     Document.deleted_at.is_(None),
                 )
             )
+        active_workspace(session, workspace_id, actor_id)
+        latest_role = session.scalar(
+            select(Membership.role).where(
+                Membership.workspace_id == workspace_id, Membership.user_id == actor_id
+            )
+        )
+        if latest_role != WorkspaceRole.ADMINISTRATOR:
+            workspace_total = None
         return OverviewCounts(
             as_of=now,
-            own_total=len(own),
-            own_created_last_30_days=sum(
-                document.created_at >= now - timedelta(days=30) for document in own
-            ),
-            own_by_status=dict(by_status),
+            own_total=sum(by_status.values()),
+            own_created_last_30_days=created_recently,
+            own_by_status=by_status,
             workspace_total=workspace_total,
+            analytics=analytics,
         )

@@ -1943,6 +1943,12 @@ export interface components {
             /** Outcomes */
             outcomes: components["schemas"]["BulkDocumentOutcome"][];
         };
+        /** CategoryCountView */
+        CategoryCountView: {
+            category: components["schemas"]["FindingCategory"];
+            /** Count */
+            count: number;
+        };
         /** CategoryDefault */
         CategoryDefault: {
             /**
@@ -2921,6 +2927,28 @@ export interface components {
              */
             reason: "not_confirmed" | "stale_confirmation" | "approval_required" | "expired" | "deleted" | "scan_failed";
         };
+        /** OverviewAnalyticsView */
+        OverviewAnalyticsView: {
+            /**
+             * Since
+             * Format: date-time
+             */
+            since: string;
+            /** Cohort Documents */
+            cohort_documents: number;
+            /** Confirmed Documents */
+            confirmed_documents: number;
+            /** Exported Documents */
+            exported_documents: number;
+            /** Average Time To Confirm Seconds */
+            average_time_to_confirm_seconds: number | null;
+            /** Export Rate */
+            export_rate: number | null;
+            /** Findings Total */
+            findings_total: number;
+            /** Categories */
+            categories: components["schemas"]["CategoryCountView"][];
+        };
         /** OverviewView */
         OverviewView: {
             /**
@@ -2938,6 +2966,7 @@ export interface components {
             };
             /** Workspace Total */
             workspace_total: number | null;
+            analytics: components["schemas"]["OverviewAnalyticsView"];
         };
         /** PresetInput */
         PresetInput: {

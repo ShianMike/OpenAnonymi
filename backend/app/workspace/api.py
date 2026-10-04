@@ -5,13 +5,13 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.engine import Engine
 
 from app.accounts.access import DocumentNotFound, WorkspaceAccessDenied
 from app.accounts.api import current_identity
 from app.accounts.security import SessionIdentity
-from app.contracts import DocumentStatus, ErrorResponse
+from app.contracts import DocumentStatus, ErrorResponse, FindingCategory
 from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedContentError
 from app.errors import ApiError
 from app.workspace.activity import load_activity
@@ -34,12 +34,29 @@ class DocumentIndexView(BaseModel):
     pinned: bool
 
 
+class CategoryCountView(BaseModel):
+    category: FindingCategory
+    count: int = Field(ge=0)
+
+
+class OverviewAnalyticsView(BaseModel):
+    since: datetime
+    cohort_documents: int = Field(ge=0)
+    confirmed_documents: int = Field(ge=0)
+    exported_documents: int = Field(ge=0)
+    average_time_to_confirm_seconds: float | None = Field(ge=0)
+    export_rate: float | None = Field(ge=0, le=1)
+    findings_total: int = Field(ge=0)
+    categories: list[CategoryCountView]
+
+
 class OverviewView(BaseModel):
     as_of: datetime
     own_total: int
     own_created_last_30_days: int
     own_by_status: dict[str, int]
     workspace_total: int | None
+    analytics: OverviewAnalyticsView
 
 
 class ActivityEntryView(BaseModel):
@@ -158,6 +175,7 @@ def create_workspace_router(engine: Engine) -> APIRouter:
     )
     def overview_route(
         workspace_id: UUID,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(current_identity)],
     ) -> OverviewView:
         try:
@@ -167,6 +185,7 @@ def create_workspace_router(engine: Engine) -> APIRouter:
                 actor_id=identity.user_id,
                 now=datetime.now(UTC),
             )
+            current_identity(request)
             return OverviewView.model_validate(record, from_attributes=True)
         except WorkspaceAccessDenied:
             raise ApiError(404, "workspace_not_found", "Workspace not found.") from None

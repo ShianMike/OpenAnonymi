@@ -1,0 +1,24 @@
+.overview-analytics { margin: 1.25rem 0; min-width: 0; }
+.overview-page .workspace-picker label { flex-shrink: 0; white-space: nowrap; }
+.overview-page .workspace-picker .glass-select-trigger { min-width: 0; }
+.analytics-scope, .analytics-detail { color: var(--muted); font-size: .86rem; max-width: 80ch; }
+.analytics-metrics { margin: 1rem 0 .7rem; }
+.analytics-metrics .metric-card { box-shadow: none; background: var(--surface-subtle); }
+.analytics-metrics .metric-card > span { display: flex; align-items: center; gap: .4rem; }
+.analytics-metrics .metric-card > span svg { flex: none; }
+.analytics-metrics .metric-card strong { font-size: clamp(1.55rem, 2.3vw, 2rem); }
+.analytics-category-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem 1rem; margin-top: 1.5rem; }
+.analytics-category-heading h3 { margin: 0; }
+.analytics-category-heading > span { color: var(--muted); font-size: .9rem; }
+.analytics-categories { list-style: none; padding: 0; margin: 1rem 0 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem 2rem; }
+.analytics-categories li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .5rem; min-width: 0; }
+.analytics-category-label { display: flex; align-items: center; gap: .45rem; min-width: 0; }
+.analytics-category-label svg { flex: none; color: var(--muted); }
+.analytics-categories strong { font-variant-numeric: tabular-nums; }
+.analytics-categories strong small { font-size: .8rem; color: var(--muted); font-weight: 400; margin-left: .4rem; }
+.analytics-category-track { grid-column: 1 / -1; height: .35rem; background: var(--surface-subtle); border: 1px solid var(--line); border-radius: 1rem; overflow: hidden; }
+.analytics-category-track > span { display: block; height: 100%; background: var(--blue); }
+.analytics-empty { margin-top: 1rem; }
+@media (max-width: 800px) { .analytics-categories { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .analytics-metrics { grid-template-columns: 1fr; } .overview-analytics .section-heading > button { width: 100%; } }
+@media (forced-colors: active) { .analytics-category-track { border-color: CanvasText; } .analytics-category-track > span { background: Highlight; forced-color-adjust: none; } }

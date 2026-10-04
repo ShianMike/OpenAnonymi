@@ -6,8 +6,9 @@ import { getWorkspaceOverview, type OverviewView, type SessionView } from '../ap
 import { PageHeader } from '../ui/PageHeader'
 import { StatusBadge } from '../ui/StatusBadge'
 import { LoadingState } from '../loading/LoadingState'
+import { OverviewAnalytics } from './overview/OverviewAnalytics'
 
-type Data = { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; value: OverviewView }
+type Data = { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; workspaceId: string; value: OverviewView }
 
 export function OverviewPage({ session }: { session: SessionView }) {
   const [workspaceId, setWorkspaceId] = useState(session.memberships[0]?.workspace_id ?? '')
@@ -19,7 +20,7 @@ export function OverviewPage({ session }: { session: SessionView }) {
     const controller = new AbortController()
     getWorkspaceOverview(workspaceId, controller.signal)
       .then((value) => {
-        if (!controller.signal.aborted) setData({ kind: 'ready', value })
+        if (!controller.signal.aborted) setData({ kind: 'ready', workspaceId, value })
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted)
@@ -29,10 +30,10 @@ export function OverviewPage({ session }: { session: SessionView }) {
           })
       })
     return () => controller.abort()
-  }, [workspaceId, attempt])
+  }, [workspaceId, attempt, session.csrf_token])
 
   return (
-    <section aria-labelledby="overview-title">
+    <section className="overview-page" aria-labelledby="overview-title">
       <PageHeader
         title="Overview"
         titleId="overview-title"
@@ -62,7 +63,7 @@ export function OverviewPage({ session }: { session: SessionView }) {
           </GlassSelect>
         </div>
       )}
-      {data.kind === 'loading' && <LoadingState label="Loading your review counts…" shape="cards" description="Bringing together your reviews and recent progress." />}
+      {(data.kind === 'loading' || (data.kind === 'ready' && data.workspaceId !== workspaceId)) && <LoadingState label="Loading your review counts…" shape="cards" description="Bringing together your reviews and recent progress." />}
       {data.kind === 'error' && (
         <div role="alert">
           <p>{data.message}</p>
@@ -77,7 +78,7 @@ export function OverviewPage({ session }: { session: SessionView }) {
           </button>
         </div>
       )}
-      {data.kind === 'ready' && (
+      {data.kind === 'ready' && data.workspaceId === workspaceId && (
         <>
           <p className="data-scope">Updated {new Date(data.value.as_of).toLocaleString()}.</p>
           <div className="overview-metrics">
@@ -105,6 +106,10 @@ export function OverviewPage({ session }: { session: SessionView }) {
               </article>
             )}
           </div>
+          <OverviewAnalytics value={data.value.analytics} refresh={() => {
+            setData({ kind: 'loading' })
+            setAttempt((value) => value + 1)
+          }} />
           <div className="overview-bottom">
             <section className="overview-start" aria-labelledby="start-heading">
               <div className="start-icon">

@@ -8376,6 +8376,24 @@
         ],
         "title": "BulkDocumentsView"
       },
+      "CategoryCountView": {
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/FindingCategory"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "count"
+        ],
+        "title": "CategoryCountView"
+      },
       "CategoryDefault": {
         "properties": {
           "style": {
@@ -10943,6 +10961,79 @@
         ],
         "title": "OutputExclusion"
       },
+      "OverviewAnalyticsView": {
+        "properties": {
+          "since": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Since"
+          },
+          "cohort_documents": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Cohort Documents"
+          },
+          "confirmed_documents": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Confirmed Documents"
+          },
+          "exported_documents": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Exported Documents"
+          },
+          "average_time_to_confirm_seconds": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Time To Confirm Seconds"
+          },
+          "export_rate": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Export Rate"
+          },
+          "findings_total": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Findings Total"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryCountView"
+            },
+            "type": "array",
+            "title": "Categories"
+          }
+        },
+        "type": "object",
+        "required": [
+          "since",
+          "cohort_documents",
+          "confirmed_documents",
+          "exported_documents",
+          "average_time_to_confirm_seconds",
+          "export_rate",
+          "findings_total",
+          "categories"
+        ],
+        "title": "OverviewAnalyticsView"
+      },
       "OverviewView": {
         "properties": {
           "as_of": {
@@ -10975,6 +11066,9 @@
               }
             ],
             "title": "Workspace Total"
+          },
+          "analytics": {
+            "$ref": "#/components/schemas/OverviewAnalyticsView"
           }
         },
         "type": "object",
@@ -10983,7 +11077,8 @@
           "own_total",
           "own_created_last_30_days",
           "own_by_status",
-          "workspace_total"
+          "workspace_total",
+          "analytics"
         ],
         "title": "OverviewView"
       },
