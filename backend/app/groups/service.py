@@ -1,7 +1,8 @@
 """Owner-scoped findings for one current immutable source revision."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from heapq import heappop, heappush
 from uuid import UUID, uuid4
 
@@ -180,6 +181,16 @@ def _current_locked(
     if expected != version:
         raise VersionConflict(version)
     return document, version
+
+
+def _require_current_review_access(
+    session: Session, document_id: UUID, actor_id: UUID, reauthorize: Callable[[], object] | None
+) -> None:
+    if reauthorize is not None:
+        reauthorize()
+        # The document lock preserves its row while scalar joins recheck both parties.
+        # Wall-clock expiry must be checked after a lock wait and after result assembly.
+        review_document(session, document_id, actor_id, datetime.now(UTC))
 
 
 def _validated_selection(
@@ -654,10 +665,12 @@ def undo_last_review_edit(
     actor_id: UUID,
     expected: VersionRef,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ) -> FindingsSnapshot:
     """Replay the actor's latest current-version edit across processes/restarts."""
     with Session(engine) as session, session.begin():
         document, version = _current_locked(session, document_id, actor_id, expected, now)
+        _require_current_review_access(session, document_id, actor_id, reauthorize)
         try:
             before = replay(session, version=version, actor_id=actor_id, now=now)
         except UndoUnavailable as error:
@@ -665,4 +678,6 @@ def undo_last_review_edit(
         _touch_review(document, now)
         _record_review_edit(session, document, actor_id, "review_edit_undone", now, before)
         session.flush()
-        return _snapshot(session, _version(document), actor_id, now)
+        snapshot = _snapshot(session, _version(document), actor_id, now)
+        _require_current_review_access(session, document_id, actor_id, reauthorize)
+        return snapshot

@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { categoryPresentation, findingCategories } from '../rules/categoryPresentation'
-import { FileText, Pencil, Check, MousePointer2 } from 'lucide-react'
+import { FileText, Pencil, Check, MousePointer2, CircleHelp, Tag, Eye } from 'lucide-react'
 import type { ReviewController } from './useReviewController'
 import { GlassTextarea } from '../ui/GlassTextarea'
 import { GlassSelect } from '../ui/GlassSelect'
@@ -57,9 +57,9 @@ export function ReviewSource({ review }: { review: ReviewController }) {
             variant="original"
           />
           <div className="document-legend" aria-label="Highlight legend">
-            <span>Needs decision</span>
-            <span>Label / redact</span>
-            <span>Kept</span>
+            <span><CircleHelp size={13} aria-hidden="true" /> Needs decision</span>
+            <span><Tag size={13} aria-hidden="true" /> Label / redact</span>
+            <span><Eye size={13} aria-hidden="true" /> Kept</span>
           </div>
         </>
       )}

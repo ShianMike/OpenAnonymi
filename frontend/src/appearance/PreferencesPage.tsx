@@ -1,7 +1,8 @@
-import { Check, CheckCircle2, Monitor, Moon, Palette, Sun } from 'lucide-react'
+import { Check, CheckCircle2, Monitor, Moon, Palette, Sun, Settings2 } from 'lucide-react'
 import { PageHeader } from '../ui/PageHeader'
 import { useAppearance } from './useAppearance'
 import { ThemePreview } from './ThemePreview'
+import { useDisplayPreferences } from './useDisplayPreferences'
 import './preferences.css'
 
 const choices = [
@@ -13,6 +14,7 @@ const choices = [
 export function PreferencesPage() {
   const { preference, theme, saved, setAppearance } = useAppearance()
   const ActiveIcon = theme === 'light' ? Sun : Moon
+  const display = useDisplayPreferences()
   return (
     <section className="preferences-page" aria-labelledby="preferences-title">
       <PageHeader
@@ -62,7 +64,42 @@ export function PreferencesPage() {
           <span>{preference === 'system' ? `Your device is currently using ${theme} mode.` : 'Your space, your preference.'}</span>
         </footer>
       </section>
-      <p className="preferences-note">A softer canvas. The same care for your content.</p>
+      <section className="appearance-panel display-panel" aria-labelledby="display-title">
+        <header className="appearance-heading">
+          <span className="appearance-icon"><Settings2 size={21} aria-hidden="true" /></span>
+          <div><h2 id="display-title">Reading and movement</h2><p>Set the spacing, text size and motion that suit you.</p></div>
+        </header>
+        <div className="display-choice-groups">
+          <fieldset><legend>Density</legend>
+            {(['comfortable', 'compact'] as const).map(value => <label key={value} className="display-choice">
+              <input type="radio" name="density" aria-label={value === 'comfortable' ? 'Comfortable' : 'Compact'} checked={display.density === value}
+                onChange={() => display.setDisplayPreference('density', value)} />
+              <span><strong>{value === 'comfortable' ? 'Comfortable' : 'Compact'}</strong>
+                <small>{value === 'comfortable' ? 'Room between controls and findings' : 'Closer rows with the same touch targets'}</small></span>
+            </label>)}
+          </fieldset>
+          <fieldset><legend>Text size</legend>
+            {(['standard', 'large'] as const).map(value => <label key={value} className="display-choice">
+              <input type="radio" name="font-size" aria-label={value === 'standard' ? 'Standard' : 'Large'} checked={display.fontSize === value}
+                onChange={() => display.setDisplayPreference('fontSize', value)} />
+              <span><strong>{value === 'standard' ? 'Standard' : 'Large'}</strong>
+                <small>{value === 'standard' ? 'Default text size' : 'Larger text throughout the workspace'}</small></span>
+            </label>)}
+          </fieldset>
+          <fieldset><legend>Motion</legend>
+            {(['system', 'reduced'] as const).map(value => <label key={value} className="display-choice">
+              <input type="radio" name="motion" aria-label={value === 'system' ? 'Follow device' : 'Reduce motion'} checked={display.motion === value}
+                onChange={() => display.setDisplayPreference('motion', value)} />
+              <span><strong>{value === 'system' ? 'Follow device' : 'Reduce motion'}</strong>
+                <small>{value === 'system' ? 'Honor your device’s reduced motion setting' : 'Pause decorative motion and transitions'}</small></span>
+            </label>)}
+          </fieldset>
+        </div>
+        <footer className="appearance-footer"><p role="status"><CheckCircle2 size={15} aria-hidden="true" />
+          {display.saved ? 'Display choices are saved on this device.' : 'Applied for this visit. Your browser is not allowing saved preferences.'}
+        </p><span>{display.reducedMotion ? 'Reduced motion is active.' : 'Your device allows motion.'}</span></footer>
+      </section>
+      <p className="preferences-note">Only display choices are saved here. Your document content stays in the review.</p>
     </section>
   )
 }

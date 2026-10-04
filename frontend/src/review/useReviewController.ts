@@ -1,10 +1,11 @@
 import { createReviewDecisionActions } from './reviewDecisionActions'
+import { useDecisionQueue } from './useDecisionQueue'
 import { createReviewCsvActions } from './reviewCsvActions'
 import { useUndoState } from './useUndoState'
 import { createReviewScanActions } from './reviewScanActions'
 import { useReviewHandoff } from '../team/useReviewHandoff'
 import { useReviewStateLoader, type ReviewStateView } from './useReviewStateLoader'
-import { extras } from '../detection/categories'
+import { defaultDetectionCategories, extras } from '../detection/categories'
 import { createReviewExportActions } from './reviewExportActions'
 import { createReviewSourceActions } from './reviewSourceActions'
 import { useSourceRecovery } from './useSourceRecovery'
@@ -16,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   ApiConflictError,
+  ApiRequestError,
   addManualFinding,
   getDraft,
   getExactMatches,
@@ -91,20 +93,47 @@ export function useReviewController(session: SessionView) {
   const [groupConfirmation, setGroupConfirmation] = useState<GroupConfirmation | null>(null)
   const [scanPending, setScanPending] = useState(false)
   const [settingsPending, setSettingsPending] = useState(false)
-  const [emailEnabled, setEmailEnabled] = useState(true)
-  const [phoneEnabled, setPhoneEnabled] = useState(true)
-  const [extraCategories, setExtraCategories] = useState<FindingCategory[]>([])
+  const [emailEnabled, setEmailEnabled] = useState(defaultDetectionCategories.includes('email'))
+  const [phoneEnabled, setPhoneEnabled] = useState(defaultDetectionCategories.includes('phone'))
+  const [extraCategories, setExtraCategories] = useState<FindingCategory[]>(extras(defaultDetectionCategories))
   const [phoneRegion, setPhoneRegion] = useState('PH')
   const [language, setLanguage] = useState('en')
   const canEdit = state.kind === 'ready' && state.saved.can_edit
   const canManagePresets = state.kind === 'ready' && session.memberships.some(
     (item) => item.workspace_id === state.saved.workspace_id && item.role === 'administrator',
   )
+  function clearUnavailable(message: string) {
+    if (state.kind === 'ready' && documentId) forgetReview(session.user_id, state.saved.workspace_id, documentId)
+    setState({ kind: 'error', message, retryable: false }); setText(''); setScan(null)
+    setFindings(null); setPreview(null); setSummary(null); setPreparedDownload(null)
+    setExactMatches(null); setGroupConfirmation(null); setConfirmedPreview(false); setInitialHandoff(null)
+  }
+  const decisions = useDecisionQueue({ documentId, csrf: session.csrf_token, generation: attempt,
+    onFindings: (value, acknowledged) => {
+      setFindings(value)
+      if (acknowledged) setState(current => current.kind === 'ready' && current.saved.version.document_id === documentId
+        ? { kind: 'ready', saved: { ...current.saved, version: value.version,
+          status: sameVersion(value.version, current.saved.version) ? current.saved.status : 'needs_review' } } : current)
+    },
+    onPreview: value => { setPreview(value); setPreviewError(null); setNotice('Review changes saved.') },
+    onStart: () => {
+      setError(null); setNotice('Saving decisions…')
+      setSummary(null); setConfirmedPreview(false); setPreparedDownload(null)
+      setExactMatches(null); setGroupConfirmation(null); setPreviewError(null)
+    },
+    onFailed: cause => {
+      setNotice(null); setPreview(null)
+      if (cause instanceof ApiRequestError && [401, 403, 404, 410].includes(cause.status)) {
+        clearUnavailable(messageFrom(cause)); return
+      }
+      setConflict(true)
+      setError(`${messageFrom(cause)} Unsaved decisions were rolled back. Reload the saved review to continue.`)
+    },
+  })
   const handoff = useReviewHandoff({ saved: state.kind === 'ready' ? state.saved : null, initial: initialHandoff,
-    onChanged: () => setConflict(true),
+    onChanged: () => { if (!decisions.pending) setConflict(true) },
     onUnavailable: (message) => {
-      if (state.kind === 'ready' && documentId) forgetReview(session.user_id, state.saved.workspace_id, documentId)
-      setState({ kind: 'error', message, retryable: false }); setText(''); setFindings(null); setPreview(null); setPreparedDownload(null)
+      decisions.cancel(); clearUnavailable(message)
     },
   })
   const dirty = state.kind === 'ready' && text !== state.saved.text
@@ -156,7 +185,8 @@ export function useReviewController(session: SessionView) {
       requestAnimationFrame(() => sourceRef.current?.focus({ preventScroll: true }))
     },
   })
-  const actionPending = mutationPending || sourceRecovery.pending
+  const decisionBlocked = mutationPending || sourceRecovery.pending
+  const actionPending = decisionBlocked || decisions.pending
 
   useEffect(() => {
     if (actionPending) {
@@ -186,7 +216,7 @@ export function useReviewController(session: SessionView) {
     if (groupConfirmation) groupConfirmRef.current?.focus()
   }, [groupConfirmation])
 
-  useReviewStateLoader({ documentId, attempt, workspaceIds, userId: session.user_id,
+  useReviewStateLoader({ documentId, attempt, workspaceIds, userId: session.user_id, scope: session.csrf_token,
     onLoaded: ({ source: saved, scan: scanResult, findings: findingResult, preview: previewResult, summary, handoff }) => {
         setState({ kind: 'ready', saved })
         setText(saved.text)
@@ -304,6 +334,7 @@ export function useReviewController(session: SessionView) {
   })
 
   async function reloadSaved() {
+    decisions.cancel()
     if (dirty || settingsDirty) {
       try { await recovery.clear() }
       catch (cause) {
@@ -379,6 +410,7 @@ export function useReviewController(session: SessionView) {
     !settingsPending &&
     !scanPending &&
     !findingPending &&
+    !decisions.pending &&
     !completionPending &&
     !exportPending &&
     scan?.status === 'completed' &&
@@ -527,6 +559,7 @@ export function useReviewController(session: SessionView) {
     keepReason, csrf: session.csrf_token, undoCount, groupConfirmation,
     refreshPreview, setFindingPending, setError, setNotice, setFindings, setMergeTargets, setState,
     setSummary, setConfirmedPreview, setPreparedDownload, setExactMatches, setGroupConfirmation, setConflict,
+    decisionBlocked, enqueueDecision: decisions.enqueue,
   })
 
   const csvActions = createReviewCsvActions({
@@ -563,6 +596,11 @@ export function useReviewController(session: SessionView) {
   })
 
   return {
+    decisionPending: decisions.pending,
+    pendingDecisionIds: decisions.pendingIds,
+    decisionBlocked,
+    flushDecisions: decisions.flush,
+    cancelDecisions: decisions.cancel,
     retentionCsrf: session.csrf_token,
     retentionRenewed: (id: string, expires: string) => {
       setState(current => current.kind === 'ready' && current.saved.version.document_id === id ? { ...current, saved: { ...current.saved, expires_at: expires } } : current)

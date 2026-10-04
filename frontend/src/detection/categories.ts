@@ -11,6 +11,12 @@ export const extraDetection = [
   { category: 'secret' as const, label: 'Secrets', description: 'Recognizable credentials and explicit key/value context' },
   { category: 'national_id' as const, label: 'National IDs', description: 'US SSN, UK NI, Singapore NRIC/FIN and Malaysian MyKad' },
 ]
+export const defaultDetectionCategories: FindingCategory[] = ['email', 'phone']
+export const detectionChoices = [
+  { category: 'email' as const, label: 'Email addresses', description: 'Personal and work emails' },
+  { category: 'phone' as const, label: 'Phone numbers', description: 'Numbers in your selected region' },
+  ...extraDetection,
+]
 export const detectionLanguages = [['en', 'English']] as const
 export const languageName = (code: string) => detectionLanguages.find(([value]) => value === code)?.[1] ?? code
 export const extras = (categories: FindingCategory[]) => categories.filter((category) =>

@@ -1,6 +1,6 @@
 import { categoryPresentation, findingCategories } from '../rules/categoryPresentation'
 import { CategoryBadge } from '../rules/CategoryBadge'
-import { ArrowRight, RotateCcw, ListFilter, Plus, ChevronDown, Sparkles } from 'lucide-react'
+import { ArrowRight, RotateCcw, ListFilter, Plus, ChevronDown, Sparkles, Clock3 } from 'lucide-react'
 import { GlassSelect } from '../ui/GlassSelect'
 import type { ReviewController } from './useReviewController'
 import { FindingPopover } from './FindingPopover'
@@ -53,7 +53,7 @@ export function ReviewFindings({ review }: { review: ReviewController }) {
           type="button"
           className="button-primary"
           onClick={review.nextUnresolved}
-          disabled={!review.pendingFindings.length || blocked}
+          disabled={!review.pendingFindings.length || review.decisionBlocked || review.dirty || review.settingsDirty || review.conflict}
         >
           Next unresolved <ArrowRight size={15} aria-hidden="true" />
         </button>
@@ -146,6 +146,8 @@ export function ReviewFindings({ review }: { review: ReviewController }) {
                   <CategoryBadge category={item.category} />
                   {review.preview?.fictional_finding_ids?.includes(item.finding_id) && <span className="fictional-badge"><Sparkles size={11} aria-hidden="true" /> Fictional</span>}
                   <span className="finding-state" data-action={item.action || 'pending'}>
+                    {review.pendingDecisionIds.includes(item.finding_id) && <Clock3 size={12} aria-hidden="true" />}
+                    {review.pendingDecisionIds.includes(item.finding_id) ? 'Saving · ' : ''}
                     {item.action === 'label'
                       ? 'Labeled'
                       : item.action === 'redact'

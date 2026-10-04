@@ -5,11 +5,12 @@ import {
   getIntakeDefaults, getWorkspacePresets, type FindingCategory, type IntakeDefaultsView,
   type PresetView, type SessionView,
 } from '../api/client'
-import { extraDetection } from '../detection/categories'
+import { defaultDetectionCategories } from '../detection/categories'
+import { DetectionControls } from '../detection/DetectionControls'
 import { LoadingState } from '../loading/LoadingState'
 import { PageHeader } from '../ui/PageHeader'
 import { GlassSelect } from '../ui/GlassSelect'
-import { ChoiceSwitch, InlineNotice, PanelHeading } from '../ui/WorkspaceControls'
+import { InlineNotice, PanelHeading } from '../ui/WorkspaceControls'
 import { phoneRegions } from '../ui/phoneRegions'
 import { createBatch, getBatches, type BatchList } from './api'
 import './batches.css'
@@ -26,7 +27,7 @@ export function BatchesPage({ session }: { session: SessionView }) {
   const [pending, setPending] = useState(false)
   const [name, setName] = useState('')
   const [preset, setPreset] = useState('')
-  const [categories, setCategories] = useState<FindingCategory[]>(['email', 'phone'])
+  const [categories, setCategories] = useState<FindingCategory[]>(defaultDetectionCategories)
   const [region, setRegion] = useState('PH')
   const [retention, setRetention] = useState(1)
   useEffect(() => {
@@ -45,8 +46,6 @@ export function BatchesPage({ session }: { session: SessionView }) {
   }, [workspace, attempt])
   const ready = setup?.workspace === workspace ? setup : null
   const selectedPreset = ready?.presets.find((row) => row.id === preset)
-  const choices = [{ category: 'email' as const, label: 'Email addresses', description: 'Personal and work emails' },
-    { category: 'phone' as const, label: 'Phone numbers', description: 'Numbers in your selected region' }, ...extraDetection]
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (!ready || pending) return
@@ -80,11 +79,11 @@ export function BatchesPage({ session }: { session: SessionView }) {
             <option value="">Custom settings</option>{ready.presets.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
           </GlassSelect>
           <details className="batch-detection"><summary>Suggestion categories</summary>
-            {choices.map((choice) => <ChoiceSwitch key={choice.category} {...choice}
-              checked={(selectedPreset?.categories ?? categories).includes(choice.category)} disabled={pending || !!preset}
-              onChange={(checked) => setCategories((current) => checked ? [...current, choice.category] : current.filter((value) => value !== choice.category))} />)}
+            <DetectionControls prefix="batch" categories={selectedPreset?.categories ?? categories}
+              onChange={setCategories} disabled={pending || !!preset}
+              disabledReason={pending ? 'Wait for this batch to finish saving.' : preset ? 'From your preset. Choose Custom settings to change these.' : undefined} />
           </details>
-          <label htmlFor="batch-region">Phone region</label>
+          <label htmlFor="batch-region">{(selectedPreset?.categories ?? categories).includes('date') ? 'Phone and date region' : 'Phone region'}</label>
           <GlassSelect id="batch-region" value={selectedPreset?.phone_region ?? region} onValueChange={setRegion} disabled={pending || !!preset}>
             {phoneRegions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </GlassSelect>

@@ -1,17 +1,19 @@
 import { useEffect, useRef } from 'react'
-import { ApiRequestError, get, getWorkspaceDocuments } from '../api/client'
-import type { components } from '../api/schema'
+import { ApiRequestError, getWorkspaceDocuments } from '../api/client'
+import { getReviewState } from '../api/reviewState'
+import type { ReviewStateView } from '../api/reviewCache'
 import { forgetReview } from '../resume/lastReview'
 import { messageFrom, sameVersion, type DraftState } from './reviewState'
 
-export type ReviewStateView = components['schemas']['ReviewStateView']
+export type { ReviewStateView } from '../api/reviewCache'
 
 /** One authorized snapshot; protected content stays in the mounted review's memory. */
-export function useReviewStateLoader({ documentId, attempt, workspaceIds, userId, onLoaded, onError }: {
+export function useReviewStateLoader({ documentId, attempt, workspaceIds, userId, scope, onLoaded, onError }: {
   documentId: string | undefined
   attempt: number
   workspaceIds: string
   userId: string
+  scope: string
   onLoaded: (snapshot: ReviewStateView) => void
   onError: (state: Extract<DraftState, { kind: 'error' }>) => void
 }) {
@@ -20,7 +22,7 @@ export function useReviewStateLoader({ documentId, attempt, workspaceIds, userId
   useEffect(() => {
     if (!documentId) return
     const controller = new AbortController()
-    get<ReviewStateView>(`/documents/${documentId}/review-state`, controller.signal)
+    getReviewState(documentId, scope, controller.signal)
       .then((snapshot) => {
         if (controller.signal.aborted) return
         const expected = snapshot.source.version
@@ -50,5 +52,5 @@ export function useReviewStateLoader({ documentId, attempt, workspaceIds, userId
           retryable: !(cause instanceof ApiRequestError && [404, 410].includes(cause.status)) })
       })
     return () => controller.abort()
-  }, [documentId, attempt, workspaceIds, userId])
+  }, [documentId, attempt, workspaceIds, userId, scope])
 }

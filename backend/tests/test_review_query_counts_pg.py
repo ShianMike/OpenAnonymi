@@ -13,7 +13,13 @@ from sqlalchemy.orm import Session
 from app.db.models import Finding
 from tests.intake_support import _draft_body, _login
 
-OUTPUT = Path(__file__).resolve().parents[2] / "docs/privacy-review-build/evidence/expansion-2/E11"
+MILESTONE = os.environ.get("OPENANONYMI_PERF_MILESTONE", "E11")
+assert MILESTONE in {"E11", "G06", "E12"}
+OUTPUT = (
+    Path(__file__).resolve().parents[2]
+    / "docs/privacy-review-build/evidence/expansion-2"
+    / MILESTONE
+)
 
 
 def source_text(count):
@@ -110,7 +116,9 @@ def test_real_review_request_query_counts_and_group_action(intake_site, count):
                 ("source", 6),
                 ("scan", 6),
                 ("findings", 9),
-                ("preview", 9),
+                # D047: measured four fixed queries for post-render session/grant
+                # checks;13 queries for both60 and500 findings, no per-row reads.
+                ("preview", 13),
                 ("handoff", 6),
             )
         )

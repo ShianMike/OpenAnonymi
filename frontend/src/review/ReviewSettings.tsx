@@ -1,10 +1,10 @@
 import { SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { GlassSelect } from '../ui/GlassSelect'
-import { GlassCheckbox } from '../ui/GlassCheckbox'
+import { DetectionControls } from '../detection/DetectionControls'
 import type { ReviewController } from './useReviewController'
 import { ReviewRules } from '../rules/ReviewRules'
 import '../rules/rules.css'
-import { extraDetection } from '../detection/categories'
+import { extras } from '../detection/categories'
 import { phoneRegions } from '../ui/phoneRegions'
 
 export function ReviewSettings({ review, csrf }: { review: ReviewController; csrf: string }) {
@@ -22,37 +22,18 @@ export function ReviewSettings({ review, csrf }: { review: ReviewController; csr
       <div className="review-settings-body">
         <p>Choose the details to look for. Saving changes starts a fresh review.</p>
         <div className="review-setting-choices">
-          <GlassCheckbox
-            id="review-email"
-            label="Email addresses"
-            description="Personal and work emails"
-            checked={review.emailEnabled}
-            disabled={disabled}
-            onCheckedChange={(checked) => {
-              review.setEmailEnabled(checked)
+          <DetectionControls prefix="review" variant="checkbox" disabled={disabled}
+            disabledReason="Wait for the current review changes to finish saving."
+            categories={[...(review.emailEnabled ? ['email' as const] : []), ...(review.phoneEnabled ? ['phone' as const] : []), ...review.extraCategories]}
+            onChange={(categories) => {
+              review.setEmailEnabled(categories.includes('email'))
+              review.setPhoneEnabled(categories.includes('phone'))
+              review.setExtraCategories(extras(categories))
               review.setConfirmedPreview(false)
               review.setPreparedDownload(null)
-            }}
-          />
-          <GlassCheckbox
-            id="review-phone"
-            label="Phone numbers"
-            description="Numbers in your chosen region"
-            checked={review.phoneEnabled}
-            disabled={disabled}
-            onCheckedChange={(checked) => {
-              review.setPhoneEnabled(checked)
-              review.setConfirmedPreview(false)
-              review.setPreparedDownload(null)
-            }}
-          />
+            }} />
         </div>
         <div className="review-settings-footer">
-          <div className="review-setting-choices">{extraDetection.map((choice) => <GlassCheckbox key={choice.category}
-            id={`review-${choice.category}`} label={choice.label} description={choice.description}
-            checked={review.extraCategories.includes(choice.category)} disabled={disabled}
-            onCheckedChange={(checked) => { review.setExtraCategories((current) => checked ? [...current, choice.category]
-              : current.filter((category) => category !== choice.category)); review.setConfirmedPreview(false); review.setPreparedDownload(null) }} />)}</div>
           <div>
             <label className="field-label" htmlFor="scan-phone-region">
               {review.extraCategories.includes('date') ? 'Phone and date region' : 'Phone region'}

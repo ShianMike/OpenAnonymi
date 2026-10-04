@@ -1,9 +1,10 @@
 import { phoneRegions } from '../../ui/phoneRegions'
 import { Clock3, SlidersHorizontal } from 'lucide-react'
 import { GlassSelect } from '../../ui/GlassSelect'
-import { ChoiceSwitch, InlineNotice, PanelHeading } from '../../ui/WorkspaceControls'
+import { InlineNotice, PanelHeading } from '../../ui/WorkspaceControls'
 import type { IntakeController } from './useIntake'
-import { extraDetection, extras } from '../../detection/categories'
+import { extras } from '../../detection/categories'
+import { DetectionControls } from '../../detection/DetectionControls'
 import { LoadingState } from '../../loading/LoadingState'
 
 export function IntakeOptions({ intake }: { intake: IntakeController }) {
@@ -61,27 +62,16 @@ export function IntakeOptions({ intake }: { intake: IntakeController }) {
           </div>
           <div className="intake-detection-options">
             <p className="intake-mini-heading">LOOK FOR</p>
-            <ChoiceSwitch
-              label="Email addresses"
-              description="Personal and work emails"
-              checked={intake.emailEnabled}
-              onChange={intake.setEmailEnabled}
-              disabled={!!intake.presetId || pending}
-            />
-            <ChoiceSwitch
-              label="Phone numbers"
-              description="Numbers in your selected region"
-              checked={intake.phoneEnabled}
-              onChange={intake.setPhoneEnabled}
-              disabled={!!intake.presetId || pending}
-            />
-            {intake.presetId && (
-              <p className="field-note">From your preset. Choose Custom settings to change these.</p>
-            )}
-            {extraDetection.map((choice) => <ChoiceSwitch key={choice.category} label={choice.label}
-              description={choice.description} checked={intake.extraCategories.includes(choice.category)}
-              disabled={!!intake.presetId || pending} onChange={(checked) => intake.setExtraCategories((current) =>
-                checked ? [...current, choice.category] : current.filter((category) => category !== choice.category))} />)}
+            <DetectionControls prefix="intake" categories={[
+              ...(intake.emailEnabled ? ['email' as const] : []),
+              ...(intake.phoneEnabled ? ['phone' as const] : []), ...intake.extraCategories,
+            ]} disabled={!!intake.presetId || pending}
+              disabledReason={pending ? 'Wait for this review to finish saving.' : intake.presetId ? 'From your preset. Choose Custom settings to change these.' : undefined}
+              onChange={(categories) => {
+                intake.setEmailEnabled(categories.includes('email'))
+                intake.setPhoneEnabled(categories.includes('phone'))
+                intake.setExtraCategories(extras(categories))
+              }} />
             <p className="field-note">Name and place suggestions support English. All suggestions need review; inspect the full text for misses. National IDs cover hyphenated US SSNs, UK NI numbers, Singapore NRIC/FIN and hyphenated Malaysian MyKad. Singapore M-prefix IDs use format only.</p>
           </div>
           <div>

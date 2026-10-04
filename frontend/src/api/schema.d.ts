@@ -8769,6 +8769,13 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewStateView"];
                 };
             };
+            /** @description Current authorized snapshot is unchanged; no body. */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Not Found */
             404: {
                 headers: {

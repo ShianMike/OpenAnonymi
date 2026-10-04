@@ -510,6 +510,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
                     style_option=body.style_option,
                     keys=_keys(request),
                     now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
                 )
             )
         except (
@@ -563,6 +564,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
     def undo_route(
         document_id: UUID,
         body: RemoveFindingRequest,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ) -> FindingsView | JSONResponse:
         try:
@@ -573,6 +575,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
                     actor_id=identity.user_id,
                     expected=body.expected,
                     now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
                 )
             )
         except (

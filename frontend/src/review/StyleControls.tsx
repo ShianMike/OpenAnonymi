@@ -15,7 +15,7 @@ function Choices({ finding, review, source }: { finding: ReviewFinding; review: 
   const [attempted, setAttempted] = useState(false)
   const { groupTriggerRef, groupConfirmRef, confirmGroupDecision, cancelGroupDecision } = review
   const mode = useStyleControls(source, finding, review.preview)
-  const blocked = review.actionPending || review.dirty || review.settingsDirty || review.conflict
+  const blocked = review.decisionBlocked || review.pendingDecisionIds.includes(finding.finding_id) || review.dirty || review.settingsDirty || review.conflict
   const disclosure = styleDisclosure(mode.choice)
   const linked = finding.group_id ? review.groupMembers.get(finding.group_id) ?? [] : []
   const fallback = review.preview?.stand_in_fallback_ids?.includes(finding.finding_id)

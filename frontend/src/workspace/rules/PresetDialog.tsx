@@ -1,4 +1,5 @@
-import { extraDetection, extras } from '../../detection/categories'
+import { defaultDetectionCategories, extras } from '../../detection/categories'
+import { DetectionControls } from '../../detection/DetectionControls'
 import type { FindingCategory } from '../../api/client'
 import { phoneRegions } from '../../ui/phoneRegions'
 import { useState, type FormEvent, type ReactNode } from 'react'
@@ -21,9 +22,9 @@ export function PresetDialog({
 }) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
-  const [email, setEmail] = useState(true)
-  const [phone, setPhone] = useState(true)
-  const [extraCategories, setExtraCategories] = useState<FindingCategory[]>([])
+  const [email, setEmail] = useState(defaultDetectionCategories.includes('email'))
+  const [phone, setPhone] = useState(defaultDetectionCategories.includes('phone'))
+  const [extraCategories, setExtraCategories] = useState<FindingCategory[]>(extras(defaultDetectionCategories))
   const [phoneRegion, setPhoneRegion] = useState('PH')
   const [preferredAction, setPreferredAction] = useState<'label' | 'redact'>('label')
   const [isDefault, setIsDefault] = useState(false)
@@ -35,9 +36,10 @@ export function PresetDialog({
     if (pending) return
     if (next) {
       setName(preset?.name ?? '')
-      setEmail(preset?.categories.includes('email') ?? true)
-      setPhone(preset?.categories.includes('phone') ?? true)
-      setExtraCategories(extras(preset?.categories ?? []))
+      const categories = preset?.categories ?? defaultDetectionCategories
+      setEmail(categories.includes('email'))
+      setPhone(categories.includes('phone'))
+      setExtraCategories(extras(categories))
       setPhoneRegion(preset?.phone_region ?? 'PH')
       setPreferredAction(preset?.preferred_action ?? 'label')
       setIsDefault(preset?.is_default ?? false)
@@ -95,22 +97,23 @@ export function PresetDialog({
           </div>
           <div className="preset-detection-group">
             <span className="field-label">Automatic suggestions</span>
-            <ChoiceSwitch label="Email addresses" checked={email} onChange={setEmail} disabled={pending} />
-            <ChoiceSwitch label="Phone numbers" checked={phone} onChange={setPhone} disabled={pending} />
-            {extraDetection.map((choice) => <ChoiceSwitch key={choice.category} label={choice.label} description={choice.description}
-              checked={extraCategories.includes(choice.category)} disabled={pending} onChange={(checked) => setExtraCategories((current) =>
-                checked ? [...current, choice.category] : current.filter((category) => category !== choice.category))} />)}
+            <DetectionControls prefix={`preset-${fieldId}`} disabled={pending}
+              disabledReason="Wait for this preset to finish saving."
+              categories={[...(email ? ['email' as const] : []), ...(phone ? ['phone' as const] : []), ...extraCategories]}
+              onChange={(categories) => {
+                setEmail(categories.includes('email')); setPhone(categories.includes('phone')); setExtraCategories(extras(categories))
+              }} />
           </div>
           <div className="dialog-field-pair">
             <div>
               <label className="field-label" htmlFor={`preset-region-${fieldId}`}>
-                Phone region
+                {extraCategories.includes('date') ? 'Phone and date region' : 'Phone region'}
               </label>
               <GlassSelect
                 id={`preset-region-${fieldId}`}
                 value={phoneRegion}
                 onValueChange={setPhoneRegion}
-                disabled={pending || !phone}
+                disabled={pending || (!phone && !extraCategories.includes('date'))}
               >
                 {phoneRegions.map(([code, label]) => (
                   <option value={code} key={code}>

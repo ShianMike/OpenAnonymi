@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { CheckCircle2, AlertCircle, X } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
@@ -28,28 +28,38 @@ export function PanelHeading({
 }
 
 export function ChoiceSwitch({
+  id,
   label,
   description,
   checked,
   disabled,
+  disabledReason,
   onChange,
 }: {
+  id?: string
   label: string
   description?: string
   checked: boolean
   disabled?: boolean
+  disabledReason?: string
   onChange: (value: boolean) => void
 }) {
+  const generatedId = useId()
+  const controlId = id ?? generatedId
+  const help = disabled && disabledReason ? disabledReason : description
   return (
-    <label className="choice-switch">
+    <label className="choice-switch" title={disabled ? disabledReason : undefined}>
       <span>
         <strong>{label}</strong>
-        {description && <small>{description}</small>}
+        {description && <small id={`${controlId}-description`}>{description}</small>}
+        {disabled && disabledReason && <span className="sr-only" id={`${controlId}-disabled-reason`}>{disabledReason}</span>}
       </span>
       <input
         type="checkbox"
+        id={controlId}
         role="switch"
         aria-label={label}
+        aria-describedby={help ? `${controlId}-${disabled && disabledReason ? 'disabled-reason' : 'description'}` : undefined}
         checked={checked}
         disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}

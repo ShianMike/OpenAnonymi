@@ -17,7 +17,7 @@ export function ReviewPreview({ review }: { review: ReviewController }) {
   }, [activeFindings, preview])
   if (state.kind !== 'ready') return null
   const current =
-    preview && sameVersion(preview.version, state.saved.version) && preview.text !== null
+    !review.decisionPending && preview && sameVersion(preview.version, state.saved.version) && preview.text !== null
   return (
     <section
       className="review-preview"
@@ -48,6 +48,8 @@ export function ReviewPreview({ review }: { review: ReviewController }) {
       </div>
       {review.dirty || review.settingsDirty ? (
         <p className="document-empty">Save your changes to refresh the reviewed output.</p>
+      ) : review.decisionPending ? (
+        <p className="document-empty" role="status">Saving decisions and updating the reviewed output…</p>
       ) : preview?.status === 'conflict' ? (
         <p role="alert" className="document-empty">
           Overlapping findings need correction or removal before an output can be shown.

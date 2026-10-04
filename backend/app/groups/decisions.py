@@ -1,5 +1,6 @@
 """Locked occurrence/group decisions and encrypted replacement style admission."""
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -16,6 +17,7 @@ from app.groups.service import (
     _current_locked,
     _group_for_finding,
     _overlap_pairs,
+    _require_current_review_access,
     _rows,
     _snapshot,
     _touch_review,
@@ -43,6 +45,7 @@ def decide_findings(
     style: str = "token",
     style_option: str | None = None,
     keys: KeyRing | None = None,
+    reauthorize: Callable[[], object] | None = None,
 ) -> FindingsSnapshot:
     if action == DecisionAction.KEEP:
         if keep_reason not in {"false_match", "intended_disclosure"}:
@@ -51,6 +54,7 @@ def decide_findings(
         raise ReviewValidationError("unexpected_keep_reason", "Only Keep uses a reason.")
     with Session(engine) as session, session.begin():
         document, version = _current_locked(session, document_id, actor_id, expected, now)
+        _require_current_review_access(session, document_id, actor_id, reauthorize)
         active = _rows(session, version)
         finding = next((row for row in active if row.id == finding_id), None)
         if finding is None:
@@ -173,4 +177,5 @@ def decide_findings(
             decision_before=before,
             decision_version=document.decision_version,
         )
+        _require_current_review_access(session, document_id, actor_id, reauthorize)
     return snapshot

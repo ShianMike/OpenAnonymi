@@ -1,5 +1,5 @@
 import { importPreview } from '../../imports/api'
-import { extras } from '../../detection/categories'
+import { defaultDetectionCategories, extras } from '../../detection/categories'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useProtectedDraft } from '../../recovery/useProtectedDraft'
@@ -45,9 +45,9 @@ export function useIntake(session: SessionView) {
   const [csvHeader, setCsvHeader] = useState<'auto' | 'true' | 'false'>('auto')
   const [csvPreview, setCsvPreview] = useState<CsvInfo | null>(null)
   const [title, setTitle] = useState('')
-  const [emailEnabled, setEmailEnabled] = useState(true)
-  const [phoneEnabled, setPhoneEnabled] = useState(true)
-  const [extraCategories, setExtraCategories] = useState<FindingCategory[]>([])
+  const [emailEnabled, setEmailEnabled] = useState(defaultDetectionCategories.includes('email'))
+  const [phoneEnabled, setPhoneEnabled] = useState(defaultDetectionCategories.includes('phone'))
+  const [extraCategories, setExtraCategories] = useState<FindingCategory[]>(extras(defaultDetectionCategories))
   const [phoneRegion, setPhoneRegion] = useState('PH')
   const [language, setLanguage] = useState('en')
   const [presetId, setPresetId] = useState('')
@@ -68,9 +68,10 @@ export function useIntake(session: SessionView) {
         setRetentionDays(value.content_retention_days)
         const initial = presets.find((preset) => preset.is_default)
         setPresetId(initial?.id ?? '')
-        setEmailEnabled(initial?.categories.includes('email') ?? true)
-        setPhoneEnabled(initial?.categories.includes('phone') ?? true)
-        setExtraCategories(extras(initial?.categories ?? []))
+        const categories = initial?.categories ?? defaultDetectionCategories
+        setEmailEnabled(categories.includes('email'))
+        setPhoneEnabled(categories.includes('phone'))
+        setExtraCategories(extras(categories))
         setPhoneRegion(initial?.phone_region ?? 'PH')
       })
       .catch((cause: unknown) => {

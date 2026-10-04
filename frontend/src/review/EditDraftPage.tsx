@@ -61,7 +61,9 @@ export function EditDraftPage({
         action={<Link to={backTo}>{fromBatch ? 'Back to batch' : fromContinue ? 'Back to reviews' : 'Back to documents'}</Link>}
       />
       <UnsavedNavigationPrompt
-        when={(dirty || settingsDirty) && !review.recovery.protected}
+        when={review.decisionPending || ((dirty || settingsDirty) && !review.recovery.protected)}
+        saving={review.decisionPending}
+        onWaitAndLeave={review.flushDecisions}
         focusBackId={dirty ? 'saved-source' : 'review-email'}
         onDirtyChange={onUnsavedChange}
         onSaveAndLeave={review.recovery.flush}
@@ -108,6 +110,7 @@ export function EditDraftPage({
                 </span>
               )}
               {dirty && <span>Unsaved source edits</span>}
+              {review.decisionPending && <span role="status">Saving decisions · Output is updating</span>}
             </div>
             {review.canEdit && <AutosaveStatus recovery={review.recovery} dirty={dirty || settingsDirty} />}
           </div>

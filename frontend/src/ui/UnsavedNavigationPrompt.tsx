@@ -9,6 +9,8 @@ export function UnsavedNavigationPrompt({
   onStay,
   onSaveAndLeave,
   onDiscardAndLeave,
+  saving = false,
+  onWaitAndLeave,
 }: {
   when: boolean
   focusBackId: string
@@ -17,6 +19,8 @@ export function UnsavedNavigationPrompt({
   onStay?: () => void
   onSaveAndLeave?: () => Promise<boolean>
   onDiscardAndLeave?: () => Promise<void>
+  saving?: boolean
+  onWaitAndLeave?: () => Promise<boolean>
 }) {
   const stayRef = useRef<HTMLButtonElement>(null)
   const [pending, setPending] = useState(false)
@@ -60,10 +64,18 @@ export function UnsavedNavigationPrompt({
       setError(cause instanceof Error ? cause.message : 'Your edits could not be backed up.')
     } finally { setPending(false) }
   }
+  async function waitAndLeave() {
+    setPending(true); setError(null)
+    try {
+      if (!(await onWaitAndLeave?.())) { setError('The decisions could not finish saving. Stay here and reload the saved review.'); return }
+      blocker.proceed?.()
+    } catch { setError('The decisions could not finish saving. Stay here and reload the saved review.') }
+    finally { setPending(false) }
+  }
   return (
     <div className="unsaved-navigation surface-panel" role="alert">
-      <strong>Unsaved changes</strong>
-      <p>{onSaveAndLeave ? 'Back up your current edits before leaving, or discard this working copy.'
+      <strong>{saving ? 'Decisions are saving' : 'Unsaved changes'}</strong>
+      <p>{saving ? 'Wait for your decisions and reviewed output to finish saving before leaving.' : onSaveAndLeave ? 'Back up your current edits before leaving, or discard this working copy.'
         : 'Leaving this page will discard your unsaved text and settings.'}</p>
       <button
         ref={stayRef}
@@ -77,11 +89,13 @@ export function UnsavedNavigationPrompt({
       >
         Stay and keep editing
       </button>{' '}
-      {onSaveAndLeave && <button type="button" className="button-primary" disabled={pending}
+      {saving && <button type="button" className="button-primary" disabled={pending}
+        onClick={() => void waitAndLeave()}>{pending ? 'Waiting for saves…' : 'Wait for saves and leave'}</button>}
+      {!saving && onSaveAndLeave && <button type="button" className="button-primary" disabled={pending}
         onClick={() => void leave(true)}>{pending ? 'Backing up…' : 'Back up and leave'}</button>}{' '}
-      <button type="button" disabled={pending} onClick={() => void leave(false)}>
+      {!saving && <button type="button" disabled={pending} onClick={() => void leave(false)}>
         Discard edits and leave
-      </button>
+      </button>}
       {error && <p role="alert">{error}</p>}
     </div>
   )

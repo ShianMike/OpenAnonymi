@@ -4,15 +4,17 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
 
-from app.accounts.access import ContentUnavailable, DocumentNotFound
+from app.accounts.access import ContentUnavailable, DocumentNotFound, review_document
 from app.accounts.api import current_identity
 from app.accounts.security import SessionIdentity
 from app.contracts import DecisionAction, ErrorResponse, SourceSpan, VersionRef
 from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedContentError
+from app.db.repository import _version
 from app.errors import ApiError
 from app.transformations.contracts import StyleChoice
 from app.transformations.engine import InvalidTransformation, PreviewStatus
@@ -79,7 +81,7 @@ def create_transform_router(engine: Engine) -> APIRouter:
         document_id: UUID,
         request: Request,
         identity: Annotated[SessionIdentity, Depends(current_identity)],
-    ) -> PreviewView:
+    ) -> Response:
         try:
             keys = KeyRing.from_settings(request.app.state.settings)
             snapshot = load_preview(
@@ -89,7 +91,19 @@ def create_transform_router(engine: Engine) -> APIRouter:
                 keys=keys,
                 now=datetime.now(UTC),
             )
-            return preview_view(snapshot)
+            payload = preview_view(snapshot).model_dump_json().encode("utf-8")
+            # The decision queue reads this route after saves. Refresh access and
+            # version after rendering, just as the aggregate/cache route does.
+            fresh = current_identity(request)
+            if fresh.session_id != identity.session_id:
+                raise ApiError(401, "sign_in_required", "Sign in to continue.")
+            with Session(engine) as session:
+                current = review_document(session, document_id, fresh.user_id, datetime.now(UTC))
+                if _version(current) != snapshot.version:
+                    raise ApiError(
+                        409, "invalid_review_state", "The review changed while loading. Retry."
+                    )
+            return Response(payload, media_type="application/json")
         except DocumentNotFound:
             raise ApiError(404, "document_not_found", "Document not found.") from None
         except ContentUnavailable:

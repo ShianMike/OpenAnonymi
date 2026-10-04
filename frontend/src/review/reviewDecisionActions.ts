@@ -1,9 +1,10 @@
 import type { Dispatch, SetStateAction } from 'react'
-import { ApiConflictError, addExactMatch, decideFindings, mergeFindings, splitFinding, undoReviewEdit,
+import { ApiConflictError, addExactMatch, mergeFindings, splitFinding, undoReviewEdit,
   refreshCategoryDefaults, getDraft, type FindingsView, type ExactMatchesView, type PreviewView,
   type ReviewSummaryView, type SourceSpan, type StyleChoice, type VersionRef } from '../api/client'
 import { messageFrom, sameVersion, type DraftState, type GroupConfirmation, type ReviewedDownload } from './reviewState'
 import { preferredChoice } from './useStyleControls'
+import type { QueuedDecision } from './decisionQueue'
 
 type Update<T> = Dispatch<SetStateAction<T>>
 export type DecisionOptions = { span?: SourceSpan; action?: 'label' | 'redact' | 'keep';
@@ -13,7 +14,7 @@ export function createReviewDecisionActions({ documentId, state, findings, previ
   actionPending, conflict, mergeTargets, keepReason, csrf, undoCount, groupConfirmation,
   refreshPreview, setFindingPending, setError, setNotice, setFindings,
   setMergeTargets, setState, setSummary, setConfirmedPreview, setPreparedDownload, setExactMatches,
-  setGroupConfirmation, setConflict }: {
+  setGroupConfirmation, setConflict, decisionBlocked, enqueueDecision }: {
   documentId: string | undefined; state: DraftState; findings: FindingsView | null; preview: PreviewView | null;
   dirty: boolean; settingsDirty: boolean; actionPending: boolean; conflict: boolean; csrf: string;
   mergeTargets: Record<string, string>; keepReason: 'false_match' | 'intended_disclosure'; undoCount: number;
@@ -25,6 +26,8 @@ export function createReviewDecisionActions({ documentId, state, findings, previ
   setPreparedDownload: Update<ReviewedDownload | null>;
   setExactMatches: Update<{findingId: string; result: ExactMatchesView} | null>;
   setGroupConfirmation: Update<GroupConfirmation | null>; setConflict: Update<boolean>;
+  decisionBlocked: boolean
+  enqueueDecision: (base: FindingsView, job: QueuedDecision) => boolean
 }) {
   async function changeReview(
     operation: 'exact' | 'merge' | 'split' | 'decision',
@@ -37,7 +40,7 @@ export function createReviewDecisionActions({ documentId, state, findings, previ
       !findings ||
       dirty ||
       settingsDirty ||
-      actionPending ||
+      (operation === 'decision' ? decisionBlocked : actionPending) ||
       conflict
     )
       return
@@ -52,6 +55,16 @@ export function createReviewDecisionActions({ documentId, state, findings, previ
       options?.groupScope && item.group_id
         ? findings.findings.filter((candidate) => candidate.group_id === item.group_id)
         : [item]
+    if (operation === 'decision' && options?.action) {
+      const accepted = enqueueDecision(findings, { findingId, ids: members.map(member => member.finding_id),
+        action: options.action,
+        keepReason: options.action === 'keep' ? options.keepReason ?? keepReason : null,
+        groupScope: Boolean(options.groupScope),
+        choice: options.choice ?? preferredChoice(state.saved, item, options.action, preview),
+      })
+      if (!accepted) setError('These decisions are already saving, or the save queue is full. Wait for them to finish.')
+      return accepted
+    }
     setFindingPending(true)
     setError(null)
     setNotice(null)
@@ -75,18 +88,6 @@ export function createReviewDecisionActions({ documentId, state, findings, previ
         )
       } else if (operation === 'split') {
         result = await splitFinding(documentId, findingId, state.saved.version, csrf)
-      } else if (operation === 'decision' && options?.action) {
-        result = await decideFindings(
-          documentId,
-          findingId,
-          state.saved.version,
-          options.action,
-          options.action === 'keep' ? options.keepReason ?? keepReason : null,
-          Boolean(options.groupScope),
-          members.map((member) => member.finding_id),
-          csrf,
-          options.choice ?? preferredChoice(state.saved, item, options.action, preview),
-        )
       } else return
       setFindings(result)
       if (operation === 'merge') {
@@ -113,7 +114,7 @@ export function createReviewDecisionActions({ documentId, state, findings, previ
   }
 
   async function undoReview() {
-    if (!documentId || state.kind !== 'ready' || dirty || settingsDirty || undoCount === 0) return
+    if (!documentId || state.kind !== 'ready' || dirty || settingsDirty || actionPending || conflict || undoCount === 0) return
     setFindingPending(true)
     setError(null)
     try {

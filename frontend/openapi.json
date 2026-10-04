@@ -6266,6 +6266,9 @@
               }
             }
           },
+          "304": {
+            "description": "Current authorized snapshot is unchanged; no body."
+          },
           "404": {
             "content": {
               "application/json": {

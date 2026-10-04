@@ -121,12 +121,13 @@ export async function requireSuccess(response: Response): Promise<void> {
 }
 
 export async function sendJson<T>(
-  method: 'POST' | 'PATCH' | 'PUT', path: string, body?: object, csrfToken?: string,
+  method: 'POST' | 'PATCH' | 'PUT', path: string, body?: object, csrfToken?: string, signal?: AbortSignal,
 ): Promise<T> {
   return trackedRequest(apiUrl(path), {
     method,
     credentials: API_CREDENTIALS,
     cache: 'no-store',
+    signal,
     headers: {
       Accept: 'application/json',
       ...(body ? { 'Content-Type': 'application/json' } : {}),
@@ -612,11 +613,12 @@ export function decideFindings(
   action: 'label' | 'redact' | 'keep', keepReason: 'false_match' | 'intended_disclosure' | null,
   groupScope: boolean, affectedFindingIds: string[], csrfToken: string,
   choice: StyleChoice = { style: 'token', style_option: null },
+  signal?: AbortSignal,
 ): Promise<FindingsView> {
-  return post<FindingsView>(
-    `/documents/${encodeURIComponent(documentId)}/findings/${encodeURIComponent(findingId)}/decision`,
+  return sendJson<FindingsView>(
+    'POST', `/documents/${encodeURIComponent(documentId)}/findings/${encodeURIComponent(findingId)}/decision`,
     { expected, action, keep_reason: keepReason, group_scope: groupScope,
-      affected_finding_ids: affectedFindingIds, ...choice }, csrfToken,
+      affected_finding_ids: affectedFindingIds, ...choice }, csrfToken, signal,
   )
 }
 

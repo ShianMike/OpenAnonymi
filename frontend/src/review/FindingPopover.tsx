@@ -32,7 +32,8 @@ export function FindingPopover({
   const [attempted, setAttempted] = useState(false)
   const titleId = useId()
   const reasonId = useId()
-  const blocked = review.actionPending || review.dirty || review.settingsDirty || review.conflict
+  const saving = review.pendingDecisionIds.includes(finding.finding_id)
+  const blocked = review.decisionBlocked || saving || review.dirty || review.settingsDirty || review.conflict
   const value = open ? review.codePoints.slice(finding.span.start, finding.span.end).join('') : ''
   const linkedCount = finding.group_id
     ? (review.groupMembers.get(finding.group_id)?.length ?? 1)
@@ -111,12 +112,12 @@ export function FindingPopover({
             <option value="intended_disclosure">Intended disclosure</option>
           </GlassSelect>
           {open && <StyleControls finding={finding} review={review} />}
-          {review.findingPending && (
+          {(review.findingPending || saving) && (
             <p role="status" className="finding-popover-feedback">
               Saving decision…
             </p>
           )}
-          {attempted && !review.findingPending && review.error && (
+          {attempted && !review.findingPending && !saving && review.error && (
             <p role="alert" className="finding-popover-error">
               {review.error}
             </p>

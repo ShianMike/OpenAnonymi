@@ -7,6 +7,7 @@ import { ReviewerCompletion } from '../team/ReviewerCompletion'
 import { useState } from 'react'
 import { GlassSelect } from '../ui/GlassSelect'
 import type { CsvVariant, ReviewedFormat } from '../api/client'
+import { DisabledReason } from '../ui/DisabledReason'
 
 const styleCountLabels: Record<string, string> = { stand_in: 'Fictional stand-ins', date_shift: 'Shifted dates', partial_mask: 'Partial masks', generalize: 'Generalized dates' }
 
@@ -20,7 +21,16 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
     (state.saved.status === 'ready' || state.saved.status === 'exported') &&
     !review.dirty &&
     !review.settingsDirty &&
+    !review.decisionPending &&
     !review.conflict
+  const confirmationReason = review.conflict ? 'Load the latest saved review before confirming.'
+    : review.actionPending ? 'Wait for the current changes and reviewed output to finish saving.'
+    : review.dirty || review.settingsDirty ? 'Save your changes before confirming.'
+    : !canConfirm ? 'Finish the scan and decide every finding without overlaps.'
+    : 'Read the full output and check the confirmation box first.'
+  const exportReason = review.actionPending ? 'Wait for the current changes and reviewed output to finish saving.'
+    : confirmed && !review.handoff.exportApproved ? 'The assigned reviewer must approve this exact version.'
+    : 'Confirm the current reviewed output before copying or downloading.'
   return (
     <section className="review-completion" aria-labelledby="completion-heading">
       <div className="completion-heading">
@@ -49,7 +59,7 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
             disabled={!canConfirm}
             onCheckedChange={review.setConfirmedPreview}
           />
-          <button
+          <DisabledReason disabled={!canConfirm || !review.confirmedPreview} reason={confirmationReason}><button
             type="button"
             className="button-primary"
             onClick={() => void review.completeReview()}
@@ -57,13 +67,15 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
           >
             {review.completionPending ? 'Confirming…' : 'Confirm review'}
             {review.completionPending ? <LoadingMark small /> : <ArrowRight size={16} aria-hidden="true" />}
-          </button>
+          </button></DisabledReason>
         </div>
       )}
       {!confirmed && !canConfirm && review.canEdit && (
         <p role="status" className="completion-status">
           {review.conflict
             ? 'Load the latest saved review before confirming.'
+            : review.decisionPending
+              ? 'Saving your decisions and updating the reviewed output before confirmation.'
             : review.dirty || review.settingsDirty
               ? 'Save your changes before confirming.'
             : review.pendingFindings.length
@@ -86,7 +98,7 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
           {!review.handoff.value.reviewer_active && <> <a href="#review-handoff">Manage reviewer</a></>}
         </p>}
       <div className="completion-export">
-        <button
+        <DisabledReason disabled={!canExport} reason={exportReason}><button
           type="button"
           onClick={() => void review.copyReviewedOutput()}
           disabled={!canExport}
@@ -94,7 +106,7 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
         >
           {review.exportPending ? <LoadingMark small /> : <Copy size={16} aria-hidden="true" />}
           {review.exportPending ? 'Preparing output…' : 'Copy reviewed text'}
-        </button>
+        </button></DisabledReason>
         <div><label className="field-label" htmlFor="download-format">Download format</label>
           <GlassSelect id="download-format" value={format} disabled={review.exportPending}
             onValueChange={(value) => setFormat(value as typeof format)}>
@@ -102,7 +114,7 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
             <option value="pdf">PDF</option><option value="report">Redaction report (JSON)</option>
             {state.saved.csv && <option value="csv">CSV</option>}
           </GlassSelect></div>
-        <button
+        <DisabledReason disabled={!canExport} reason={exportReason}><button
           type="button"
           onClick={() => void review.downloadReviewedOutput(format, csvVariant)}
           disabled={!canExport}
@@ -110,7 +122,7 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
         >
           {review.exportPending ? <LoadingMark small /> : <Download size={16} aria-hidden="true" />}
           {review.exportPending ? 'Preparing output…' : { txt: 'Generate reviewed TXT', docx: 'Generate reviewed Word', pdf: 'Generate reviewed PDF', report: 'Generate redaction report', csv: 'Generate reviewed CSV' }[format]}
-        </button>
+        </button></DisabledReason>
       </div>
       {format === 'pdf' && <p className="field-note">PDF uses plain paragraphs with page wrapping and expanded tabs. TXT preserves exact whitespace.</p>}
       {format === 'report' && <p className="field-note">The report lists categories, actions, styles and positions in this confirmed review.</p>}
