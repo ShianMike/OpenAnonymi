@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { categoryPresentation, findingCategories } from '../rules/categoryPresentation'
 import { FileText, Pencil, Check, MousePointer2 } from 'lucide-react'
 import type { ReviewController } from './useReviewController'
@@ -10,6 +11,7 @@ import { ReviewReloadButton } from './ReviewReloadButton'
 export function ReviewSource({ review }: { review: ReviewController }) {
   const { state, editingSource, setEditingSource, text, dirty, pending, sourceRef, selection } =
     review
+  const marks = useMemo(() => review.activeFindings.map((finding) => ({ span: finding.span, finding })), [review.activeFindings])
   if (state.kind !== 'ready') return null
   return (
     <form
@@ -50,7 +52,7 @@ export function ReviewSource({ review }: { review: ReviewController }) {
           </p>
           <ReviewText
             text={state.saved.text}
-            marks={review.activeFindings.map((finding) => ({ span: finding.span, finding }))}
+            marks={marks}
             review={review}
             variant="original"
           />

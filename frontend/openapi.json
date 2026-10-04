@@ -6236,6 +6236,89 @@
         }
       }
     },
+    "/api/v1/documents/{document_id}/review-state": {
+      "get": {
+        "tags": [
+          "review state"
+        ],
+        "summary": "Review State Route",
+        "operationId": "review_state_route_api_v1_documents__document_id__review_state_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewStateView"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/documents/{document_id}/exports/copy-payload": {
       "post": {
         "tags": [
@@ -10792,6 +10875,45 @@
           "expected"
         ],
         "title": "RemoveFindingRequest"
+      },
+      "ReviewStateView": {
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/SourceView"
+          },
+          "scan": {
+            "$ref": "#/components/schemas/ScanView"
+          },
+          "findings": {
+            "$ref": "#/components/schemas/FindingsView"
+          },
+          "preview": {
+            "$ref": "#/components/schemas/PreviewView"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewSummaryView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "handoff": {
+            "$ref": "#/components/schemas/HandoffView"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "scan",
+          "findings",
+          "preview",
+          "summary",
+          "handoff"
+        ],
+        "title": "ReviewStateView"
       },
       "ReviewSummaryView": {
         "properties": {

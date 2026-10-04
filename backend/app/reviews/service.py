@@ -14,9 +14,9 @@ from app.contracts import DocumentStatus, VersionRef
 from app.db.crypto import KeyRing
 from app.db.models import Document, ExportEvent, ReviewCompletion, ScanRun
 from app.db.repository import VersionConflict
-from app.groups.service import _snapshot, _version
+from app.groups.service import FindingsSnapshot, _snapshot, _version
 from app.lifecycle import require_transition
-from app.transformations.service import build_current_preview
+from app.transformations.service import PreviewSnapshot, build_current_preview
 from app.workspace.activity import record_event
 
 
@@ -153,41 +153,55 @@ def load_review_summary(
 ) -> ReviewSummary:
     with Session(engine) as session, session.begin():
         document = review_document(session, document_id, actor_id, now, lock=True)
-        completion = current_completion(session, document)
-        findings = _snapshot(session, _version(document))
-        category_counts = Counter(item.category.value for item in findings.findings)
-        action_counts = Counter(item.action for item in findings.findings if item.action)
-        from app.transformations.styles import ACTION_STYLES
+        return build_review_summary(session, document=document, keys=keys)
 
-        style_counts = {
-            action: {style: 0 for style in sorted(styles)}
-            for action, styles in ACTION_STYLES.items()
-        }
-        for item in findings.findings:
-            if item.action:
-                style_counts[item.action][item.style] += 1
-        fictional = 0
-        if style_counts["label"]["stand_in"]:
-            if keys is None:
-                from app.db.crypto import ContentKeyUnavailable
 
-                raise ContentKeyUnavailable("Content encryption is unavailable.")
-            fictional = len(
-                build_current_preview(session, document=document, keys=keys).fictional_ids
-            )
-        last_generated = session.scalar(
-            select(func.max(ExportEvent.occurred_at)).where(
-                ExportEvent.document_id == document_id,
-                ExportEvent.completion_id == completion.id,
-            )
+def build_review_summary(
+    session: Session,
+    *,
+    document: Document,
+    keys: KeyRing | None,
+    findings: FindingsSnapshot | None = None,
+    preview: PreviewSnapshot | None = None,
+) -> ReviewSummary:
+    """Reuse authorized request data instead of reloading findings/source."""
+    completion = current_completion(session, document)
+    findings = findings if findings is not None else _snapshot(session, _version(document))
+    category_counts = Counter(item.category.value for item in findings.findings)
+    action_counts = Counter(item.action for item in findings.findings if item.action)
+    from app.transformations.styles import ACTION_STYLES
+
+    style_counts = {
+        action: {style: 0 for style in sorted(styles)} for action, styles in ACTION_STYLES.items()
+    }
+    for item in findings.findings:
+        if item.action:
+            style_counts[item.action][item.style] += 1
+    fictional = 0
+    if style_counts["label"]["stand_in"]:
+        if keys is None:
+            from app.db.crypto import ContentKeyUnavailable
+
+            raise ContentKeyUnavailable("Content encryption is unavailable.")
+        preview = (
+            preview
+            if preview is not None
+            else build_current_preview(session, document=document, keys=keys)
         )
-        return ReviewSummary(
-            version=_version(document),
-            confirmed_at=completion.confirmed_at,
-            last_output_generated_at=last_generated,
-            finding_count=len(findings.findings),
-            counts_by_category=dict(category_counts),
-            counts_by_action=dict(action_counts),
-            counts_by_action_and_style=style_counts,
-            fictional_replacements=fictional,
+        fictional = len(preview.fictional_ids)
+    last_generated = session.scalar(
+        select(func.max(ExportEvent.occurred_at)).where(
+            ExportEvent.document_id == document.id,
+            ExportEvent.completion_id == completion.id,
         )
+    )
+    return ReviewSummary(
+        version=_version(document),
+        confirmed_at=completion.confirmed_at,
+        last_output_generated_at=last_generated,
+        finding_count=len(findings.findings),
+        counts_by_category=dict(category_counts),
+        counts_by_action=dict(action_counts),
+        counts_by_action_and_style=style_counts,
+        fictional_replacements=fictional,
+    )

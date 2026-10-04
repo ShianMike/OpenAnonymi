@@ -5,15 +5,19 @@ import { GlassSelect } from '../ui/GlassSelect'
 import type { ReviewController } from './useReviewController'
 import { FindingPopover } from './FindingPopover'
 import { FindingAdvanced } from './findings/FindingAdvanced'
+import { useWindowedList } from './useWindowedList'
 
 export function ReviewFindings({ review }: { review: ReviewController }) {
+  const { enabled, entries, containerRef, listRef, registerRow, onFocusCapture, onBlurCapture } =
+    useWindowedList(review.visibleFindings, review.selectedFindingId)
   if (review.state.kind !== 'ready') return null
   const blocked = review.dirty || review.settingsDirty || review.actionPending || review.conflict
   const total = review.activeFindings.length
   const decided = total - review.pendingFindings.length
   return (
     <section
-      className="review-findings"
+      className={`review-findings${enabled ? ' review-findings-windowed' : ''}`}
+      ref={containerRef}
       id="review-findings-panel"
       aria-labelledby="findings-heading"
     >
@@ -119,11 +123,21 @@ export function ReviewFindings({ review }: { review: ReviewController }) {
         </div>
       )}
       {total > 0 && !review.visibleFindings.length && <p>No findings match these filters.</p>}
-      <ol className="finding-list">
-        {review.visibleFindings.map((item) => (
+      <ol className={`finding-list${enabled ? ' finding-list-windowed' : ''}`} role="list"
+        ref={listRef} onFocusCapture={onFocusCapture} onBlurCapture={onBlurCapture}>
+        {entries.map((entry) => {
+          if (entry.kind === 'spacer') return <li key={`spacer-${entry.key}`} className="finding-list-spacer"
+            role="presentation" aria-hidden="true" style={{ height: entry.height }} />
+          const { item, index } = entry
+          return (
           <li
             key={item.finding_id}
             id={`finding-${item.finding_id}`}
+            ref={(node) => registerRow(item.finding_id, node)}
+            data-window-finding={item.finding_id}
+            role="listitem"
+            aria-setsize={review.visibleFindings.length}
+            aria-posinset={index + 1}
             aria-current={review.selectedFindingId === item.finding_id ? 'true' : undefined}
           >
             <FindingPopover finding={item} review={review}>
@@ -152,7 +166,8 @@ export function ReviewFindings({ review }: { review: ReviewController }) {
             </FindingPopover>
             <FindingAdvanced item={item} review={review} />
           </li>
-        ))}
+          )
+        })}
       </ol>
       <button
         type="button"

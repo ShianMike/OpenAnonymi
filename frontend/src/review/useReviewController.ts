@@ -3,6 +3,7 @@ import { createReviewCsvActions } from './reviewCsvActions'
 import { useUndoState } from './useUndoState'
 import { createReviewScanActions } from './reviewScanActions'
 import { useReviewHandoff } from '../team/useReviewHandoff'
+import { useReviewStateLoader, type ReviewStateView } from './useReviewStateLoader'
 import { extras } from '../detection/categories'
 import { createReviewExportActions } from './reviewExportActions'
 import { createReviewSourceActions } from './reviewSourceActions'
@@ -11,19 +12,15 @@ import { useReviewRecovery } from './useReviewRecovery'
 import { useReviewResume } from '../resume/useReviewResume'
 import { forgetReview } from '../resume/lastReview'
 import { createReviewNavigation } from './reviewNavigation'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   ApiConflictError,
-  ApiRequestError,
   addManualFinding,
   getDraft,
   getExactMatches,
-  getFindings,
   getPreview,
-  getReviewSummary,
   getScan,
-  getWorkspaceDocuments,
   removeFinding,
   reviseFinding,
   type ExactMatchesView,
@@ -64,6 +61,7 @@ export function useReviewController(session: SessionView) {
   const [preview, setPreview] = useState<PreviewView | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [summary, setSummary] = useState<ReviewSummaryView | null>(null)
+  const [initialHandoff, setInitialHandoff] = useState<ReviewStateView['handoff'] | null>(null)
   const [confirmedPreview, setConfirmedPreview] = useState(false)
   const [completionPending, setCompletionPending] = useState(false)
   const [exportPending, setExportPending] = useState(false)
@@ -102,7 +100,7 @@ export function useReviewController(session: SessionView) {
   const canManagePresets = state.kind === 'ready' && session.memberships.some(
     (item) => item.workspace_id === state.saved.workspace_id && item.role === 'administrator',
   )
-  const handoff = useReviewHandoff({ saved: state.kind === 'ready' ? state.saved : null,
+  const handoff = useReviewHandoff({ saved: state.kind === 'ready' ? state.saved : null, initial: initialHandoff,
     onChanged: () => setConflict(true),
     onUnavailable: (message) => {
       if (state.kind === 'ready' && documentId) forgetReview(session.user_id, state.saved.workspace_id, documentId)
@@ -188,28 +186,8 @@ export function useReviewController(session: SessionView) {
     if (groupConfirmation) groupConfirmRef.current?.focus()
   }, [groupConfirmation])
 
-  useEffect(() => {
-    if (!documentId) return
-    const controller = new AbortController()
-    Promise.all([
-      getDraft(documentId, controller.signal),
-      getScan(documentId, controller.signal),
-      getFindings(documentId, controller.signal),
-      getPreview(documentId, controller.signal),
-    ])
-      .then(([saved, scanResult, findingResult, previewResult]) => {
-        if (controller.signal.aborted) return
-        if (
-          !sameVersion(saved.version, scanResult.version) ||
-          !sameVersion(saved.version, findingResult.version) ||
-          !sameVersion(saved.version, previewResult.version)
-        ) {
-          setState({
-            kind: 'error',
-            message: 'The review changed while loading. Retry to get one current version.',
-          })
-          return
-        }
+  useReviewStateLoader({ documentId, attempt, workspaceIds, userId: session.user_id,
+    onLoaded: ({ source: saved, scan: scanResult, findings: findingResult, preview: previewResult, summary, handoff }) => {
         setState({ kind: 'ready', saved })
         setText(saved.text)
         setEmailEnabled(saved.categories.includes('email'))
@@ -221,7 +199,8 @@ export function useReviewController(session: SessionView) {
         setFindings(findingResult)
         setPreview(previewResult)
         setPreviewError(null)
-        setSummary(null)
+        setSummary(summary)
+        setInitialHandoff(handoff)
         setConfirmedPreview(false)
         setSelection(null)
         setExactMatches(null)
@@ -230,51 +209,8 @@ export function useReviewController(session: SessionView) {
         setPlainPreview(false)
         setError(null)
         setConflict(false)
-        if (saved.status === 'ready' || saved.status === 'exported') {
-          getReviewSummary(documentId, controller.signal)
-            .then((result) => {
-              if (!controller.signal.aborted && sameVersion(result.version, saved.version)) {
-                setSummary(result)
-              }
-            })
-            .catch(() => undefined)
-        }
-      })
-      .catch(async (cause: unknown) => {
-        if (controller.signal.aborted) return
-        if (cause instanceof ApiRequestError && [404, 410].includes(cause.status)) {
-          for (const workspaceId of workspaceIds.split(',').filter(Boolean)) forgetReview(session.user_id, workspaceId, documentId)
-        }
-        if (cause instanceof ApiRequestError && cause.status === 410) {
-          const lists = await Promise.allSettled(
-            workspaceIds
-              .split(',')
-              .filter(Boolean)
-              .map((id) => getWorkspaceDocuments(id, controller.signal)),
-          )
-          if (controller.signal.aborted) return
-          const expired = lists.some(
-            (result) =>
-              result.status === 'fulfilled' &&
-              result.value.some((item) => item.id === documentId && item.status === 'expired'),
-          )
-          if (expired) {
-            setState({
-              kind: 'error',
-              message: 'This document has expired. Its content can no longer be opened.',
-              retryable: false,
-            })
-            return
-          }
-        }
-        setState({
-          kind: 'error',
-          message: messageFrom(cause),
-          retryable: !(cause instanceof ApiRequestError && [404, 410].includes(cause.status)),
-        })
-      })
-    return () => controller.abort()
-  }, [documentId, attempt, workspaceIds, session.user_id])
+    }, onError: setState,
+  })
 
   async function refreshPreview(id: string, expected: VersionRef) {
     setPreview(null)
@@ -400,21 +336,22 @@ export function useReviewController(session: SessionView) {
     setConfirmedPreview, setPreparedDownload, setState, setFindings, setConflict, setSettingsPending, setPreview, setPreviewError,
   })
 
-  const codePoints = state.kind === 'ready' ? Array.from(state.saved.text) : []
-  const activeFindings = findings?.findings || []
+  const savedText = state.kind === 'ready' ? state.saved.text : ''
+  const codePoints = useMemo(() => Array.from(savedText), [savedText])
+  const activeFindings = useMemo(() => findings?.findings || [], [findings])
   const selectionOverlaps = Boolean(
     selection &&
     activeFindings.some(
       (item) => selection.start < item.span.end && item.span.start < selection.end,
     ),
   )
-  const visibleFindings = activeFindings.filter(
+  const visibleFindings = useMemo(() => activeFindings.filter(
     (item) =>
       (categoryFilter === 'all' || item.category === categoryFilter) &&
       (decisionFilter === 'all' ||
         (decisionFilter === 'pending' ? item.action === null : item.action !== null)),
-  )
-  const pendingFindings = activeFindings.filter((item) => item.action === null)
+  ), [activeFindings, categoryFilter, decisionFilter])
+  const pendingFindings = useMemo(() => activeFindings.filter((item) => item.action === null), [activeFindings])
   useReviewResume({
     userId: session.user_id, documentId,
     workspaceId: state.kind === 'ready' ? state.saved.workspace_id : null,
@@ -464,12 +401,16 @@ export function useReviewController(session: SessionView) {
     state.kind === 'ready' && summary && sameVersion(summary.version, state.saved.version)
       ? summary
       : null
-  const groupMembers = new Map<string, typeof activeFindings>()
-  for (const item of activeFindings) {
-    if (item.group_id) {
-      groupMembers.set(item.group_id, [...(groupMembers.get(item.group_id) || []), item])
+  const groupMembers = useMemo(() => {
+    const members = new Map<string, typeof activeFindings>()
+    for (const item of activeFindings) {
+      if (!item.group_id) continue
+      const group = members.get(item.group_id)
+      if (group) group.push(item)
+      else members.set(item.group_id, [item])
     }
-  }
+    return members
+  }, [activeFindings])
 
   function captureSelection(event: React.SyntheticEvent<HTMLTextAreaElement>) {
     const element = event.currentTarget

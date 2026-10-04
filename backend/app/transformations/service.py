@@ -11,7 +11,7 @@ from app.accounts.access import ContentUnavailable, review_document
 from app.contracts import DecisionAction, VersionRef
 from app.db.crypto import KeyRing, ProtectedValue
 from app.db.models import Document, SourceRevision
-from app.groups.service import _snapshot, _version
+from app.groups.service import FindingsSnapshot, _snapshot, _version
 from app.transformations.engine import (
     PreviewStatus,
     SpanMapping,
@@ -50,15 +50,23 @@ def load_preview(
 
 
 def build_current_preview(
-    session: Session, *, document: Document, keys: KeyRing
+    session: Session,
+    *,
+    document: Document,
+    keys: KeyRing,
+    source: str | None = None,
+    findings: FindingsSnapshot | None = None,
 ) -> PreviewSnapshot:
     """Use inside the caller's authorized document transaction and row lock."""
     version = _version(document)
     revision = session.get(SourceRevision, version.source_revision_id)
     if revision is None or revision.document_id != document.id:
         raise ContentUnavailable("The current source revision is unavailable.")
-    source = keys.decrypt_text(ProtectedValue(revision.source_ciphertext, revision.source_key_id))
-    findings = _snapshot(session, version)
+    if source is None:
+        source = keys.decrypt_text(
+            ProtectedValue(revision.source_ciphertext, revision.source_key_id)
+        )
+    findings = findings if findings is not None else _snapshot(session, version)
     csv_layout, logical_values, collision_source = None, None, None
     if document.csv_delimiter is not None:
         from app.db.column_rules import load_rules

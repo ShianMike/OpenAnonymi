@@ -91,6 +91,20 @@ export default defineConfig(({ mode }) => {
     envPrefix: [],
     // Bundle the validated, normalized value rather than the raw environment string.
     define: { 'import.meta.env.VITE_API_BASE_URL': JSON.stringify(apiBase) },
+    build: {
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              { name: 'react', test: /node_modules[\\/](?:react|react-dom|scheduler)[\\/]/, priority: 40 },
+              { name: 'router', test: /node_modules[\\/]react-router(?:-dom)?[\\/]/, priority: 30 },
+              { name: 'radix', test: /node_modules[\\/]@radix-ui[\\/]/, priority: 20 },
+              { name: 'icons', test: /node_modules[\\/]lucide-react[\\/]/, priority: 10 },
+            ],
+          },
+        },
+      },
+    },
     server: {
       proxy: { '/api': 'http://127.0.0.1:8000' },
     },

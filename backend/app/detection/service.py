@@ -121,26 +121,31 @@ def load_scan_state(
 ) -> ScanSnapshot:
     with Session(engine) as session, session.begin():
         document = review_document(session, document_id, actor_id, now, lock=True)
-        version = _version(document)
-        run = _run_for_current(session, version, lock=True)
-        if run is not None and run.status == "scanning" and now - run.started_at >= SCAN_LEASE:
-            run.status = "failed"
-            run.failure_code = "scan_interrupted"
-            run.finished_at = now
-            if document.status == DocumentStatus.SCANNING:
-                require_transition(DocumentStatus(document.status), DocumentStatus.FAILED)
-                document.status = DocumentStatus.FAILED
-                document.updated_at = now
-            record_event(
-                session,
-                workspace_id=document.workspace_id,
-                actor_id=None,
-                document_id=document.id,
-                event_code="scan_failed",
-                now=now,
-                outcome="failed",
-            )
-        return _snapshot(session, version, run)
+        return current_scan_state(session, document=document, now=now)
+
+
+def current_scan_state(session: Session, *, document: Document, now: datetime) -> ScanSnapshot:
+    """Use after locking and authorizing the document, preserving lease recovery."""
+    version = _version(document)
+    run = _run_for_current(session, version, lock=True)
+    if run is not None and run.status == "scanning" and now - run.started_at >= SCAN_LEASE:
+        run.status = "failed"
+        run.failure_code = "scan_interrupted"
+        run.finished_at = now
+        if document.status == DocumentStatus.SCANNING:
+            require_transition(DocumentStatus(document.status), DocumentStatus.FAILED)
+            document.status = DocumentStatus.FAILED
+            document.updated_at = now
+        record_event(
+            session,
+            workspace_id=document.workspace_id,
+            actor_id=None,
+            document_id=document.id,
+            event_code="scan_failed",
+            now=now,
+            outcome="failed",
+        )
+    return _snapshot(session, version, run)
 
 
 def invalidate_scan_settings(session, document, actor_id, now, *, copy_columns=True):

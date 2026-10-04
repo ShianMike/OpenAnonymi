@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { GlassSelect } from '../../ui/GlassSelect'
 import type { ReviewController } from '../useReviewController'
 import type { ReviewFinding } from '../textSegments'
@@ -9,6 +10,7 @@ export function FindingAdvanced({
   review: ReviewController
   item: ReviewFinding
 }) {
+  const [open, setOpen] = useState(false)
   const {
     state,
     findings,
@@ -36,9 +38,9 @@ export function FindingAdvanced({
   } = review
   if (state.kind !== 'ready' || !findings) return null
   return (
-    <details className="finding-more">
+    <details className="finding-more" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary>More finding actions</summary>
-      <div className="finding-extra-actions">
+      {open && <div className="finding-extra-actions">
         <button
           type="button"
           onClick={() => void changeFinding('revise', item.finding_id)}
@@ -200,7 +202,7 @@ export function FindingAdvanced({
             ))}
           </div>
         )}
-      </div>
+      </div>}
     </details>
   )
 }

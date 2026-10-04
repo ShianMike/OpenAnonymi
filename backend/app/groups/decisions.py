@@ -3,19 +3,19 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from app.contracts import DecisionAction, SourceSpan, VersionRef
+from app.contracts import DecisionAction, VersionRef
 from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedValue
-from app.db.models import Decision, SourceRevision
+from app.db.models import Decision, EntityGroup, SourceRevision
 from app.groups.service import (
     FindingsSnapshot,
     ReviewValidationError,
-    _active_finding,
     _current_locked,
     _group_for_finding,
-    _require_nonoverlap,
+    _overlap_pairs,
     _rows,
     _snapshot,
     _touch_review,
@@ -51,23 +51,28 @@ def decide_findings(
         raise ReviewValidationError("unexpected_keep_reason", "Only Keep uses a reason.")
     with Session(engine) as session, session.begin():
         document, version = _current_locked(session, document_id, actor_id, expected, now)
-        finding = _active_finding(session, version, finding_id)
+        active = _rows(session, version)
+        finding = next((row for row in active if row.id == finding_id), None)
+        if finding is None:
+            from app.groups.service import FindingNotFound
+
+            raise FindingNotFound("Finding not found.")
         if group_scope:
             if finding.group_id is None:
                 raise ReviewValidationError("not_grouped", "This occurrence is not in a group.")
-            rows = [row for row in _rows(session, version) if row.group_id == finding.group_id]
+            rows = [row for row in active if row.group_id == finding.group_id]
         else:
             rows = [finding]
         if affected_ids != {row.id for row in rows}:
             raise ReviewValidationError(
                 "affected_occurrences_changed", "Review the affected occurrences again."
             )
-        for row in rows:
-            _require_nonoverlap(
-                session,
-                version,
-                SourceSpan(start=row.start_offset, end=row.end_offset),
-                exclude_id=row.id,
+        if any(
+            left in affected_ids or right in affected_ids for left, right in _overlap_pairs(active)
+        ):
+            raise ReviewValidationError(
+                "overlapping_finding",
+                "This range overlaps another finding. Correct or remove that finding first.",
             )
         try:
             for row in rows:
@@ -118,11 +123,27 @@ def decide_findings(
             raise ReviewValidationError(error.code, str(error)) from None
         before = capture(session, rows)
         if action == DecisionAction.LABEL:
+            groups = {
+                group.id: group
+                for group in session.scalars(
+                    select(EntityGroup).where(
+                        EntityGroup.id.in_({row.group_id for row in rows if row.group_id})
+                    )
+                )
+            }
             for row in rows:
-                _group_for_finding(session, document, row, now)
+                if row.group_id not in groups:
+                    group = _group_for_finding(session, document, row, now)
+                    groups[group.id] = group
+        decisions = {
+            decision.finding_id: decision
+            for decision in session.scalars(
+                select(Decision).where(Decision.finding_id.in_([row.id for row in rows]))
+            )
+        }
         _touch_review(document, now)
         for row in rows:
-            decision = session.get(Decision, row.id)
+            decision = decisions.get(row.id)
             if decision is None:
                 decision = Decision(finding_id=row.id)
                 session.add(decision)

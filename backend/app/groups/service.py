@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime
+from heapq import heappop, heappush
 from uuid import UUID, uuid4
 
 from sqlalchemy import or_, select
@@ -97,6 +98,21 @@ def _rows(session: Session, version: VersionRef) -> list[Finding]:
     ).all()
 
 
+def _overlap_pairs(rows: list[Finding]) -> tuple[tuple[UUID, UUID], ...]:
+    """Sweep sorted spans; enumerate only actual overlaps in stable row order."""
+    active, ends, pairs = {}, [], []
+    for index, row in enumerate(rows):
+        while ends and ends[0][0] <= row.start_offset:
+            _, previous = heappop(ends)
+            active.pop(previous, None)
+        for previous, other in active.items():
+            pairs.append((previous, index, other.id, row.id))
+        active[index] = row
+        heappush(ends, (row.end_offset, index))
+    pairs.sort(key=lambda pair: pair[:2])
+    return tuple((left, right) for _, _, left, right in pairs)
+
+
 def _snapshot(
     session: Session, version: VersionRef, actor_id: UUID | None = None, now: datetime | None = None
 ) -> FindingsSnapshot:
@@ -144,12 +160,7 @@ def _snapshot(
             )
             for row in rows
         ),
-        overlaps=tuple(
-            (left.id, right.id)
-            for index, left in enumerate(rows)
-            for right in rows[index + 1 :]
-            if right.start_offset < left.end_offset and left.start_offset < right.end_offset
-        ),
+        overlaps=_overlap_pairs(rows),
     )
 
 

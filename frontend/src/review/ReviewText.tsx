@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import type { ReviewController } from './useReviewController'
 import { FindingPopover } from './FindingPopover'
 import { segmentText, type TextMark } from './textSegments'
@@ -13,7 +14,7 @@ export function ReviewText({
   review: ReviewController
   variant: 'original' | 'preview'
 }) {
-  const segments = segmentText(text, marks)
+  const segments = useMemo(() => segmentText(text, marks), [text, marks])
   return (
     <div
       className="document-text"

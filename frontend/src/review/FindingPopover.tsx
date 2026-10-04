@@ -33,7 +33,7 @@ export function FindingPopover({
   const titleId = useId()
   const reasonId = useId()
   const blocked = review.actionPending || review.dirty || review.settingsDirty || review.conflict
-  const value = review.codePoints.slice(finding.span.start, finding.span.end).join('')
+  const value = open ? review.codePoints.slice(finding.span.start, finding.span.end).join('') : ''
   const linkedCount = finding.group_id
     ? (review.groupMembers.get(finding.group_id)?.length ?? 1)
     : 1
@@ -52,7 +52,7 @@ export function FindingPopover({
       }}
     >
       <Popover.Trigger asChild>{children}</Popover.Trigger>
-      <Popover.Portal>
+      {open && <Popover.Portal>
         <Popover.Content
           className="finding-popover"
           side="bottom"
@@ -133,7 +133,7 @@ export function FindingPopover({
           </p>
           <Popover.Arrow className="finding-popover-arrow" width={12} height={6} />
         </Popover.Content>
-      </Popover.Portal>
+      </Popover.Portal>}
     </Popover.Root>
   )
 }

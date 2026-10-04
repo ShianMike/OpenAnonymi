@@ -3,14 +3,16 @@ import { ApiRequestError, type SourceView } from '../api/client'
 import { sameVersion } from '../review/reviewState'
 import { getHandoff, type HandoffView } from './api'
 
-export function useReviewHandoff({ saved, onChanged, onUnavailable }: {
+export function useReviewHandoff({ saved, initial, onChanged, onUnavailable }: {
   saved: SourceView | null
+  initial: HandoffView | null
   onChanged: () => void
   onUnavailable: (message: string) => void
 }) {
   const [value, setValue] = useState<HandoffView | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
+  const consumedInitial = useRef<HandoffView | null>(null)
   const latest = useRef({ saved, onChanged, onUnavailable })
   useEffect(() => { latest.current = { saved, onChanged, onUnavailable } })
   const key = saved ? `${saved.version.document_id}.${saved.version.source_revision_id}.${saved.version.decision_version}.${saved.version.settings_version}.${saved.status}` : ''
@@ -34,13 +36,17 @@ export function useReviewHandoff({ saved, onChanged, onUnavailable }: {
         if (cause instanceof ApiRequestError && [401, 404, 410].includes(cause.status)) current.onUnavailable(message)
       } finally { running = false }
     }
-    void refresh()
+    if (initial && initial !== consumedInitial.current && latest.current.saved &&
+      sameVersion(initial.version, latest.current.saved.version)) {
+      consumedInitial.current = initial
+      setValue(initial); setError(null)
+    } else void refresh()
     const visible = () => { if (document.visibilityState === 'visible') void refresh() }
     const timer = window.setInterval(visible, 10_000)
     document.addEventListener('visibilitychange', visible)
     window.addEventListener('focus', visible)
     return () => { controller.abort(); clearInterval(timer); document.removeEventListener('visibilitychange', visible); window.removeEventListener('focus', visible) }
-  }, [key, attempt])
+  }, [key, attempt, initial])
   const current = saved && value && sameVersion(value.version, saved.version) ? value : null
   return { value: current, error, retry: () => setAttempt(attempt + 1),
     exportApproved: Boolean(current && (!current.require_approval || (current.reviewer_active && current.approved_at))) }

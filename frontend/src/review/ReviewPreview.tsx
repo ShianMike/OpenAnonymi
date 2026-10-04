@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Eye, AlignLeft, Highlighter } from 'lucide-react'
 import type { ReviewController } from './useReviewController'
 import { sameVersion } from './reviewState'
@@ -7,6 +8,13 @@ import { LoadingState } from '../loading/LoadingState'
 
 export function ReviewPreview({ review }: { review: ReviewController }) {
   const { state, preview, plainPreview, setPlainPreview, activeFindings, previewRef } = review
+  const marks = useMemo(() => {
+    const byId = new Map(activeFindings.map((finding) => [finding.finding_id, finding]))
+    return preview?.mappings.flatMap((mapping) => {
+      const finding = byId.get(mapping.finding_id)
+      return finding ? [{ span: mapping.preview_span, finding }] : []
+    }) ?? []
+  }, [activeFindings, preview])
   if (state.kind !== 'ready') return null
   const current =
     preview && sameVersion(preview.version, state.saved.version) && preview.text !== null
@@ -60,12 +68,7 @@ export function ReviewPreview({ review }: { review: ReviewController }) {
               text={preview.text as string}
               review={review}
               variant="preview"
-              marks={preview.mappings.flatMap((mapping) => {
-                const finding = activeFindings.find(
-                  (item) => item.finding_id === mapping.finding_id,
-                )
-                return finding ? [{ span: mapping.preview_span, finding }] : []
-              })}
+              marks={marks}
             />
           )}
           <div hidden={!plainPreview}>

@@ -1,13 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, matchPath, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { ChevronRight, LogOut, Menu, X } from 'lucide-react'
-import { SignInPage } from './accounts/SignInPage'
-import { SettingsPage } from './accounts/SettingsPage'
-import { NewReviewPage } from './review/NewReviewPage'
-import { ActivityPage } from './workspace/ActivityPage'
-import { OverviewPage } from './workspace/OverviewPage'
-import { RulesPage } from './workspace/RulesPage'
-import { HistoryPage } from './workspace/HistoryPage'
 import { ApiRequestError, getSession, signOut, type SessionView } from './api/client'
 import { Sidebar } from './shell/Sidebar'
 import { pages } from './shell/navigation'
@@ -20,6 +13,13 @@ import { LoadingFailure } from './loading/LoadingFailure'
 import { NotificationLink } from './notifications/NotificationLink'
 import './App.css'
 
+const SignInPage = lazy(() => import('./accounts/SignInPage').then((module) => ({ default: module.SignInPage })))
+const SettingsPage = lazy(() => import('./accounts/SettingsPage').then((module) => ({ default: module.SettingsPage })))
+const NewReviewPage = lazy(() => import('./review/NewReviewPage').then((module) => ({ default: module.NewReviewPage })))
+const ActivityPage = lazy(() => import('./workspace/ActivityPage').then((module) => ({ default: module.ActivityPage })))
+const OverviewPage = lazy(() => import('./workspace/OverviewPage').then((module) => ({ default: module.OverviewPage })))
+const RulesPage = lazy(() => import('./workspace/RulesPage').then((module) => ({ default: module.RulesPage })))
+const HistoryPage = lazy(() => import('./workspace/HistoryPage').then((module) => ({ default: module.HistoryPage })))
 const EditDraftPage = lazy(() =>
   import('./review/EditDraftPage').then((module) => ({ default: module.EditDraftPage })),
 )
@@ -209,7 +209,7 @@ function App() {
       )
     }
     return (
-      <SignInPage
+      <PageLoadBoundary key={pathname} fullScreen><Suspense fallback={<LoadingScreen label="Opening sign in…" description="Preparing secure access to your workspace." />}><SignInPage
         key={pathname}
         initialMode={pathname === '/sign-up' ? 'sign-up' : 'sign-in'}
         notice={signInNotice}
@@ -218,7 +218,7 @@ function App() {
           setAuthentication({ kind: 'signed-in', session })
           if (authRoute) navigate(authDestination(search, creatingAccount), { replace: true })
         }}
-      />
+      /></Suspense></PageLoadBoundary>
     )
   }
   const currentWorkspace =

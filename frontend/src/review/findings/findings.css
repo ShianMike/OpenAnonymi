@@ -129,6 +129,17 @@
   border-color: var(--tone-line, #94bf9f55);
   background: var(--tone-active-surface, #273b2d);
 }
+.finding-list.finding-list-windowed {
+  display: block;
+}
+.finding-list-windowed > li[role='listitem'] {
+  margin-bottom: 11px;
+}
+.finding-list.finding-list-windowed > .finding-list-spacer {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
 .finding-card-trigger {
   display: block;
   width: 100%;
@@ -280,6 +291,10 @@
   }
   .finding-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .review-findings.review-findings-windowed {
+    max-height: 70svh;
+    overflow-y: auto;
   }
 }
 @media (max-width: 700px) {

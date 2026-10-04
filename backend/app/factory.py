@@ -47,6 +47,7 @@ from app.notifications.api import create_notifications_router
 from app.notifications.emails import NotificationWorker
 from app.recovery.api import create_recovery_router
 from app.reviews.api import create_reviews_router
+from app.reviews.state_api import create_review_state_router
 from app.team_review.api import create_team_router
 from app.transformations.api import create_transform_router
 from app.workspace.api import create_workspace_router
@@ -165,6 +166,7 @@ def create_app(
     app.include_router(create_groups_router(engine))
     app.include_router(create_transform_router(engine))
     app.include_router(create_reviews_router(engine))
+    app.include_router(create_review_state_router(engine))
     app.include_router(create_exports_router(engine))
     app.include_router(create_workspace_router(engine))
     app.include_router(create_presets_router(engine))

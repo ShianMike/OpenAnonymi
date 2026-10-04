@@ -297,6 +297,14 @@ def load_current_source(
     session: Session, *, document_id: UUID, actor_id: UUID, keys: KeyRing, now: datetime
 ) -> LoadedSource:
     document = review_document(session, document_id, actor_id, now)
+    return build_current_source(session, document=document, actor_id=actor_id, keys=keys)
+
+
+def build_current_source(
+    session: Session, *, document: Document, actor_id: UUID, keys: KeyRing
+) -> LoadedSource:
+    """Build inside the caller's authorized document transaction."""
+    document_id = document.id
     version = _version(document)
     revision = session.scalar(
         select(SourceRevision).where(
