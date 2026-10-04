@@ -326,7 +326,12 @@ def _touch_review(document: Document, now: datetime) -> None:
 
 
 def _record_review_edit(
-    session: Session, document: Document, actor_id: UUID, event_code: str, now: datetime
+    session: Session,
+    document: Document,
+    actor_id: UUID,
+    event_code: str,
+    now: datetime,
+    decision_before: dict | None = None,
 ) -> None:
     record_event(
         session,
@@ -335,6 +340,8 @@ def _record_review_edit(
         document_id=document.id,
         event_code=event_code,
         now=now,
+        decision_before=decision_before,
+        decision_version=document.decision_version if decision_before is not None else None,
     )
 
 
@@ -427,7 +434,7 @@ def revise_finding(
         if decision is not None:
             session.delete(decision)
         _touch_review(document, now)
-        _record_review_edit(session, document, actor_id, "finding_corrected", now)
+        _record_review_edit(session, document, actor_id, "finding_corrected", now, before)
         session.flush()
         remember(
             session,
@@ -459,7 +466,7 @@ def remove_finding(
         if decision is not None:
             session.delete(decision)
         _touch_review(document, now)
-        _record_review_edit(session, document, actor_id, "finding_removed", now)
+        _record_review_edit(session, document, actor_id, "finding_removed", now, before)
         session.flush()
         remember(
             session,
@@ -564,7 +571,7 @@ def split_finding(
             session, document=document, category=FindingCategory(finding.category), now=now
         ).id
         _touch_review(document, now)
-        _record_review_edit(session, document, actor_id, "group_split", now)
+        _record_review_edit(session, document, actor_id, "group_split", now, before)
         session.flush()
         remember(
             session,
@@ -619,7 +626,7 @@ def merge_findings(
             if row.id == source.id or (old_group_id is not None and row.group_id == old_group_id):
                 row.group_id = target_group.id
         _touch_review(document, now)
-        _record_review_edit(session, document, actor_id, "group_merged", now)
+        _record_review_edit(session, document, actor_id, "group_merged", now, before)
         session.flush()
         remember(
             session,
@@ -652,10 +659,10 @@ def undo_last_review_edit(
     with Session(engine) as session, session.begin():
         document, version = _current_locked(session, document_id, actor_id, expected, now)
         try:
-            replay(session, version=version, actor_id=actor_id, now=now)
+            before = replay(session, version=version, actor_id=actor_id, now=now)
         except UndoUnavailable as error:
             raise ReviewValidationError(error.code, str(error)) from None
         _touch_review(document, now)
-        _record_review_edit(session, document, actor_id, "review_edit_undone", now)
+        _record_review_edit(session, document, actor_id, "review_edit_undone", now, before)
         session.flush()
         return _snapshot(session, _version(document), actor_id, now)

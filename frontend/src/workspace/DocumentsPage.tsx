@@ -20,6 +20,7 @@ import { DocumentTable } from './documents/DocumentTable'
 import { DocumentFilters } from './documents/DocumentFilters'
 import { DocumentDeleteDialog } from './documents/DocumentDeleteDialog'
 import { BulkDeleteDialog } from './documents/BulkDeleteDialog'
+import { RetentionDialog } from '../retention/RetentionDialog'
 import { DocumentBulkActions } from './documents/DocumentBulkActions'
 import { documentLabel, matchesStatus, type DocumentSort } from './documents/documentPresentation'
 import './documents/documents.css'
@@ -27,6 +28,7 @@ import './documents/documents.css'
 type Data =
   { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; items: DocumentIndexView[] }
 type Deletion = { item: DocumentIndexView; trigger: HTMLButtonElement | null }
+type Renewal = Deletion & { workspaceId: string }
 
 export function DocumentsPage({ session }: { session: SessionView }) {
   const [params] = useSearchParams()
@@ -47,6 +49,7 @@ export function DocumentsPage({ session }: { session: SessionView }) {
   const [bulkAction, setBulkAction] = useState<BulkDocumentsRequest['action']>('favorite')
   const [bulkPending, setBulkPending] = useState(false)
   const [bulkConfirm, setBulkConfirm] = useState(false)
+  const [renewing, setRenewing] = useState<Renewal | null>(null)
   const [preferencePending, setPreferencePending] = useState(new Set<string>())
   const [bulkResults, setBulkResults] = useState<{ value: BulkDocumentsView; items: DocumentIndexView[] } | null>(null)
   const currentWorkspace = useRef(workspaceId)
@@ -208,7 +211,7 @@ export function DocumentsPage({ session }: { session: SessionView }) {
           <GlassSelect
             id="documents-workspace"
             value={workspaceId}
-            disabled={bulkPending || deleting || preferencePending.size > 0}
+            disabled={bulkPending || deleting || preferencePending.size > 0 || renewing !== null}
             onValueChange={(value) => {
               setWorkspaceId(value)
               currentWorkspace.current = value
@@ -310,6 +313,7 @@ export function DocumentsPage({ session }: { session: SessionView }) {
               selected={selected} pending={bulkPending || deleting} preferencePending={preferencePending}
               onSelect={(id, value) => setSelected((current) => { const next = new Set(current); if (value && next.size < 50) next.add(id); else next.delete(id); return next })}
               onPreference={(item, value) => void preference(item, value)}
+              onRenew={(item, trigger) => setRenewing({ item, trigger, workspaceId })}
             />
           )}
           {visible.length > 0 && (
@@ -332,6 +336,12 @@ export function DocumentsPage({ session }: { session: SessionView }) {
         />
       )}
       {bulkConfirm && <BulkDeleteDialog count={selected.size} pending={bulkPending} onCancel={() => setBulkConfirm(false)} onConfirm={() => void applyBulk()} />}
+      {renewing && <RetentionDialog key={`${renewing.item.id}.${session.csrf_token}`} documentId={renewing.item.id} csrf={session.csrf_token} returnFocus={renewing.trigger}
+        onClose={() => setRenewing(null)} onSaved={value => {
+          if (currentWorkspace.current !== renewing.workspaceId) return
+          setData(current => current.kind === 'ready' ? { kind: 'ready', items: current.items.map(item => item.id === renewing.item.id ? { ...item, expires_at: value.expires_at } : item) } : current)
+          setNotice('Retention renewed. Your source and review decisions are preserved.'); setRenewing(null)
+        }} />}
     </section>
   )
 }

@@ -165,5 +165,7 @@ def decide_column(
             document_id=document.id,
             event_code="review_decision_saved",
             now=now,
+            decision_before=before,
+            decision_version=document.decision_version,
         )
         return _snapshot(session, _version(document), actor_id, now)

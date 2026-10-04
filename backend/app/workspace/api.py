@@ -197,6 +197,7 @@ def create_workspace_router(engine: Engine) -> APIRouter:
     )
     def activity_route(
         workspace_id: UUID,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(current_identity)],
     ) -> ActivityView:
         try:
@@ -206,6 +207,7 @@ def create_workspace_router(engine: Engine) -> APIRouter:
                 actor_id=identity.user_id,
                 now=datetime.now(UTC),
             )
+            current_identity(request)
             return ActivityView.model_validate(record, from_attributes=True)
         except WorkspaceAccessDenied:
             raise ApiError(404, "workspace_not_found", "Workspace not found.") from None

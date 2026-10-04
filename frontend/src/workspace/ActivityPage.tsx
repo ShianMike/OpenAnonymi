@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { RotateCw } from 'lucide-react'
 import { GlassSelect } from '../ui/GlassSelect'
 import {
@@ -12,6 +12,7 @@ import { LoadingState } from '../loading/LoadingState'
 import { InlineNotice } from '../ui/WorkspaceControls'
 import { ActivityFeed } from './activity/ActivityFeed'
 import { ActivitySummary } from './activity/ActivitySummary'
+import { AdminActivityPanel } from './activity/AdminActivityPanel'
 import type { DocumentMap } from './activity/activityPresentation'
 import './activity/activity.css'
 
@@ -24,6 +25,9 @@ export function ActivityPage({ session }: { session: SessionView }) {
   const [workspaceId, setWorkspaceId] = useState(session.memberships[0]?.workspace_id ?? '')
   const [data, setData] = useState<Data>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
+  const clearAdministratorCounts = useCallback(() => {
+    setData(current => current.kind === 'ready' ? { ...current, value: { ...current.value, workspace_counts: null } } : current)
+  }, [])
   useEffect(() => {
     if (!workspaceId) return
     const controller = new AbortController()
@@ -50,7 +54,7 @@ export function ActivityPage({ session }: { session: SessionView }) {
       })
     })
     return () => controller.abort()
-  }, [workspaceId, attempt])
+  }, [workspaceId, attempt, session.csrf_token])
   const reload = () => {
     setData({ kind: 'loading' })
     setAttempt((value) => value + 1)
@@ -108,6 +112,8 @@ export function ActivityPage({ session }: { session: SessionView }) {
           <ActivitySummary value={data.value} />
         </div>
       )}
+      {data.kind === 'ready' && session.memberships.some(member => member.workspace_id === workspaceId && member.role === 'administrator') &&
+        <AdminActivityPanel key={`${workspaceId}.${session.csrf_token}`} workspaceId={workspaceId} csrf={session.csrf_token} onAccessLost={clearAdministratorCounts} />}
     </section>
   )
 }

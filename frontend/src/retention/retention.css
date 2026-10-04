@@ -1,0 +1,8 @@
+.retention-overlay { position: fixed; inset: 0; z-index: 80; background: #0008; backdrop-filter: blur(4px); }
+.retention-dialog { position: fixed; z-index: 81; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(480px, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; padding: 1.5rem; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+.retention-dialog h2 { margin: .6rem 0; }
+.retention-dialog > p { color: var(--muted); }
+.retention-dialog > label { display: block; margin: 1rem 0 .4rem; font-weight: 650; }
+.retention-proposed { font-size: .85rem; }
+.retention-buttons { display: flex; flex-wrap: wrap; justify-content: end; gap: .6rem; margin-top: 1.2rem; }
+@media (forced-colors: active) { .retention-overlay { background: Canvas; opacity: .7; } .retention-dialog { border-color: CanvasText; } }

@@ -563,6 +563,11 @@ export function useReviewController(session: SessionView) {
   })
 
   return {
+    retentionCsrf: session.csrf_token,
+    retentionRenewed: (id: string, expires: string) => {
+      setState(current => current.kind === 'ready' && current.saved.version.document_id === id ? { ...current, saved: { ...current.saved, expires_at: expires } } : current)
+      setNotice('Retention renewed. Your source, decisions and confirmation are preserved.')
+    },
     canEdit,
     canManagePresets,
     ...csvActions,

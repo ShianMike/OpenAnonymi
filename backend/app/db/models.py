@@ -545,8 +545,26 @@ class AuditEvent(Base):
     event_code: Mapped[str] = mapped_column(String(40), nullable=False)
     outcome: Mapped[str] = mapped_column(String(16), nullable=False)
     occurred_at: Mapped[datetime] = timestamp_column()
+    decision_changes: Mapped[list] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    decision_change_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    decision_version: Mapped[int | None] = mapped_column(Integer)
 
-    __table_args__ = (Index("ix_audit_events_workspace_time", "workspace_id", "occurred_at"),)
+    __table_args__ = (
+        Index("ix_audit_events_workspace_time", "workspace_id", "occurred_at"),
+        CheckConstraint(
+            "jsonb_typeof(decision_changes)='array' AND octet_length(decision_changes::text)<=262144",
+            name="bounded_audit_decision_changes",
+        ),
+        CheckConstraint(
+            "decision_change_count>=0 AND decision_change_count>=jsonb_array_length(decision_changes) AND jsonb_array_length(decision_changes)<=256",
+            name="valid_audit_change_count",
+        ),
+        CheckConstraint(
+            "decision_version IS NULL OR decision_version>=0", name="valid_audit_decision_version"
+        ),
+    )
 
 
 class ImmutableSourceRevision(RuntimeError):

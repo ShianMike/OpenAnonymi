@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import * as Menu from '@radix-ui/react-dropdown-menu'
-import { ArrowUpRight, History, MoreHorizontal, Pin, Star, Trash2 } from 'lucide-react'
+import { ArrowUpRight, Clock3, History, MoreHorizontal, Pin, Star, Trash2 } from 'lucide-react'
 import type { DocumentIndexView, DocumentPreferenceRequest } from '../../api/client'
 import { documentLabel } from './documentPresentation'
 
@@ -12,6 +12,7 @@ export function DocumentActions({
   onDelete,
   preferencePending,
   onPreference,
+  onRenew,
 }: {
   item: DocumentIndexView
   workspaceId: string
@@ -19,6 +20,7 @@ export function DocumentActions({
   onDelete: (item: DocumentIndexView, trigger: HTMLButtonElement | null) => void
   preferencePending: boolean
   onPreference: (item: DocumentIndexView, value: DocumentPreferenceRequest) => void
+  onRenew: (item: DocumentIndexView, trigger: HTMLButtonElement | null) => void
 }) {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const openingDialogRef = useRef(false)
@@ -68,6 +70,9 @@ export function DocumentActions({
               <Link to={`/workspaces/${workspaceId}/documents/${item.id}/history`}>
                 <History size={16} aria-hidden="true" /> Review history
               </Link>
+            </Menu.Item>
+            <Menu.Item disabled={!item.is_owner || unavailable || preferencePending} onSelect={() => { openingDialogRef.current = true; onRenew(item, triggerRef.current) }}>
+              <Clock3 size={16} aria-hidden="true" /> Renew retention
             </Menu.Item>
             <Menu.Separator className="document-menu-separator" />
             <Menu.Item

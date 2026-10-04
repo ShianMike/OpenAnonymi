@@ -49,6 +49,9 @@ export type ExportEventView = components['schemas']['ExportEventView']
 export type ExactMatchesView = components['schemas']['ExactMatchesView']
 export type SourceSpan = components['schemas']['SourceSpan']
 export type FindingCategory = components['schemas']['FindingCategory']
+export type RetentionView = components['schemas']['RetentionView']
+export type AdminActivityView = components['schemas']['AdminActivityView']
+export type AdminActivityRequest = components['schemas']['AdminActivityRequest']
 export type StyleChoice = components['schemas']['StyleChoice']
 export type CategoryDefault = components['schemas']['CategoryDefault']
 type ErrorResponse = components['schemas']['ErrorResponse']
@@ -696,4 +699,23 @@ export async function downloadReviewedFile(
     await requireSuccess(response)
     return response.blob()
   })
+}
+
+export function getRetention(documentId: string, signal?: AbortSignal): Promise<RetentionView> {
+  return get(`/documents/${encodeURIComponent(documentId)}/retention`, signal)
+}
+export function renewRetention(documentId: string, expiresAt: string, days: number, csrf: string): Promise<RetentionView> {
+  return sendJson('PATCH', `/documents/${encodeURIComponent(documentId)}/retention`, { expected_expires_at: expiresAt, days_from_now: days }, csrf)
+}
+export function getAdminActivity(workspaceId: string, body: AdminActivityRequest, csrf: string, signal?: AbortSignal): Promise<AdminActivityView> {
+  return trackedRequest(apiUrl(`/workspaces/${encodeURIComponent(workspaceId)}/activity/admin`), {
+    method: 'POST', credentials: API_CREDENTIALS, cache: 'no-store', signal,
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(body),
+  }, async response => { await requireSuccess(response); return response.json() })
+}
+export function downloadAdminActivity(workspaceId: string, body: AdminActivityRequest, csrf: string, signal?: AbortSignal): Promise<Blob> {
+  return trackedRequest(apiUrl(`/workspaces/${encodeURIComponent(workspaceId)}/activity/admin/csv`), {
+    method: 'POST', credentials: API_CREDENTIALS, cache: 'no-store', signal,
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(body),
+  }, async response => { await requireSuccess(response); return response.blob() })
 }

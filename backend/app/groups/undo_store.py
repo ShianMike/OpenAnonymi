@@ -157,7 +157,7 @@ def remember(
     )
 
 
-def replay(session: Session, *, version: VersionRef, actor_id: UUID, now: datetime) -> None:
+def replay(session: Session, *, version: VersionRef, actor_id: UUID, now: datetime) -> dict:
     # Caller holds the document lock, serializing edits and undo across processes.
     entries = _entries(session, version.document_id, actor_id, now)
     if not entries:
@@ -165,6 +165,10 @@ def replay(session: Session, *, version: VersionRef, actor_id: UUID, now: dateti
     entry = entries[0]
     if not _matches(entry, version):
         raise UndoUnavailable("undo_unavailable")
+    touched = {UUID(item) for item in entry.payload["findings"]} | {
+        UUID(item) for item in entry.payload["created"]
+    }
+    before = capture(session, session.scalars(select(Finding).where(Finding.id.in_(touched))).all())
     for id_ in entry.payload["created"]:
         row = session.get(Finding, UUID(id_))
         if row is None or row.document_id != version.document_id:
@@ -210,3 +214,4 @@ def replay(session: Session, *, version: VersionRef, actor_id: UUID, now: dateti
         previous.payload_bytes = len(
             json.dumps(previous.payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         )
+    return before

@@ -8,6 +8,7 @@ const names: Record<string, string> = {
   output_generated: 'Reviewed output generated',
   document_deleted: 'Review deleted',
   document_expired: 'Review expired',
+  document_retention_renewed: 'Review retention renewed',
   preset_created: 'Rules preset created',
   preset_updated: 'Rules preset updated',
   preset_defaults_applied: 'Preset defaults refreshed',
@@ -41,3 +42,4 @@ const names: Record<string, string> = {
 export function eventName(code: string): string {
   return names[code] || code.replaceAll('_', ' ')
 }
+export const activityEventCodes = Object.keys(names)

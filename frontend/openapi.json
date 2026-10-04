@@ -6906,6 +6906,225 @@
         }
       }
     },
+    "/api/v1/workspaces/{workspace_id}/activity/admin": {
+      "post": {
+        "tags": [
+          "administrator activity"
+        ],
+        "summary": "Read",
+        "operationId": "read_api_v1_workspaces__workspace_id__activity_admin_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminActivityRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminActivityView"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/activity/admin/csv": {
+      "post": {
+        "tags": [
+          "administrator activity"
+        ],
+        "summary": "Export",
+        "operationId": "export_api_v1_workspaces__workspace_id__activity_admin_csv_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminActivityRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request Entity Too Large"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
     "/api/v1/search/documents": {
       "post": {
         "tags": [
@@ -7229,6 +7448,220 @@
               }
             },
             "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/retention": {
+      "get": {
+        "tags": [
+          "retention"
+        ],
+        "summary": "Read",
+        "operationId": "read_api_v1_documents__document_id__retention_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionView"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "retention"
+        ],
+        "summary": "Renew",
+        "operationId": "renew_api_v1_documents__document_id__retention_patch",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetentionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionView"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Gone"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too Many Requests"
           }
         }
       }
@@ -7637,6 +8070,27 @@
   },
   "components": {
     "schemas": {
+      "ActivityCursor": {
+        "properties": {
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "occurred_at",
+          "id"
+        ],
+        "title": "ActivityCursor"
+      },
       "ActivityEntryView": {
         "properties": {
           "event_code": {
@@ -7721,6 +8175,174 @@
           "workspace_counts"
         ],
         "title": "ActivityView"
+      },
+      "AdminActivityEntry": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "actor_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Id"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Occurred At"
+          },
+          "event_code": {
+            "type": "string",
+            "title": "Event Code"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "failed"
+            ],
+            "title": "Outcome"
+          },
+          "decision_version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Version"
+          },
+          "decision_change_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Decision Change Count"
+          },
+          "decision_changes": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionChange"
+            },
+            "type": "array",
+            "title": "Decision Changes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "actor_id",
+          "document_id",
+          "occurred_at",
+          "event_code",
+          "outcome",
+          "decision_version",
+          "decision_change_count",
+          "decision_changes"
+        ],
+        "title": "AdminActivityEntry"
+      },
+      "AdminActivityRequest": {
+        "properties": {
+          "days": {
+            "type": "integer",
+            "maximum": 90.0,
+            "minimum": 1.0,
+            "title": "Days",
+            "default": 30
+          },
+          "event_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Code"
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActivityCursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 50
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AdminActivityRequest"
+      },
+      "AdminActivityView": {
+        "properties": {
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "title": "As Of"
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Since"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/AdminActivityEntry"
+            },
+            "type": "array",
+            "title": "Events"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ActivityCursor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "as_of",
+          "since",
+          "events",
+          "next_cursor"
+        ],
+        "title": "AdminActivityView"
       },
       "ApprovalInput": {
         "properties": {
@@ -9378,6 +10000,133 @@
           "keep"
         ],
         "title": "DecisionAction"
+      },
+      "DecisionChange": {
+        "properties": {
+          "finding_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Finding Id"
+          },
+          "category": {
+            "$ref": "#/components/schemas/FindingCategory"
+          },
+          "before_action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DecisionAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "before_style": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "token",
+                  "partial_mask",
+                  "stand_in",
+                  "date_shift",
+                  "generalize"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before Style"
+          },
+          "before_option": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "last4",
+                  "first_letters",
+                  "email_domain",
+                  "email_first",
+                  "url_host",
+                  "secret_prefix",
+                  "month_year",
+                  "year",
+                  "age_band"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before Option"
+          },
+          "after_action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DecisionAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "after_style": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "token",
+                  "partial_mask",
+                  "stand_in",
+                  "date_shift",
+                  "generalize"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After Style"
+          },
+          "after_option": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "last4",
+                  "first_letters",
+                  "email_domain",
+                  "email_first",
+                  "url_host",
+                  "secret_prefix",
+                  "month_year",
+                  "year",
+                  "age_band"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After Option"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "finding_id",
+          "category",
+          "before_action",
+          "before_style",
+          "before_option",
+          "after_action",
+          "after_style",
+          "after_option"
+        ],
+        "title": "DecisionChange"
       },
       "DecisionRequest": {
         "properties": {
@@ -11702,6 +12451,53 @@
           "expected"
         ],
         "title": "RemoveFindingRequest"
+      },
+      "RetentionRequest": {
+        "properties": {
+          "expected_expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expected Expires At"
+          },
+          "days_from_now": {
+            "type": "integer",
+            "maximum": 30.0,
+            "minimum": 1.0,
+            "title": "Days From Now"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_expires_at",
+          "days_from_now"
+        ],
+        "title": "RetentionRequest"
+      },
+      "RetentionView": {
+        "properties": {
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "current_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Current Time"
+          },
+          "maximum_days": {
+            "type": "integer",
+            "title": "Maximum Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expires_at",
+          "current_time",
+          "maximum_days"
+        ],
+        "title": "RetentionView"
       },
       "ReviewStateView": {
         "properties": {

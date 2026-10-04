@@ -44,6 +44,7 @@ export function DocumentTable({
   preferencePending,
   onSelect,
   onPreference,
+  onRenew,
 }: {
   items: DocumentIndexView[]
   workspaceId: string
@@ -54,6 +55,7 @@ export function DocumentTable({
   preferencePending: Set<string>
   onSelect: (id: string, value: boolean) => void
   onPreference: (item: DocumentIndexView, value: DocumentPreferenceRequest) => void
+  onRenew: (item: DocumentIndexView, trigger: HTMLButtonElement | null) => void
 }) {
   return (
     <table className="documents-table" aria-label="Documents">
@@ -153,6 +155,7 @@ export function DocumentTable({
                   onDelete={onDelete}
                   preferencePending={pending || preferencePending.has(item.id)}
                   onPreference={onPreference}
+                  onRenew={onRenew}
                 />
               </td>
             </tr>
