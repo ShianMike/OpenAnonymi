@@ -125,6 +125,8 @@ def create_batch_router(engine: Engine) -> APIRouter:
             raise ApiError(422, "invalid_file", "File exceeds the 8 MiB import limit.")
         raw = await file.read(MAX_FILE_BYTES + 1)
         imported = await run_in_threadpool(_call, extract_import, file.filename, raw)
+        # OCR can take time; revoked or expired sessions must not persist an upload.
+        await run_in_threadpool(current_identity, request)
         saved = await run_in_threadpool(
             _call,
             upload_document,

@@ -1827,6 +1827,11 @@ export interface components {
              * @enum {string}
              */
             csv_header: "auto" | "true" | "false";
+            /**
+             * Edited Text Json
+             * @description JSON-encoded text correction preserving newlines.
+             */
+            edited_text_json?: string | null;
         };
         /** Body_preview_route_api_v1_documents_import_preview_post */
         Body_preview_route_api_v1_documents_import_preview_post: {

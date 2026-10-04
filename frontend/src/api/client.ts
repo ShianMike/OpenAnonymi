@@ -415,6 +415,7 @@ export async function createFileDraft(
   phoneRegion: string, retentionDays: number, csrfToken: string, presetId?: string,
   language = 'en',
   csvDelimiter: CsvDelimiter | 'auto' = 'auto', csvHeader: 'auto' | 'true' | 'false' = 'auto',
+  editedText?: string,
 ): Promise<SavedDraftView> {
   const form = new FormData()
   form.append('workspace_id', workspaceId)
@@ -425,6 +426,8 @@ export async function createFileDraft(
   form.append('language', language)
   form.append('csv_delimiter', csvDelimiter)
   form.append('csv_header', csvHeader)
+  // A JSON string preserves LF/CRLF; browser multipart text fields normalize them.
+  if (editedText !== undefined) form.append('edited_text_json', JSON.stringify(editedText))
   form.append('retention_days', String(retentionDays))
   if (presetId) form.append('preset_id', presetId)
   return trackedRequest(apiUrl('/documents/from-file'), {

@@ -7875,6 +7875,19 @@
             ],
             "title": "Csv Header",
             "default": "auto"
+          },
+          "edited_text_json": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 600002
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edited Text Json",
+            "description": "JSON-encoded text correction preserving newlines."
           }
         },
         "type": "object",

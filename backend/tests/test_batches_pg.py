@@ -16,6 +16,7 @@ from app.intake.imports import MAX_FILE_BYTES
 from tests.batch_support import batch_client, upload
 from tests.import_fixtures import docx_sample, pdf_sample
 from tests.intake_support import ORIGIN, _login
+from tests.ocr_fixtures import image_sample, scanned_pdf
 from tests.test_custom_rules_pg import RULE
 
 
@@ -26,6 +27,9 @@ from tests.test_custom_rules_pg import RULE
         ("private.csv", b'Email,Notes\r\nnora@example.test,"line1\nline2"\r\n'),
         ("private.pdf", None),
         ("private.docx", None),
+        ("private.md", b"# Fictional scan\nContact: nora@example.test"),
+        ("private.png", None),
+        ("private-scanned.pdf", None),
     ],
 )
 def test_batch_upload_uses_real_imports_and_persists_atomic_scan_job(
@@ -36,6 +40,10 @@ def test_batch_upload_uses_real_imports_and_persists_atomic_scan_job(
     content = (
         content
         if content is not None
+        else image_sample()
+        if filename.endswith(".png")
+        else scanned_pdf()
+        if filename == "private-scanned.pdf"
         else pdf_sample()
         if filename.endswith(".pdf")
         else docx_sample()

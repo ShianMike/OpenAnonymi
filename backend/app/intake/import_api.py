@@ -13,6 +13,7 @@ from app.accounts.api import mutation_identity
 from app.accounts.security import SessionIdentity
 from app.contracts import ErrorResponse
 from app.errors import ApiError
+from app.intake.access import require_current_intake_access
 from app.intake.csv_contracts import CsvInfo
 from app.intake.csv_structure import CsvError, Delimiter, Header, cell_value
 from app.intake.imports import MAX_FILE_BYTES, extract_import
@@ -67,6 +68,7 @@ def create_import_router(engine: Engine):
             raise ApiError(422, exc.code, str(exc)) from None
         except SourceValidationError as exc:
             raise ApiError(422, "invalid_file", str(exc)) from None
+        require_current_intake_access(engine, request, workspace_id)
         return ImportPreview(
             text=result.source.text,
             format=result.format,

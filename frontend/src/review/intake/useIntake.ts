@@ -30,13 +30,14 @@ export function useIntake(session: SessionView) {
   const [params] = useSearchParams()
   const allowNavigationRef = useRef(false)
   const [initialWorkspace] = useState(() => session.memberships.find((item) => item.workspace_id === params.get('workspace'))?.workspace_id ?? session.memberships[0]?.workspace_id ?? '')
-  const [workspaceId, setWorkspaceId] = useState(initialWorkspace)
+  const [workspaceId, storeWorkspaceId] = useState(initialWorkspace)
   const [defaults, setDefaults] = useState<Defaults>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
   const [mode, setMode] = useState<'paste' | 'file'>('paste')
   const [source, setSource] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [fileText, setFileText] = useState('')
+  const [fileOriginalText, setFileOriginalText] = useState('')
   const [fileLoading, setFileLoading] = useState(false)
   const [fileNotes, setFileNotes] = useState<string[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
@@ -84,6 +85,7 @@ export function useIntake(session: SessionView) {
     const request = ++fileAttempt.current
     setFile(selected)
     setFileText('')
+    setFileOriginalText('')
     setFileError(null)
     setFileNotes([])
     setCsvPreview(null)
@@ -94,13 +96,13 @@ export function useIntake(session: SessionView) {
       return
     }
     setFileLoading(true)
-    if (!/\.(txt|csv|pdf|docx)$/i.test(selected.name)) {
-      setFileError('Choose one UTF-8 TXT or CSV, PDF or Word DOCX file.')
+    if (!/\.(txt|md|csv|pdf|docx|png|jpe?g|tiff?|webp)$/i.test(selected.name)) {
+      setFileError('Choose TXT, Markdown, CSV, PDF, DOCX, PNG, JPEG, TIFF or WebP.')
       setFileLoading(false)
       return
     }
-    if (selected.size > (/\.(txt|csv)$/i.test(selected.name) ? 1_048_576 : 8_388_608)) {
-      setFileError('TXT and CSV support 1 MiB; PDF and DOCX support 8 MiB.')
+    if (selected.size > (/\.(txt|md|csv)$/i.test(selected.name) ? 1_048_576 : 8_388_608)) {
+      setFileError('TXT, Markdown and CSV support 1 MiB; documents and images support 8 MiB.')
       setFileLoading(false)
       return
     }
@@ -108,6 +110,7 @@ export function useIntake(session: SessionView) {
       const result = await importPreview(workspaceId, selected, session.csrf_token, delimiter, header)
       if (fileAttempt.current !== request) return
       setFileText(result.text)
+      setFileOriginalText(result.text)
       setFileNotes(result.notes)
       setCsvPreview(result.csv ?? null)
     } catch (cause) {
@@ -116,6 +119,21 @@ export function useIntake(session: SessionView) {
       if (fileAttempt.current === request) setFileLoading(false)
     }
   }
+
+  function resetFilePreview() {
+    // A result from the old workspace must not populate the new workspace's draft.
+    ++fileAttempt.current
+    setFile(null); setFileText(''); setFileOriginalText(''); setFileNotes([])
+    setCsvPreview(null); setFileError(null); setFileLoading(false)
+  }
+
+  function setWorkspaceId(value: string) {
+    if (value === workspaceId) return
+    resetFilePreview()
+    storeWorkspaceId(value)
+  }
+
+  useEffect(() => () => { ++fileAttempt.current }, [])
 
   function changeCsvFormat(delimiter: typeof csvDelimiter, header: typeof csvHeader) {
     setCsvDelimiter(delimiter); setCsvHeader(header)
@@ -130,7 +148,7 @@ export function useIntake(session: SessionView) {
     setError(null)
     const categories = [...(emailEnabled ? ['email'] : []), ...(phoneEnabled ? ['phone'] : []), ...extraCategories]
     try {
-      const saved = mode === 'file' && file ? await createFileDraft(workspaceId, file, title.trim(), categories, phoneRegion, retentionDays, session.csrf_token, presetId || undefined, language, csvDelimiter, csvHeader) : await createPastedDraft({ workspace_id: workspaceId,
+      const saved = mode === 'file' && file ? await createFileDraft(workspaceId, file, title.trim(), categories, phoneRegion, retentionDays, session.csrf_token, presetId || undefined, language, csvDelimiter, csvHeader, fileText) : await createPastedDraft({ workspace_id: workspaceId,
         source: mode === 'paste' ? source : fileText, title: title.trim() || null,
         categories: categories as FindingCategory[], phone_region: phoneRegion, language,
         retention_days: retentionDays, preset_id: presetId || null,
@@ -181,9 +199,7 @@ export function useIntake(session: SessionView) {
       setSource(view.payload.source)
       setTitle(view.payload.title ?? '')
       setMode('paste')
-      setFile(null)
-      setFileText('')
-      setFileError(null)
+      resetFilePreview()
       setEmailEnabled(view.payload.categories.includes('email'))
       setPhoneEnabled(view.payload.categories.includes('phone'))
       setExtraCategories(extras(view.payload.categories))
@@ -214,6 +230,9 @@ export function useIntake(session: SessionView) {
     setSource,
     file,
     fileText,
+    setFileText,
+    fileEdited: fileText !== fileOriginalText,
+    hasFilePreview: fileOriginalText.length > 0,
     fileLoading,
     fileError,
     fileNotes,

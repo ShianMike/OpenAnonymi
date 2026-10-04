@@ -1,6 +1,10 @@
 version = 1
 revision = 3
 requires-python = "==3.11.*"
+resolution-markers = [
+    "sys_platform != 'win32'",
+    "sys_platform == 'win32'",
+]
 
 [[package]]
 name = "alembic"
@@ -278,6 +282,20 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/d4/2b/0e4664cafc581de2896d75000651fd2ce7094d33263f466185c28ffc96e4/cymem-2.0.13-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:c90a6ecba994a15b17a3f45d7ec74d34081df2f73bd1b090e2adc0317e4e01b6", size = 248287, upload-time = "2025-11-14T14:57:29.055Z" },
     { url = "https://files.pythonhosted.org/packages/21/0f/f94c6950edbfc2aafb81194fc40b6cacc8e994e9359d3cb4328c5705b9b5/cymem-2.0.13-cp311-cp311-win_amd64.whl", hash = "sha256:ce821e6ba59148ed17c4567113b8683a6a0be9c9ac86f14e969919121efb61a5", size = 40116, upload-time = "2025-11-14T14:57:30.592Z" },
     { url = "https://files.pythonhosted.org/packages/00/df/2455eff6ac0381ff165db6883b311f7016e222e3dd62185517f8e8187ed0/cymem-2.0.13-cp311-cp311-win_arm64.whl", hash = "sha256:0dca715e708e545fd1d97693542378a00394b20a37779c1ae2c8bdbb43acef79", size = 36349, upload-time = "2025-11-14T14:57:31.573Z" },
+]
+
+[[package]]
+name = "cysignals"
+version = "1.12.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ba/be/3dd297fb25113abf40dd5de66088ce6883b62c417caa6b5fc2a84b9d48bf/cysignals-1.12.5.tar.gz", hash = "sha256:8f8ed409043d028b59d063dc4c069cbf12a750534757ce06f38eeac5ff368700", size = 86022, upload-time = "2025-09-24T02:47:35.065Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e1/7f/916abb405299a2e29eebcde322e7d583557e159f1749345574decd5b00e5/cysignals-1.12.5-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:b8b757e49c9181d874c08271bcbc3ded677f43263e2370b36e41556d897fb053", size = 219441, upload-time = "2025-09-24T02:47:00.396Z" },
+    { url = "https://files.pythonhosted.org/packages/b4/5e/3b90a5a05293b788b037573879dfa4128df53681c9282be0c50d7ec1fda5/cysignals-1.12.5-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:82022c3f20f44e52e1c1767716ebf936f15ed9dc2539ae0f840108a59c8313b2", size = 219615, upload-time = "2025-09-24T02:47:01.339Z" },
+    { url = "https://files.pythonhosted.org/packages/85/22/c31e7373d00783d7ebed166ae1e24b871505bb4148fe9a1760659aa9e3d6/cysignals-1.12.5-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:9c2daad79f36bf288be9501fcfac4eaacd80113376128e67151a45a57a6470d5", size = 267017, upload-time = "2025-09-24T02:47:02.638Z" },
+    { url = "https://files.pythonhosted.org/packages/cc/f9/0120e457038ab2a00c018503b0fcb1226b59cede896ff19aad93af96d9ca/cysignals-1.12.5-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:c37abf7fe2c68c7b63bb5df1f0bf54abab69f7386e767c625d6924dc38746f45", size = 273583, upload-time = "2025-09-24T02:47:03.633Z" },
+    { url = "https://files.pythonhosted.org/packages/e5/a9/03ae3e5b559dd4dd2d852365af9b0ea9150fd74cd216e74227b305a1352b/cysignals-1.12.5-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:90404a01595e0fcc2f55760ab25ba4ea995c3143739da976364a64fa16306a47", size = 269180, upload-time = "2025-09-24T02:47:04.567Z" },
+    { url = "https://files.pythonhosted.org/packages/11/a9/2a78532431764608a87baa91108f2200ac72490cb03af3cc92cdb21dfd08/cysignals-1.12.5-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:f14d212027280f37fc1324a66737f78755be010101e0ee8ddd3c98c0dcef4276", size = 276560, upload-time = "2025-09-24T02:47:05.957Z" },
 ]
 
 [[package]]
@@ -585,15 +603,19 @@ dependencies = [
     { name = "fastapi" },
     { name = "fpdf2" },
     { name = "phonenumbers" },
+    { name = "pillow" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pwdlib", extra = ["argon2"] },
     { name = "pydantic-settings" },
     { name = "pypdf" },
+    { name = "pypdfium2" },
     { name = "python-docx" },
     { name = "python-multipart" },
     { name = "segno" },
     { name = "spacy" },
     { name = "sqlalchemy" },
+    { name = "tesserocr", version = "2.10.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'win32'" },
+    { name = "tesserocr", version = "2.10.0", source = { url = "https://github.com/simonflueckiger/tesserocr-windows_build/releases/download/tesserocr-v2.10.0-tesseract-5.5.2/tesserocr-2.10.0-cp311-cp311-win_amd64.whl" }, marker = "sys_platform == 'win32'" },
     { name = "uharfbuzz" },
     { name = "uvicorn" },
 ]
@@ -601,7 +623,6 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "httpx" },
-    { name = "pypdfium2" },
     { name = "pytest" },
     { name = "ruff" },
 ]
@@ -615,15 +636,19 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "fpdf2", specifier = "==2.8.9" },
     { name = "phonenumbers", specifier = ">=9,<10" },
+    { name = "pillow", specifier = ">=11.3,<13" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
     { name = "pwdlib", extras = ["argon2"], specifier = ">=0.2,<1" },
     { name = "pydantic-settings", specifier = ">=2,<3" },
     { name = "pypdf", specifier = ">=6.19,<7" },
+    { name = "pypdfium2", specifier = ">=4.30,<6" },
     { name = "python-docx", specifier = ">=1.2,<2" },
     { name = "python-multipart", specifier = ">=0.0.20,<1" },
     { name = "segno", specifier = "==1.6.6" },
     { name = "spacy", specifier = ">=3.8,<3.9" },
     { name = "sqlalchemy", specifier = ">=2.0,<2.1" },
+    { name = "tesserocr", marker = "sys_platform != 'win32'", specifier = "==2.10.0" },
+    { name = "tesserocr", marker = "sys_platform == 'win32'", url = "https://github.com/simonflueckiger/tesserocr-windows_build/releases/download/tesserocr-v2.10.0-tesseract-5.5.2/tesserocr-2.10.0-cp311-cp311-win_amd64.whl" },
     { name = "uharfbuzz", specifier = ">=0.50,<1" },
     { name = "uvicorn", specifier = ">=0.30,<1" },
 ]
@@ -631,7 +656,6 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "httpx", specifier = ">=0.27,<1" },
-    { name = "pypdfium2", specifier = ">=4.30,<6" },
     { name = "pytest", specifier = ">=8,<10" },
     { name = "ruff", specifier = ">=0.12,<1" },
 ]
@@ -1123,6 +1147,36 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/7b/2b/3850dc6bf7ef71b088962eba31dafc6cffd2f96e577ebb0bb316df96da3e/starlette-1.7.0.tar.gz", hash = "sha256:c79f74ea63cff761804fbbfb182f1e0b440c2d07b164d24700c5a1bab5d6ff5d", size = 2736246, upload-time = "2026-09-23T07:30:26.35Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4e/d6/1ec1b290f9e0fb067899b61e1d37a30c923068bad260b216dbe37a7d2967/starlette-1.7.0-py3-none-any.whl", hash = "sha256:67f8e99895493dd2911a03f11314af6ceebeae4e704bb9f43dfc6a9db151c93e", size = 78980, upload-time = "2026-09-23T07:30:24.567Z" },
+]
+
+[[package]]
+name = "tesserocr"
+version = "2.10.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "sys_platform != 'win32'",
+]
+dependencies = [
+    { name = "cysignals", marker = "sys_platform != 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ee/af/7d4040c7390cd42410628408fbdea2067c8e5ca3a45d2bffd26c1ffddae4/tesserocr-2.10.0.tar.gz", hash = "sha256:439c7a9f0fd0f6a298aaa746d5f2ccd4eba50db3ebccf500c89a6aa0d59d2999", size = 75915, upload-time = "2026-02-12T11:10:35.752Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4a/57/29bebce4bcbd52e1cb43f5d9b3c8fb97ef7ed5a870083b512036d0fc65e8/tesserocr-2.10.0-cp311-cp311-macosx_15_0_arm64.whl", hash = "sha256:4af8fe119388ba0881b0675bd129c6069598c26f06ae43bb06f45af5a0f17e7c", size = 3605674, upload-time = "2026-02-12T11:09:44.715Z" },
+    { url = "https://files.pythonhosted.org/packages/39/f3/9c5954bcfa39dd54bc37c2d56ea90c37d493fdf2ea8d3d1f6d87361ecd4c/tesserocr-2.10.0-cp311-cp311-macosx_15_0_x86_64.whl", hash = "sha256:7c07df15fc04c8229b6f9f509725d4ac9331548d1f672c7e71e42da34653d610", size = 4080664, upload-time = "2026-02-12T11:09:46.954Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/28/51ed8bcbd0f69f59119c2cbb09ac64250ee5223c81b2c23de544d69c1d77/tesserocr-2.10.0-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:c899f84f35f7a75016ee8394feee51b15a8871d3f6a998410d1069cd5fdf256a", size = 5217975, upload-time = "2026-02-12T11:09:48.623Z" },
+    { url = "https://files.pythonhosted.org/packages/40/16/ce6b007696b066a25d815eeace274fe434897ffaf5a2ce6dddee43525ecb/tesserocr-2.10.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:365ebcd1d590ab0c18d8d06b84bdb99f3ea81e5fc36bf099fb7a333527deaf72", size = 5501277, upload-time = "2026-02-12T11:09:50.49Z" },
+    { url = "https://files.pythonhosted.org/packages/a6/db/a5f11bc9c2971bba7c3aacc03c2a687bd8a86dbd5d1e59204595f53190d9/tesserocr-2.10.0-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:8619b54ec678f2e1846744cf28d516c068850f93fa434a14e6dbcd5affb1c393", size = 6893430, upload-time = "2026-02-12T11:09:52.289Z" },
+]
+
+[[package]]
+name = "tesserocr"
+version = "2.10.0"
+source = { url = "https://github.com/simonflueckiger/tesserocr-windows_build/releases/download/tesserocr-v2.10.0-tesseract-5.5.2/tesserocr-2.10.0-cp311-cp311-win_amd64.whl" }
+resolution-markers = [
+    "sys_platform == 'win32'",
+]
+wheels = [
+    { url = "https://github.com/simonflueckiger/tesserocr-windows_build/releases/download/tesserocr-v2.10.0-tesseract-5.5.2/tesserocr-2.10.0-cp311-cp311-win_amd64.whl", hash = "sha256:02f75202a13804dacaac111cc4375cdb7b0194217f7f36add30cbb57c37c002c" },
 ]
 
 [[package]]

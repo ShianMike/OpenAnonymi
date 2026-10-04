@@ -101,14 +101,15 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
           >
             <Upload size={27} strokeWidth={1.3} aria-hidden="true" />
             <strong>{intake.file ? intake.file.name : 'Drop your document here'}</strong>
-            <span>TXT / CSV · 1 MiB max · PDF / Word DOCX · 8 MiB max</span>
+            <span>TXT / MD / CSV · 1 MiB · PDF / DOCX / Images · 8 MiB</span>
             <label className="intake-file-picker">
               <input
                 ref={inputRef}
                 id="source-file"
+                key={intake.workspaceId}
                 type="file"
-                accept=".txt,.csv,.pdf,.docx,text/plain,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                aria-label="Choose one TXT, CSV, PDF or DOCX file"
+                accept=".txt,.md,.csv,.pdf,.docx,.png,.jpg,.jpeg,.tif,.tiff,.webp,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/png,image/jpeg,image/tiff,image/webp"
+                aria-label="Choose one document or scan"
                 disabled={intake.pending}
                 onChange={(event) => void intake.chooseFile(event.currentTarget.files?.[0] ?? null)}
               />
@@ -148,15 +149,19 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
             <p className="field-note">Up to 50 columns, 1,000 data rows and 10,000 characters per cell. Suggestions stay inside a cell. Check these settings before saving.</p>
           </div>}
           {intake.fileNotes.map((note) => <p key={note} className="field-note">{note}</p>)}
-          {intake.fileText && (
+          {intake.hasFilePreview && (
             <>
               <label className="field-label" htmlFor="file-preview">
-                Extracted text preview
+                Edit extracted text before saving
               </label>
-              <GlassTextarea id="file-preview" readOnly value={intake.fileText} />
+              <GlassTextarea id="file-preview" value={intake.fileText}
+                onChange={(event) => intake.setFileText(event.target.value)} disabled={intake.pending || intake.fileLoading}
+                spellCheck={false} aria-describedby="file-preview-help" />
             </>
           )}
-          <p className="field-note">Check the extracted text. Reviewed downloads include TXT, Word and, for CSV input, quoted CSV. Uploaded filenames are not saved as titles.</p>
+          <p id="file-preview-help" className="field-note">The edited text becomes your saved source. Word edits may simplify layout; CSV edits must keep the same column count. Changing CSV reading settings resets the preview.</p>
+          {intake.fileEdited && <p className="field-note" role="status">Your text corrections will be saved. CSV structure is checked again when saving.</p>}
+          <p className="field-note">OCR reads English printed text locally, up to 10 scanned pages and 8 million pixels per page. Check for missing or misread details. Filenames are not saved as titles.</p>
         </div>
       )}
       <div

@@ -6,7 +6,6 @@ import json
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from threading import BoundedSemaphore
 
 from fontTools.ttLib import TTFont
 from fpdf import FPDF
@@ -14,11 +13,11 @@ from fpdf.errors import FPDFException
 from pypdf import PdfWriter
 
 from app.exports.errors import PdfUnavailable
+from app.workloads import render_slot
 
 FONTS = Path(__file__).resolve().parents[1] / "assets/fonts"
 MAX_PAGES = 200
 MAX_PDF_BYTES = 16 * 1024 * 1024
-_generation_slot = BoundedSemaphore(1)
 
 
 class ReviewedPDF(FPDF):
@@ -46,12 +45,12 @@ def _font_catalog():
 
 def generate_pdf(text: str, now: datetime) -> bytes:
     """The caller supplies only the canonical authorized processed text."""
-    if not _generation_slot.acquire(blocking=False):
+    if not render_slot.acquire(blocking=False):
         raise PdfUnavailable("PDF generation is busy. Try again shortly.")
     try:
         return _generate_pdf(text, now)
     finally:
-        _generation_slot.release()
+        render_slot.release()
 
 
 def _generate_pdf(text: str, now: datetime) -> bytes:

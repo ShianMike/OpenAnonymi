@@ -131,11 +131,11 @@ export function BatchPage({ session, onUnsavedChange }: { session: SessionView; 
       </div>
       <div className="batch-work-layout">
         <div className="workspace-panel">
-          <PanelHeading icon={FilePlus2} title="Add documents" description="TXT and CSV up to 1 MiB; PDF and DOCX up to 8 MiB. Up to 100,000 extracted characters per document and 40 MiB per batch." />
+          <PanelHeading icon={FilePlus2} title="Add documents" description="TXT, Markdown and CSV up to 1 MiB; PDF, DOCX and images up to 8 MiB. OCR reads English printed text locally, up to 10 scanned pages. Up to 100,000 extracted characters per document and 40 MiB per batch." />
           <p className="field-note">Shared setup: {batch.settings.categories.length} suggestion categories · {batch.settings.phone_region} phone region · English · {batch.settings.retention_days} days. CSV delimiter and header are detected automatically.</p>
           {batch.documents.length < 20 && batch.uploaded_bytes < 40 * 1024 * 1024 ? <>
             <label htmlFor="batch-files">Choose documents</label>
-            <input ref={fileInput} id="batch-files" type="file" multiple accept=".txt,.pdf,.docx,.csv" disabled={!!busy || !!error} onChange={(event) => { setFiles(Array.from(event.target.files ?? [])); setActionError(null) }} />
+            <input ref={fileInput} id="batch-files" type="file" multiple accept=".txt,.md,.pdf,.docx,.csv,.png,.jpg,.jpeg,.tif,.tiff,.webp" disabled={!!busy || !!error} onChange={(event) => { setFiles(Array.from(event.target.files ?? [])); setActionError(null) }} />
             {files.length > 0 && <ul className="batch-files-selected">{files.map((file, index) => <li key={index}>{file.name}</li>)}</ul>}
             {selectionError && <p role="alert">{selectionError}</p>}
             <button type="button" className="button button-primary" onClick={() => void upload()} disabled={!!busy || !!error || files.length === 0 || !!selectionError}>{busy === 'upload' ? `Uploading ${progress + 1} of ${files.length}…` : 'Upload documents'}</button>

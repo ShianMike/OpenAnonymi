@@ -1,5 +1,6 @@
 """Authenticated source intake, saved drafts, and immutable source edits."""
 
+import json
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 from uuid import UUID
@@ -36,6 +37,7 @@ from app.db.repository import (
     load_current_source,
 )
 from app.errors import ApiError
+from app.intake.access import require_current_intake_access
 from app.intake.csv_contracts import (
     ColumnRulesRequest,
     CsvInfo,
@@ -44,8 +46,8 @@ from app.intake.csv_contracts import (
 )
 from app.intake.csv_service import change_csv_settings
 from app.intake.csv_structure import CsvError, Delimiter, Header
-from app.intake.imports import MAX_FILE_BYTES, extract_import
-from app.intake.validation import SourceValidationError
+from app.intake.imports import MAX_FILE_BYTES, edit_import, extract_import
+from app.intake.validation import SourceValidationError, validate_source
 from app.transformations.contracts import CategoryDefault
 from app.workspace.presets import PresetNotFound
 
@@ -260,6 +262,12 @@ def create_intake_router(engine: Engine) -> APIRouter:
         preset_id: Annotated[UUID | None, Form()] = None,
         csv_delimiter: Annotated[Delimiter, Form()] = "auto",
         csv_header: Annotated[Header, Form()] = "auto",
+        edited_text_json: Annotated[
+            str | None,
+            Form(
+                max_length=600002, description="JSON-encoded text correction preserving newlines."
+            ),
+        ] = None,
     ) -> SavedDraftView:
         # FastAPI has already parsed the multipart body. Reject extra file parts and
         # bound the bytes read from the uploaded file before decoding.
@@ -269,7 +277,7 @@ def create_intake_router(engine: Engine) -> APIRouter:
             or sum(isinstance(value, StarletteUploadFile) for _name, value in form.multi_items())
             != 1
         ):
-            raise ApiError(422, "invalid_file", "Choose exactly one TXT, CSV, PDF or Word DOCX file.")
+            raise ApiError(422, "invalid_file", "Choose exactly one supported document or scan.")
         try:
             with Session(engine) as session:
                 active_workspace(session, workspace_id, identity.user_id)
@@ -278,10 +286,28 @@ def create_intake_router(engine: Engine) -> APIRouter:
         if file.size is not None and file.size > MAX_FILE_BYTES:
             raise ApiError(422, "invalid_file", "File exceeds the 8 MiB import limit.")
         raw = await file.read(MAX_FILE_BYTES + 1)
+        edited_text = None
+        if "edited_text_json" in form:
+            values = form.getlist("edited_text_json")
+            if len(values) != 1 or not isinstance(values[0], str):
+                raise ApiError(422, "invalid_source", "Submit one extracted-text correction.")
+            try:
+                edited_text = json.loads(values[0])
+            except (ValueError, TypeError):
+                raise ApiError(
+                    422, "invalid_source", "Submit a valid extracted-text correction."
+                ) from None
+            if not isinstance(edited_text, str):
+                raise ApiError(422, "invalid_source", "Submit a text correction.")
+            try:
+                validate_source(edited_text)
+            except SourceValidationError as exc:
+                raise _input_error(exc) from None
         try:
             imported = await run_in_threadpool(
                 extract_import, file.filename, raw, csv_delimiter, csv_header
             )
+            imported = edit_import(imported, edited_text)
             validated = imported.source
             parsed_categories = [
                 FindingCategory(value.strip()) for value in categories.split(",") if value.strip()
@@ -292,6 +318,7 @@ def create_intake_router(engine: Engine) -> APIRouter:
             raise ApiError(
                 422, "invalid_categories", "Choose supported automatic suggestion categories."
             ) from None
+        require_current_intake_access(engine, request, workspace_id)
         keys = _keys(request)
         now = datetime.now(UTC)
         try:
