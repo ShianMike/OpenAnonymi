@@ -1,7 +1,8 @@
 """Atomic authorized output snapshots and content-free export events."""
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
+from time import perf_counter
 from uuid import UUID
 
 from sqlalchemy.engine import Engine
@@ -12,7 +13,7 @@ from app.contracts import DocumentStatus, VersionRef
 from app.db.crypto import KeyRing
 from app.db.models import Document, ExportEvent, ReviewCompletion
 from app.db.repository import VersionConflict
-from app.groups.service import _version
+from app.groups.service import _snapshot, _version
 from app.lifecycle import require_transition
 from app.reviews.service import CompletionRejected, current_completion
 from app.transformations.service import build_current_preview
@@ -38,6 +39,7 @@ class AuthorizedOutput:
     csv_cells: tuple[tuple[str, ...], ...] | None = field(default=None, repr=False)
     csv_delimiter: str | None = None
     prefixed_cells: int = 0
+    report: dict | None = field(default=None, repr=False)
 
 
 def _current_output(
@@ -55,7 +57,8 @@ def _current_output(
     from app.team_review.service import require_second_approval
 
     require_second_approval(session, document)
-    preview = build_current_preview(session, document=document, keys=keys)
+    findings = _snapshot(session, version) if format == "report" else None
+    preview = build_current_preview(session, document=document, keys=keys, findings=findings)
     if preview.status != "complete" or preview.text is None:
         raise CompletionRejected(
             "review_not_completed", "The completed review no longer has a valid output."
@@ -79,14 +82,27 @@ def _current_output(
             version=version,
             completion_id=completion.id,
             text=preview.text,
-            filename=f"reviewed-{document.id}.{format}",
+            filename=(
+                f"redaction-report-{document.id}.json"
+                if format == "report"
+                else f"reviewed-{document.id}.{format}"
+            ),
             confirmed_at=completion.confirmed_at,
             layout=layout,
             csv_cells=preview.csv_cells,
             csv_delimiter=document.csv_delimiter,
+            report=_report(version, completion.confirmed_at, findings, preview)
+            if findings
+            else None,
         ),
         completion,
     )
+
+
+def _report(version, confirmed_at, findings, preview):
+    from app.exports.report import build_report
+
+    return build_report(version, confirmed_at, findings, preview)
 
 
 def prepare_copy(
@@ -195,12 +211,21 @@ def generate_output(
     variant: str = "spreadsheet_safe",
     maximum_bytes: int | None = None,
 ) -> tuple[bytes, AuthorizedOutput]:
-    if format not in {"txt", "docx", "csv"}:
+    started = perf_counter()
+    if format not in {"txt", "docx", "csv", "pdf", "report"}:
         raise ExportConflict("Choose a supported reviewed output format.")
     with Session(engine) as session, session.begin():
         document = owned_document(session, document_id, actor_id, now, lock=True)
         output, completion = _current_output(session, document, expected, keys, format=format)
-        if format == "docx":
+        if format == "pdf":
+            from app.exports.pdf import generate_pdf
+
+            payload = generate_pdf(output.text, now)
+        elif format == "report":
+            from app.exports.report import generate_report
+
+            payload = generate_report(output.report, now)
+        elif format == "docx":
             from app.exports.docx import generate_word
 
             payload = generate_word(output.text, output.layout, now)
@@ -216,6 +241,12 @@ def generate_output(
             payload = output.text.encode("utf-8")
         if maximum_bytes is not None and len(payload) > maximum_bytes:
             raise OutputTooLarge("Reviewed outputs exceed the archive size limit.")
+        # Rendering may take time. Recheck access/expiry and fresh policy before release.
+        finished_at = now + timedelta(seconds=max(0, perf_counter() - started))
+        owned_document(session, document_id, actor_id, finished_at, lock=True)
+        from app.team_review.service import require_second_approval
+
+        require_second_approval(session, document)
         _record_event(
             session,
             document=document,
@@ -223,7 +254,7 @@ def generate_output(
             actor_id=actor_id,
             event_id=event_id,
             format=format,
-            now=now,
+            now=finished_at,
         )
         return payload, output
 

@@ -6,12 +6,12 @@ import { LoadingMark } from '../loading/LoadingMark'
 import { ReviewerCompletion } from '../team/ReviewerCompletion'
 import { useState } from 'react'
 import { GlassSelect } from '../ui/GlassSelect'
-import type { CsvVariant } from '../api/client'
+import type { CsvVariant, ReviewedFormat } from '../api/client'
 
 const styleCountLabels: Record<string, string> = { stand_in: 'Fictional stand-ins', date_shift: 'Shifted dates', partial_mask: 'Partial masks', generalize: 'Generalized dates' }
 
 export function ReviewCompletion({ review }: { review: ReviewController }) {
-  const [format, setFormat] = useState<'txt' | 'docx' | 'csv'>('txt')
+  const [format, setFormat] = useState<ReviewedFormat>('txt')
   const [csvVariant, setCsvVariant] = useState<CsvVariant>('spreadsheet_safe')
   const { state, canConfirm, canExport, currentSummary, preparedDownload } = review
   if (state.kind !== 'ready') return null
@@ -99,6 +99,7 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
           <GlassSelect id="download-format" value={format} disabled={review.exportPending}
             onValueChange={(value) => setFormat(value as typeof format)}>
             <option value="txt">Plain text (TXT)</option><option value="docx">Word (DOCX)</option>
+            <option value="pdf">PDF</option><option value="report">Redaction report (JSON)</option>
             {state.saved.csv && <option value="csv">CSV</option>}
           </GlassSelect></div>
         <button
@@ -108,9 +109,11 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
           aria-describedby={confirmed && review.handoff.value?.require_approval && !review.handoff.exportApproved ? 'completion-approval-status' : undefined}
         >
           {review.exportPending ? <LoadingMark small /> : <Download size={16} aria-hidden="true" />}
-          {review.exportPending ? 'Preparing output…' : format === 'txt' ? 'Generate reviewed TXT' : format === 'docx' ? 'Generate reviewed Word' : 'Generate reviewed CSV'}
+          {review.exportPending ? 'Preparing output…' : { txt: 'Generate reviewed TXT', docx: 'Generate reviewed Word', pdf: 'Generate reviewed PDF', report: 'Generate redaction report', csv: 'Generate reviewed CSV' }[format]}
         </button>
       </div>
+      {format === 'pdf' && <p className="field-note">PDF uses plain paragraphs with page wrapping and expanded tabs. TXT preserves exact whitespace.</p>}
+      {format === 'report' && <p className="field-note">The report lists categories, actions, styles and positions in this confirmed review.</p>}
       {format === 'csv' && <div className="csv-export-options">
         <label className="field-label" htmlFor="csv-export-variant">CSV variant</label>
         <GlassSelect id="csv-export-variant" value={csvVariant} disabled={review.exportPending} onValueChange={(value) => setCsvVariant(value as CsvVariant)}>
@@ -124,7 +127,7 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
         sameVersion(preparedDownload.version, state.saved.version) && (
           <p>
             <a href={preparedDownload.url} download={preparedDownload.filename}>
-              {preparedDownload.format === 'txt' ? 'Save reviewed TXT' : preparedDownload.format === 'docx' ? 'Save reviewed Word' : `Save reviewed CSV (${preparedDownload.variant === 'unmodified' ? 'unmodified' : 'spreadsheet-safe'})`}
+              {preparedDownload.format === 'csv' ? `Save reviewed CSV (${preparedDownload.variant === 'unmodified' ? 'unmodified' : 'spreadsheet-safe'})` : { txt: 'Save reviewed TXT', docx: 'Save reviewed Word', pdf: 'Save reviewed PDF', report: 'Save redaction report' }[preparedDownload.format]}
             </a>
             {preparedDownload.format === 'csv' && <span> · {preparedDownload.prefixed ?? 0} cells prefixed</span>}
           </p>

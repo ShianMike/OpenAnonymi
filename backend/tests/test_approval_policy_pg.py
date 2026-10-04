@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy import event, func, select
 from sqlalchemy.orm import Session
 
-from app.db.models import Document, ExportEvent, Membership, Workspace
+from app.db.models import Document, ExportEvent, Membership, User, Workspace
 from app.db.team_review import ReviewHandoff
 from app.reviews.service import CompletionRejected
 from app.team_review.service import require_second_approval
@@ -25,6 +25,8 @@ ROUTES = {
     "/api/v1/documents/{document_id}/exports/txt",
     "/api/v1/documents/{document_id}/exports/docx",
     "/api/v1/documents/{document_id}/exports/csv",
+    "/api/v1/documents/{document_id}/exports/pdf",
+    "/api/v1/documents/{document_id}/exports/report",
     "/api/v1/batches/{batch_id}/outputs",
 }
 CASES = (
@@ -32,6 +34,8 @@ CASES = (
     "copy-success",
     "txt",
     "docx",
+    "pdf",
+    "report",
     "csv_safe",
     "csv_unmodified",
     "zip_original",
@@ -237,6 +241,49 @@ def test_gate_reads_current_policy_even_with_an_old_workspace_in_the_identity_ma
         set_policy(owner, headers, workspace, "always")
         assert cached.approval_policy == "owner_choice"
         with pytest.raises(CompletionRejected, match="requires a reviewer"):
+            require_second_approval(session, document)
+
+
+@pytest.mark.parametrize("unavailable", ["revoked", "disabled"])
+def test_approval_gate_reads_current_reviewer_access_with_cached_rows(intake_site, unavailable):
+    owner, reviewer, headers, rh, reviewer_id, _, base, version, _, _ = ready_batch(intake_site)
+    _, _, engine, workspace, _ = intake_site
+    assigned = owner.put(
+        base + "/handoff",
+        json={"expected": version, "reviewer_id": reviewer_id, "require_approval": True},
+        headers=headers,
+    )
+    assert assigned.status_code == 200
+    version = assigned.json()["version"]
+    assert (
+        owner.post(
+            base + "/complete",
+            json={"expected": version, "confirmed_preview": True},
+            headers=headers,
+        ).status_code
+        == 200
+    )
+    assert (
+        reviewer.post(
+            base + "/approval", json={"expected": version, "confirmed_preview": True}, headers=rh
+        ).status_code
+        == 200
+    )
+    reviewer_id = UUID(reviewer_id)
+    with Session(engine) as session:
+        document = session.get(Document, UUID(version["document_id"]))
+        cached_member = session.get(Membership, (workspace, reviewer_id))
+        cached_user = session.get(User, reviewer_id)
+        require_second_approval(session, document)
+        with Session(engine) as other_session, other_session.begin():
+            if unavailable == "revoked":
+                other_session.get(Membership, (workspace, reviewer_id)).revoked_at = datetime.now(
+                    UTC
+                )
+            else:
+                other_session.get(User, reviewer_id).disabled_at = datetime.now(UTC)
+        assert cached_member.revoked_at is None and cached_user.disabled_at is None
+        with pytest.raises(CompletionRejected, match="must approve"):
             require_second_approval(session, document)
 
 

@@ -52,9 +52,20 @@ def approval_policy(session: Session, document: Document) -> str:
 def active_reviewer(session: Session, document: Document, handoff: ReviewHandoff) -> bool:
     if not handoff.reviewer_id or handoff.reviewer_id == document.owner_id:
         return False
-    member = session.get(Membership, (document.workspace_id, handoff.reviewer_id))
-    user = session.get(User, handoff.reviewer_id)
-    return bool(member and member.revoked_at is None and user and user.disabled_at is None)
+    # Read current access even when old membership/user objects remain in this session.
+    return (
+        session.scalar(
+            select(Membership.user_id)
+            .join(User, User.id == Membership.user_id)
+            .where(
+                Membership.workspace_id == document.workspace_id,
+                Membership.user_id == handoff.reviewer_id,
+                Membership.revoked_at.is_(None),
+                User.disabled_at.is_(None),
+            )
+        )
+        is not None
+    )
 
 
 def _approval(session: Session, document: Document, handoff: ReviewHandoff):

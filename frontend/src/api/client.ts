@@ -643,16 +643,23 @@ export async function downloadReviewedTxt(
   return downloadReviewedFile(documentId, expected, eventId, csrfToken, 'txt')
 }
 
+export type ReviewedFormat = 'txt' | 'docx' | 'csv' | 'pdf' | 'report'
+
+const reviewedMediaTypes = {
+  txt: 'text/plain', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  pdf: 'application/pdf', report: 'application/json',
+}
+
 export async function downloadReviewedFile(
   documentId: string, expected: VersionRef, eventId: string, csrfToken: string,
-  format: 'txt' | 'docx',
+  format: Exclude<ReviewedFormat, 'csv'>,
 ): Promise<Blob> {
   return trackedRequest(apiUrl(`/documents/${encodeURIComponent(documentId)}/exports/${format}`), {
     method: 'POST',
     credentials: API_CREDENTIALS,
     cache: 'no-store',
     headers: {
-      Accept: format === 'txt' ? 'text/plain' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      Accept: reviewedMediaTypes[format],
       'Content-Type': 'application/json',
       'X-CSRF-Token': csrfToken,
     },

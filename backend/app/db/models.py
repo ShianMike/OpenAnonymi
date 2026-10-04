@@ -481,7 +481,7 @@ class ExportEvent(Base):
             ["review_completions.document_id", "review_completions.id"],
             ondelete="CASCADE",
         ),
-        CheckConstraint("format IN ('copy','txt','docx','csv')", name="valid_format"),
+        CheckConstraint("format IN ('copy','txt','docx','csv','pdf','report')", name="valid_format"),
     )
 
 

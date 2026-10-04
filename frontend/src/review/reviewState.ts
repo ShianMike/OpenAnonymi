@@ -1,8 +1,8 @@
-import type { SourceView, SourceSpan, VersionRef, StyleChoice } from '../api/client'
+import type { SourceView, SourceSpan, VersionRef, StyleChoice, ReviewedFormat } from '../api/client'
 
 export type ReviewedDownload = {
   url: string; filename: string; version: VersionRef;
-  format: 'txt' | 'docx' | 'csv'; variant?: 'spreadsheet_safe' | 'unmodified'; prefixed?: number;
+  format: ReviewedFormat; variant?: 'spreadsheet_safe' | 'unmodified'; prefixed?: number;
 }
 
 export type DraftState =

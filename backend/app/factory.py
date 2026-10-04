@@ -36,6 +36,7 @@ from app.edge import (
 )
 from app.errors import ApiError, api_error_handler, validation_error_handler
 from app.exports.api import create_exports_router
+from app.exports.render_api import create_render_router
 from app.groups.api import create_groups_router
 from app.intake.api import create_intake_router
 from app.intake.import_api import create_import_router
@@ -168,6 +169,7 @@ def create_app(
     app.include_router(create_reviews_router(engine))
     app.include_router(create_review_state_router(engine))
     app.include_router(create_exports_router(engine))
+    app.include_router(create_render_router(engine))
     app.include_router(create_workspace_router(engine))
     app.include_router(create_presets_router(engine))
     app.include_router(create_cleanup_router(engine))
