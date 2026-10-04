@@ -4,6 +4,7 @@ import { changePassword, type SessionView } from '../../api/client'
 import { GlassInput } from '../../ui/GlassField'
 import { InlineNotice, PanelHeading } from '../../ui/WorkspaceControls'
 import { EmailVerification } from './EmailVerification'
+import { NotificationPreferencesPanel } from '../../notifications/NotificationPreferencesPanel'
 
 export function AccountPanel({
   session,
@@ -104,6 +105,7 @@ export function AccountPanel({
           </div>
         </form>
       </div>
+      <NotificationPreferencesPanel key={session.user_id} session={session} />
     </div>
   )
 }

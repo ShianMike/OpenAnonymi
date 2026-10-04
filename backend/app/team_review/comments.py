@@ -129,6 +129,16 @@ def add_comment(
             event_code="finding_comment_added",
             now=now,
         )
+        from app.db.team_review import ReviewHandoff
+        from app.notifications.service import notify
+
+        handoff = session.get(ReviewHandoff, document.id)
+        recipients = {document.owner_id, handoff.reviewer_id if handoff else None} - {
+            actor_id,
+            None,
+        }
+        for recipient in recipients:
+            notify(session, document, recipient, actor_id, "comment_added", now)
         session.flush()
         return _view(session, row, actor_id, keys)
 
@@ -148,7 +158,9 @@ def delete_comment(
         session.delete(row)
 
 
-def revoke_member_handoffs(session: Session, workspace_id: UUID, user_id: UUID, now: datetime):
+def revoke_member_handoffs(
+    session: Session, workspace_id: UUID, user_id: UUID, now: datetime, *, actor_id=None
+):
     """Restoring a membership must never restore a prior document grant/approval."""
     from app.db.models import Document
     from app.db.team_review import ReviewHandoff
@@ -165,6 +177,17 @@ def revoke_member_handoffs(session: Session, workspace_id: UUID, user_id: UUID, 
     ).all()
     for document in rows:
         handoff = session.get(ReviewHandoff, document.id)
+        from app.notifications.service import notify
+
+        notify(
+            session,
+            document,
+            handoff.reviewer_id,
+            actor_id,
+            "review_unassigned",
+            now,
+            require_active=False,
+        )
         handoff.reviewer_id = None
         handoff.generation += 1
         handoff.updated_at = now

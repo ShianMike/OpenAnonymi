@@ -133,6 +133,17 @@ def confirm_review(
             event_code="review_completed",
             now=now,
         )
+        from app.db.team_review import ReviewHandoff
+        from app.notifications.service import notify
+        from app.team_review.service import active_reviewer, approval_policy
+
+        handoff = session.get(ReviewHandoff, document.id)
+        if (
+            handoff
+            and (handoff.require_approval or approval_policy(session, document) == "always")
+            and active_reviewer(session, document, handoff)
+        ):
+            notify(session, document, handoff.reviewer_id, actor_id, "approval_requested", now)
         session.flush()
         return CompletionSnapshot(version, completion.id, completion.confirmed_at)
 

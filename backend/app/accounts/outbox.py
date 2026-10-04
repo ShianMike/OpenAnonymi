@@ -48,3 +48,8 @@ class OutboxMailer:
         from app.accounts.security_notices import notice_body
 
         self._write(recipient, notice_body(event, at), "OpenAnonymi security notice", "")
+
+    def send_notification(self, recipient: str, event: str):
+        from app.notifications.emails import SUBJECT, notification_body
+
+        self._write(recipient, notification_body(event), SUBJECT, "")

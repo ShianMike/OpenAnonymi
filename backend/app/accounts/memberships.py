@@ -58,6 +58,8 @@ class WorkspaceRecord:
     settings_version: int
     require_second_factor: bool
     members_without_second_factor: int
+    approval_policy: str
+    active_member_count: int
 
 
 def _workspace_record(session: Session, workspace: Workspace) -> WorkspaceRecord:
@@ -82,6 +84,18 @@ def _workspace_record(session: Session, workspace: Workspace) -> WorkspaceRecord
                         UserSecondFactor.status == "active",
                     )
                 ),
+            )
+        )
+        or 0,
+        workspace.approval_policy,
+        session.scalar(
+            select(func.count())
+            .select_from(Membership)
+            .join(User, User.id == Membership.user_id)
+            .where(
+                Membership.workspace_id == workspace.id,
+                Membership.revoked_at.is_(None),
+                User.disabled_at.is_(None),
             )
         )
         or 0,
@@ -151,9 +165,12 @@ def update_workspace_settings(
     content_retention_days: int,
     activity_retention_days: int,
     require_second_factor: bool | None = None,
+    approval_policy: str | None = None,
 ) -> WorkspaceRecord:
     if not 1 <= content_retention_days <= 30 or not 1 <= activity_retention_days <= 365:
         raise ValueError("Choose valid retention periods.")
+    if approval_policy is not None and approval_policy not in {"owner_choice", "always"}:
+        raise ValueError("Choose a supported approval policy.")
     with session.begin():
         workspace = require_administrator(
             session, workspace_id=workspace_id, actor_id=actor_id, lock=True
@@ -178,6 +195,8 @@ def update_workspace_settings(
             )
         if require_second_factor is not None:
             workspace.require_second_factor = require_second_factor
+        if approval_policy is not None:
+            workspace.approval_policy = approval_policy
         workspace.content_retention_days = content_retention_days
         workspace.activity_retention_days = activity_retention_days
         workspace.settings_version += 1
@@ -237,7 +256,7 @@ def revoke_member(
             membership.revoked_at = now
             from app.team_review.comments import revoke_member_handoffs
 
-            revoke_member_handoffs(session, workspace_id, user_id, now)
+            revoke_member_handoffs(session, workspace_id, user_id, now, actor_id=actor_id)
             session.execute(
                 update(StoredSession)
                 .where(StoredSession.user_id == user_id, StoredSession.revoked_at.is_(None))

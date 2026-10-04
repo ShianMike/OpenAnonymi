@@ -37,7 +37,8 @@ export function HandoffPanel({ review, session }: { review: ReviewController; se
     if (!saved) return
     setPending(true); setError(null)
     try {
-      await saveHandoff(saved.version.document_id, saved.version, revoke ? null : reviewer || null, required, session.csrf_token)
+      await saveHandoff(saved.version.document_id, saved.version, revoke ? null : reviewer || null,
+        handoff?.approval_policy === 'always' || required, session.csrf_token)
       setOpen(false); await review.reloadSaved()
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Handoff could not be saved.'); if (cause instanceof ApiConflictError) void review.reloadSaved() }
     finally { setPending(false) }
@@ -68,8 +69,12 @@ export function HandoffPanel({ review, session }: { review: ReviewController; se
               {members.map((member) => <option key={member.user_id} value={member.user_id}>{member.email}</option>)}
             </GlassSelect>
             {members.length === 0 && <p className="field-note">No active teammates available. An administrator can add members in Settings.</p>}
-            <ChoiceSwitch label="Require independent approval" description="Export stays locked until the assigned teammate approves the current confirmed version." checked={required} disabled={pending} onChange={setRequired} />
-            <p className="field-note">Changing the handoff invalidates the current confirmation and approval. Revoking access keeps required approval locked until you assign another reviewer or explicitly turn it off.</p>
+            <ChoiceSwitch label="Require independent approval" description={handoff.approval_policy === 'always'
+              ? 'Your workspace requires this approval for every copy and download.'
+              : 'Export stays locked until the assigned teammate approves the current confirmed version.'}
+              checked={handoff.approval_policy === 'always' || required}
+              disabled={pending || handoff.approval_policy === 'always'} onChange={setRequired} />
+            <p className="field-note">Changing the handoff invalidates the current confirmation and approval. Revoking access keeps required approval locked until you assign another reviewer{handoff.approval_policy === 'always' ? '.' : ' or explicitly turn it off.'}</p>
             <button type="submit" disabled={pending}>{pending ? 'Saving…' : reviewer ? 'Grant review access' : 'Save review access'}</button>
           </form>}
           {error && <InlineNotice error>{error}</InlineNotice>}

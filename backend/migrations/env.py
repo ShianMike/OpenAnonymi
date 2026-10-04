@@ -14,6 +14,7 @@ from app.db import (
     email_verification,  # noqa: F401 -- register ownership proof and pending accounts
     maintenance,  # noqa: F401 -- register content-free cleanup run health
     models,  # noqa: F401 — register all tables with Base.metadata
+    notifications,  # noqa: F401 -- content-free recipient events and delivery intent
     recovery,  # noqa: F401 -- register the protected autosave table
     replacement_secrets,  # noqa: F401 -- encrypted replacement seed/date offset
     second_factor,  # noqa: F401 -- register encrypted TOTP and content-free challenges

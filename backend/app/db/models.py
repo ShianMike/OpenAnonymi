@@ -51,6 +51,11 @@ class User(Base):
     second_factor_reenroll_required: Mapped[bool] = mapped_column(
         nullable=False, server_default="false"
     )
+    notification_emails: Mapped[str] = mapped_column(String(9), nullable=False, server_default="off")
+
+    __table_args__ = (
+        CheckConstraint("notification_emails IN ('off', 'immediate')", name="valid_notification_emails"),
+    )
 
 
 class Workspace(Base):
@@ -65,11 +70,15 @@ class Workspace(Base):
     )
     settings_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     require_second_factor: Mapped[bool] = mapped_column(nullable=False, server_default="false")
+    approval_policy: Mapped[str] = mapped_column(
+        String(12), nullable=False, server_default="owner_choice"
+    )
 
     __table_args__ = (
         CheckConstraint("content_retention_days > 0", name="positive_content_retention"),
         CheckConstraint("activity_retention_days > 0", name="positive_activity_retention"),
         CheckConstraint("settings_version > 0", name="positive_workspace_settings_version"),
+        CheckConstraint("approval_policy IN ('owner_choice', 'always')", name="valid_approval_policy"),
     )
 
 

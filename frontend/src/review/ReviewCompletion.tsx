@@ -76,12 +76,21 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
           This version and its decisions are confirmed.
         </p>
       )}
-      {confirmed && review.handoff.value?.require_approval && !review.handoff.exportApproved && <p className="completion-status" role="status">Waiting for the assigned reviewer to approve this exact version before export.</p>}
+      {confirmed && review.handoff.value?.require_approval && !review.handoff.exportApproved &&
+        <p id="completion-approval-status" className="completion-status" role="status">
+          {review.handoff.value.approval_policy === 'always'
+            ? review.handoff.value.reviewer_active
+              ? 'Your workspace requires the assigned reviewer to approve this exact version before export.'
+              : 'Your workspace requires a reviewer to approve this version before export. Assign a reviewer.'
+            : 'Waiting for the assigned reviewer to approve this exact version before export.'}
+          {!review.handoff.value.reviewer_active && <> <a href="#review-handoff">Manage reviewer</a></>}
+        </p>}
       <div className="completion-export">
         <button
           type="button"
           onClick={() => void review.copyReviewedOutput()}
           disabled={!canExport}
+          aria-describedby={confirmed && review.handoff.value?.require_approval && !review.handoff.exportApproved ? 'completion-approval-status' : undefined}
         >
           {review.exportPending ? <LoadingMark small /> : <Copy size={16} aria-hidden="true" />}
           {review.exportPending ? 'Preparing output…' : 'Copy reviewed text'}
@@ -96,6 +105,7 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
           type="button"
           onClick={() => void review.downloadReviewedOutput(format, csvVariant)}
           disabled={!canExport}
+          aria-describedby={confirmed && review.handoff.value?.require_approval && !review.handoff.exportApproved ? 'completion-approval-status' : undefined}
         >
           {review.exportPending ? <LoadingMark small /> : <Download size={16} aria-hidden="true" />}
           {review.exportPending ? 'Preparing output…' : format === 'txt' ? 'Generate reviewed TXT' : format === 'docx' ? 'Generate reviewed Word' : 'Generate reviewed CSV'}

@@ -1,7 +1,7 @@
 """Administrator-only workspace membership and default-setting routes."""
 
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
@@ -53,6 +53,8 @@ class WorkspaceSettingsView(BaseModel):
     settings_version: int
     require_second_factor: bool
     members_without_second_factor: int
+    approval_policy: Literal["owner_choice", "always"]
+    active_member_count: int
 
 
 class InviteMemberRequest(BaseModel):
@@ -69,6 +71,7 @@ class UpdateWorkspaceSettingsRequest(BaseModel):
     content_retention_days: int = Field(ge=1, le=30)
     activity_retention_days: int = Field(ge=1, le=365)
     require_second_factor: bool | None = None
+    approval_policy: Literal["owner_choice", "always"] | None = None
 
 
 def _member_view(record: MemberRecord) -> MemberView:
@@ -90,6 +93,8 @@ def _settings_view(record: WorkspaceRecord) -> WorkspaceSettingsView:
         settings_version=record.settings_version,
         require_second_factor=record.require_second_factor,
         members_without_second_factor=record.members_without_second_factor,
+        approval_policy=record.approval_policy,
+        active_member_count=record.active_member_count,
     )
 
 
@@ -272,6 +277,7 @@ def create_admin_router(engine: Engine) -> APIRouter:
                     content_retention_days=body.content_retention_days,
                     activity_retention_days=body.activity_retention_days,
                     require_second_factor=body.require_second_factor,
+                    approval_policy=body.approval_policy,
                 )
         except (WorkspaceAccessDenied, WorkspaceVersionConflict, FactorError, ValueError) as exc:
             _raise_access_error(exc)

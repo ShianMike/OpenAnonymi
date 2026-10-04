@@ -49,6 +49,8 @@ def capture(session: Session, rows: list[Finding], *, created: tuple[UUID, ...] 
     before_decisions = {}
     for row in rows:
         values = {field: getattr(row, field) for field in FINDING_FIELDS}
+        if values["date_format"] is None:
+            values.pop("date_format")
         for field in UUID_FIELDS:
             values[field] = str(values[field]) if values[field] is not None else None
         findings[str(row.id)] = values
@@ -57,8 +59,12 @@ def capture(session: Session, rows: list[Finding], *, created: tuple[UUID, ...] 
             {
                 "action": decision.action,
                 "keep_reason": decision.keep_reason,
-                "style": decision.style,
-                "style_option": decision.style_option,
+                **({"style": decision.style} if decision.style != "token" else {}),
+                **(
+                    {"style_option": decision.style_option}
+                    if decision.style_option is not None
+                    else {}
+                ),
             }
             if decision
             else None

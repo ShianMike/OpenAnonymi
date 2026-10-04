@@ -7,9 +7,10 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session as OrmSession
 
 from app.accounts.admin_api import create_admin_router
 from app.accounts.api import create_auth_router
@@ -39,6 +40,11 @@ from app.groups.api import create_groups_router
 from app.intake.api import create_intake_router
 from app.intake.import_api import create_import_router
 from app.maintenance.api import create_maintenance_router
+from app.notifications import (
+    events as notification_events,  # noqa: F401 -- version invalidation hook
+)
+from app.notifications.api import create_notifications_router
+from app.notifications.emails import NotificationWorker
 from app.recovery.api import create_recovery_router
 from app.reviews.api import create_reviews_router
 from app.team_review.api import create_team_router
@@ -74,9 +80,23 @@ def create_app(
         scan_task = (
             asyncio.create_task(scan_worker.run()) if settings.environment != "test" else None
         )
+
+        def after_commit(session):
+            if session.info.get("notification_pending") and session.get_bind() is engine:
+                notification_worker.wake()
+
+        notification_task = None
+        if settings.environment != "test":
+            event.listen(OrmSession, "after_commit", after_commit)
+            notification_task = asyncio.create_task(notification_worker.run())
         try:
             yield
         finally:
+            if notification_task is not None:
+                event.remove(OrmSession, "after_commit", after_commit)
+                notification_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await notification_task
             if scan_task is not None:
                 scan_task.cancel()
                 with suppress(asyncio.CancelledError):
@@ -110,6 +130,8 @@ def create_app(
         if settings.dev_mail_outbox
         else None
     )
+    notification_worker = NotificationWorker(engine, settings, app.state.recovery_mailer)
+    app.state.notification_worker = notification_worker
     # Added innermost first. The body limit sits inside CORS so a 413 still carries CORS
     # headers the website can read; security headers and the access log wrap everything.
     app.add_middleware(ContentFreeErrorsMiddleware)
@@ -130,6 +152,7 @@ def create_app(
     app.add_exception_handler(RequestTooLarge, request_too_large_handler)
     app.include_router(create_auth_router(engine, settings))
     app.include_router(create_second_factor_router(engine, settings))
+    app.include_router(create_notifications_router(engine))
     app.include_router(create_admin_router(engine))
     app.include_router(create_intake_router(engine))
     app.include_router(create_import_router(engine))

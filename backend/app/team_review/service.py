@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.accounts.access import DocumentNotFound, owned_document, review_document
 from app.contracts import DocumentStatus, VersionRef
 from app.db.crypto import KeyRing
-from app.db.models import Document, Membership, User
+from app.db.models import Document, Membership, User, Workspace
 from app.db.repository import VersionConflict, _version
 from app.db.team_review import ReviewApproval, ReviewHandoff
 from app.reviews.service import CompletionRejected, current_completion
@@ -31,6 +32,21 @@ class HandoffView(BaseModel):
     require_approval: bool
     approved_at: datetime | None
     generation: int
+    approval_policy: Literal["owner_choice", "always"]
+
+
+class HandoffPolicyRejected(ValueError):
+    pass
+
+
+def approval_policy(session: Session, document: Document) -> str:
+    # A scalar query reads the current policy even when the ORM workspace is cached.
+    value = session.scalar(
+        select(Workspace.approval_policy).where(Workspace.id == document.workspace_id)
+    )
+    if value is None:
+        raise DocumentNotFound("Workspace not found.")
+    return value
 
 
 def active_reviewer(session: Session, document: Document, handoff: ReviewHandoff) -> bool:
@@ -59,6 +75,12 @@ def _approval(session: Session, document: Document, handoff: ReviewHandoff):
 
 def require_second_approval(session: Session, document: Document):
     handoff = session.get(ReviewHandoff, document.id)
+    policy = approval_policy(session, document)
+    if policy == "always" and (handoff is None or _approval(session, document, handoff) is None):
+        raise CompletionRejected(
+            "approval_required_by_policy",
+            "Your workspace requires a reviewer to approve this version before export. Assign a reviewer.",
+        )
     if handoff and handoff.require_approval and _approval(session, document, handoff) is None:
         raise CompletionRejected(
             "second_approval_required",
@@ -70,15 +92,17 @@ def _view(session: Session, document: Document, actor_id: UUID):
     handoff = session.get(ReviewHandoff, document.id)
     approval = _approval(session, document, handoff) if handoff else None
     user = session.get(User, handoff.reviewer_id) if handoff and handoff.reviewer_id else None
+    policy = approval_policy(session, document)
     return HandoffView(
         version=_version(document),
         is_owner=document.owner_id == actor_id,
         reviewer_id=handoff.reviewer_id if handoff else None,
         reviewer_email=user.email if user else None,
         reviewer_active=active_reviewer(session, document, handoff) if handoff else False,
-        require_approval=handoff.require_approval if handoff else False,
+        require_approval=policy == "always" or bool(handoff and handoff.require_approval),
         approved_at=approval.approved_at if approval else None,
         generation=handoff.generation if handoff else 0,
+        approval_policy=policy,
     )
 
 
@@ -121,6 +145,8 @@ def change_handoff(
         current = _version(document)
         if current != expected:
             raise VersionConflict(current)
+        if approval_policy(session, document) == "always" and not require_approval:
+            raise HandoffPolicyRejected("Workspace policy requires reviewer approval.")
         if document.status == DocumentStatus.SCANNING:
             raise CompletionRejected(
                 "scan_in_progress", "Finish the current scan before changing review access."
@@ -143,6 +169,22 @@ def change_handoff(
             and handoff.require_approval == require_approval
         ):
             return _view(session, document, actor_id)
+        from app.notifications.events import invalidate_approval
+        from app.notifications.service import notify
+
+        previous_reviewer = handoff.reviewer_id if handoff else None
+        invalidate_approval(session, document, actor_id, now)
+        if previous_reviewer != reviewer_id:
+            notify(
+                session,
+                document,
+                previous_reviewer,
+                actor_id,
+                "review_unassigned",
+                now,
+                require_active=False,
+            )
+            notify(session, document, reviewer_id, actor_id, "review_assigned", now)
         if not handoff:
             handoff = ReviewHandoff(
                 document_id=document_id,
@@ -224,5 +266,8 @@ def approve_review(
                 event_code="review_second_approved",
                 now=now,
             )
+            from app.notifications.service import notify
+
+            notify(session, document, document.owner_id, actor_id, "review_approved", now)
             session.flush()
         return _view(session, document, actor_id)

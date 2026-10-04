@@ -221,6 +221,7 @@
   min-width: 0;
 }
 .app-topbar {
+  container-type: inline-size;
   position: sticky;
   top: 0;
   z-index: 8;
@@ -360,3 +361,10 @@
   }
 }
 .app-nav .branch-heading:hover:not(:disabled) { background: transparent; color: var(--blue-strong); }
+
+@container (max-width: 650px) {
+  .topbar-account > span, .breadcrumbs > span, .breadcrumbs > svg { display: none; }
+  .topbar-account { flex-shrink: 0; }
+  .topbar-account > button { white-space: nowrap; }
+  .breadcrumbs { flex: 1; }
+}

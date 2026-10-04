@@ -49,6 +49,8 @@ def owned_document_record(
     document = session.scalar(statement)
     if document is None:
         raise DocumentNotFound("Document not found.")
+    if lock:
+        session.info.setdefault("document_actors", {})[document.id] = actor_id
     return document
 
 
@@ -110,6 +112,8 @@ def review_document_record(session: Session, document_id: UUID, actor_id: UUID, 
     document = session.scalar(query)
     if document is None:
         raise DocumentNotFound("Document not found.")
+    if lock:
+        session.info.setdefault("document_actors", {})[document.id] = actor_id
     return document
 
 

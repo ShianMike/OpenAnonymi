@@ -349,12 +349,14 @@ export function getMembers(workspaceId: string, signal?: AbortSignal): Promise<M
 export function updateWorkspaceSettings(
   workspaceId: string, expectedVersion: number, contentDays: number,
   activityDays: number, csrfToken: string, requireSecondFactor?: boolean,
+  approvalPolicy?: 'owner_choice' | 'always',
 ): Promise<WorkspaceSettingsView> {
   return sendJson<WorkspaceSettingsView>(
     'PUT', `/workspaces/${encodeURIComponent(workspaceId)}/settings`,
     { expected_version: expectedVersion, content_retention_days: contentDays,
       activity_retention_days: activityDays,
-      ...(requireSecondFactor === undefined ? {} : { require_second_factor: requireSecondFactor }) }, csrfToken,
+      ...(requireSecondFactor === undefined ? {} : { require_second_factor: requireSecondFactor }),
+      ...(approvalPolicy === undefined ? {} : { approval_policy: approvalPolicy }) }, csrfToken,
   )
 }
 

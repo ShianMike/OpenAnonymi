@@ -1541,6 +1541,206 @@
         }
       }
     },
+    "/api/v1/notifications": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "List Route",
+        "operationId": "list_route_api_v1_notifications_get",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPage"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/unread-count": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Unread Route",
+        "operationId": "unread_route_api_v1_notifications_unread_count_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnreadCount"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/read-all": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Read All Route",
+        "operationId": "read_all_route_api_v1_notifications_read_all_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadAllResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/{notification_id}/read": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Read Route",
+        "operationId": "read_route_api_v1_notifications__notification_id__read_post",
+        "parameters": [
+          {
+            "name": "notification_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Notification Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/preferences": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Preferences Route",
+        "operationId": "preferences_route_api_v1_auth_preferences_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPreferences"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Update Route",
+        "operationId": "update_route_api_v1_auth_preferences_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNotificationPreferences"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPreferences"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/members": {
       "get": {
         "tags": [
@@ -9477,6 +9677,14 @@
           "generation": {
             "type": "integer",
             "title": "Generation"
+          },
+          "approval_policy": {
+            "type": "string",
+            "enum": [
+              "owner_choice",
+              "always"
+            ],
+            "title": "Approval Policy"
           }
         },
         "type": "object",
@@ -9488,7 +9696,8 @@
           "reviewer_active",
           "require_approval",
           "approved_at",
-          "generation"
+          "generation",
+          "approval_policy"
         ],
         "title": "HandoffView"
       },
@@ -9745,6 +9954,152 @@
           "category"
         ],
         "title": "NewFindingRequest"
+      },
+      "NotificationPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationView"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "NotificationPage"
+      },
+      "NotificationPreferences": {
+        "properties": {
+          "notification_emails": {
+            "type": "string",
+            "enum": [
+              "off",
+              "immediate"
+            ],
+            "title": "Notification Emails"
+          },
+          "notification_emails_available": {
+            "type": "boolean",
+            "title": "Notification Emails Available"
+          }
+        },
+        "type": "object",
+        "required": [
+          "notification_emails",
+          "notification_emails_available"
+        ],
+        "title": "NotificationPreferences"
+      },
+      "NotificationView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Workspace Id"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "actor_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Id"
+          },
+          "event_code": {
+            "type": "string",
+            "enum": [
+              "review_assigned",
+              "review_unassigned",
+              "approval_requested",
+              "review_approved",
+              "approval_invalidated",
+              "comment_added"
+            ],
+            "title": "Event Code"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "read_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read At"
+          },
+          "document_available": {
+            "type": "boolean",
+            "title": "Document Available"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "workspace_id",
+          "document_id",
+          "actor_id",
+          "event_code",
+          "created_at",
+          "read_at",
+          "document_available",
+          "title"
+        ],
+        "title": "NotificationView"
       },
       "OutputExclusion": {
         "properties": {
@@ -10062,6 +10417,19 @@
           "overlaps"
         ],
         "title": "PreviewView"
+      },
+      "ReadAllResult": {
+        "properties": {
+          "changed": {
+            "type": "integer",
+            "title": "Changed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "changed"
+        ],
+        "title": "ReadAllResult"
       },
       "RecoveryCompletion": {
         "properties": {
@@ -11513,6 +11881,37 @@
         ],
         "title": "TeammateView"
       },
+      "UnreadCount": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "count"
+        ],
+        "title": "UnreadCount"
+      },
+      "UpdateNotificationPreferences": {
+        "properties": {
+          "notification_emails": {
+            "type": "string",
+            "enum": [
+              "off",
+              "immediate"
+            ],
+            "title": "Notification Emails"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "notification_emails"
+        ],
+        "title": "UpdateNotificationPreferences"
+      },
       "UpdatePresetInput": {
         "properties": {
           "name": {
@@ -11624,6 +12023,21 @@
               }
             ],
             "title": "Require Second Factor"
+          },
+          "approval_policy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "owner_choice",
+                  "always"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Policy"
           }
         },
         "type": "object",
@@ -11744,6 +12158,18 @@
           "members_without_second_factor": {
             "type": "integer",
             "title": "Members Without Second Factor"
+          },
+          "approval_policy": {
+            "type": "string",
+            "enum": [
+              "owner_choice",
+              "always"
+            ],
+            "title": "Approval Policy"
+          },
+          "active_member_count": {
+            "type": "integer",
+            "title": "Active Member Count"
           }
         },
         "type": "object",
@@ -11754,7 +12180,9 @@
           "activity_retention_days",
           "settings_version",
           "require_second_factor",
-          "members_without_second_factor"
+          "members_without_second_factor",
+          "approval_policy",
+          "active_member_count"
         ],
         "title": "WorkspaceSettingsView"
       }

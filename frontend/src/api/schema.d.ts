@@ -361,6 +361,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Route */
+        get: operations["list_route_api_v1_notifications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/unread-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Unread Route */
+        get: operations["unread_route_api_v1_notifications_unread_count_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read All Route */
+        post: operations["read_all_route_api_v1_notifications_read_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/{notification_id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read Route */
+        post: operations["read_route_api_v1_notifications__notification_id__read_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preferences Route */
+        get: operations["preferences_route_api_v1_auth_preferences_get"];
+        /** Update Route */
+        put: operations["update_route_api_v1_auth_preferences_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/members": {
         parameters: {
             query?: never;
@@ -2450,6 +2536,11 @@ export interface components {
             approved_at: string | null;
             /** Generation */
             generation: number;
+            /**
+             * Approval Policy
+             * @enum {string}
+             */
+            approval_policy: "owner_choice" | "always";
         };
         /** HealthResponse */
         HealthResponse: {
@@ -2551,6 +2642,56 @@ export interface components {
             expected: components["schemas"]["VersionRef"];
             span: components["schemas"]["SourceSpan"];
             category: components["schemas"]["FindingCategory"];
+        };
+        /** NotificationPage */
+        NotificationPage: {
+            /** Items */
+            items: components["schemas"]["NotificationView"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+        };
+        /** NotificationPreferences */
+        NotificationPreferences: {
+            /**
+             * Notification Emails
+             * @enum {string}
+             */
+            notification_emails: "off" | "immediate";
+            /** Notification Emails Available */
+            notification_emails_available: boolean;
+        };
+        /** NotificationView */
+        NotificationView: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Workspace Id
+             * Format: uuid
+             */
+            workspace_id: string;
+            /** Document Id */
+            document_id: string | null;
+            /** Actor Id */
+            actor_id: string | null;
+            /**
+             * Event Code
+             * @enum {string}
+             */
+            event_code: "review_assigned" | "review_unassigned" | "approval_requested" | "review_approved" | "approval_invalidated" | "comment_added";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Read At */
+            read_at: string | null;
+            /** Document Available */
+            document_available: boolean;
+            /** Title */
+            title: string | null;
         };
         /** OutputExclusion */
         OutputExclusion: {
@@ -2667,6 +2808,11 @@ export interface components {
                     [key: string]: components["schemas"]["StyleChoice"][];
                 };
             };
+        };
+        /** ReadAllResult */
+        ReadAllResult: {
+            /** Changed */
+            changed: number;
         };
         /** RecoveryCompletion */
         RecoveryCompletion: {
@@ -3280,6 +3426,19 @@ export interface components {
             /** Email */
             email: string;
         };
+        /** UnreadCount */
+        UnreadCount: {
+            /** Count */
+            count: number;
+        };
+        /** UpdateNotificationPreferences */
+        UpdateNotificationPreferences: {
+            /**
+             * Notification Emails
+             * @enum {string}
+             */
+            notification_emails: "off" | "immediate";
+        };
         /** UpdatePresetInput */
         UpdatePresetInput: {
             /** Name */
@@ -3318,6 +3477,8 @@ export interface components {
             activity_retention_days: number;
             /** Require Second Factor */
             require_second_factor?: boolean | null;
+            /** Approval Policy */
+            approval_policy?: ("owner_choice" | "always") | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -3373,6 +3534,13 @@ export interface components {
             require_second_factor: boolean;
             /** Members Without Second Factor */
             members_without_second_factor: number;
+            /**
+             * Approval Policy
+             * @enum {string}
+             */
+            approval_policy: "owner_choice" | "always";
+            /** Active Member Count */
+            active_member_count: number;
         };
     };
     responses: never;
@@ -4735,6 +4903,160 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_route_api_v1_notifications_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unread_route_api_v1_notifications_unread_count_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnreadCount"];
+                };
+            };
+        };
+    };
+    read_all_route_api_v1_notifications_read_all_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadAllResult"];
+                };
+            };
+        };
+    };
+    read_route_api_v1_notifications__notification_id__read_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notification_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preferences_route_api_v1_auth_preferences_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationPreferences"];
+                };
+            };
+        };
+    };
+    update_route_api_v1_auth_preferences_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateNotificationPreferences"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationPreferences"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

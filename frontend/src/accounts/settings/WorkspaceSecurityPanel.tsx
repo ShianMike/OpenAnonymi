@@ -11,6 +11,7 @@ export function WorkspaceSecurityPanel({ settings, session, onSaved, onReload }:
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [requested, setRequested] = useState<boolean | null>(null)
+  const [approvalRequested, setApprovalRequested] = useState<boolean | null>(null)
   async function change(required: boolean) {
     setRequested(required); setPending(true); setError(null); setNotice(null)
     try {
@@ -20,6 +21,16 @@ export function WorkspaceSecurityPanel({ settings, session, onSaved, onReload }:
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'The requirement could not be saved.') }
     finally { setRequested(null); setPending(false) }
   }
+  async function changeApproval(required: boolean) {
+    setApprovalRequested(required); setPending(true); setError(null); setNotice(null)
+    try {
+      const updated = await updateWorkspaceSettings(settings.id, settings.settings_version,
+        settings.content_retention_days, settings.activity_retention_days, session.csrf_token,
+        undefined, required ? 'always' : 'owner_choice')
+      onSaved(updated); setNotice('Workspace approval policy saved.')
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'The approval policy could not be saved.') }
+    finally { setApprovalRequested(null); setPending(false) }
+  }
   return (
     <section className="workspace-panel">
       <PanelHeading icon={ShieldCheck} title="Workspace security" description="The requirement applies to every active member of the selected workspace." />
@@ -28,6 +39,13 @@ export function WorkspaceSecurityPanel({ settings, session, onSaved, onReload }:
         disabled={pending || (!settings.require_second_factor && !session.second_factor_enabled)} onChange={(value) => void change(value)} />
       <p>Members without two-step verification must set it up when they next sign in (within 12 hours).</p>
       {!session.second_factor_enabled && !settings.require_second_factor && <small>Enable two-step verification on your account first to turn on this requirement.</small>}
+      <ChoiceSwitch label="Require reviewer approval for every export"
+        description="Every document needs an active assigned reviewer to approve its exact confirmed version before copying or downloading."
+        checked={approvalRequested ?? settings.approval_policy === 'always'} disabled={pending}
+        onChange={(value) => void changeApproval(value)} />
+      {(approvalRequested ?? settings.approval_policy === 'always') && settings.active_member_count < 2 &&
+        <p role="alert">This workspace has one active member. Add another member before any document can receive independent approval.</p>}
+      <p className="field-note">The policy is checked when each output is generated. Changing it keeps existing review versions and reviewer assignments.</p>
       {error && <InlineNotice error>{error}<button type="button" onClick={onReload}>Reload workspace settings</button></InlineNotice>}
       {notice && <InlineNotice>{notice}</InlineNotice>}
     </section>

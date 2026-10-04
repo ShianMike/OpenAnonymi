@@ -17,6 +17,7 @@ import { LoadingScreen } from './loading/LoadingScreen'
 import { RouteLoading } from './loading/RouteLoading'
 import { PageLoadBoundary } from './loading/PageLoadBoundary'
 import { LoadingFailure } from './loading/LoadingFailure'
+import { NotificationLink } from './notifications/NotificationLink'
 import './App.css'
 
 const EditDraftPage = lazy(() =>
@@ -24,6 +25,7 @@ const EditDraftPage = lazy(() =>
 )
 const BatchesPage = lazy(() => import('./batches/BatchesPage').then((module) => ({ default: module.BatchesPage })))
 const BatchPage = lazy(() => import('./batches/BatchPage').then((module) => ({ default: module.BatchPage })))
+const NotificationsPage = lazy(() => import('./notifications/NotificationsPage').then((module) => ({ default: module.NotificationsPage })))
 const DocumentsPage = lazy(() =>
   import('./workspace/DocumentsPage').then((module) => ({ default: module.DocumentsPage })),
 )
@@ -267,6 +269,7 @@ function App() {
             <strong>{pageTitle}</strong>
           </div>
           <div className="topbar-account">
+            <NotificationLink key={authentication.session.user_id} userId={authentication.session.user_id} />
             <span title={authentication.session.email}>{authentication.session.email}</span>
             <button
               className="text-button"
@@ -321,6 +324,7 @@ function App() {
               />
               <Route path="/documents" element={<DocumentsPage session={authentication.session} />} />
               <Route path="/batches" element={<BatchesPage session={authentication.session} />} />
+              <Route path="/notifications" element={<NotificationsPage key={authentication.session.user_id} session={authentication.session} />} />
               <Route path="/batches/:batchId" element={<BatchPage session={authentication.session} onUnsavedChange={handleUnsavedChange} />} />
               <Route path="/continue" element={<ContinueReviewPage session={authentication.session} />} />
               <Route path="/activity" element={<ActivityPage session={authentication.session} />} />

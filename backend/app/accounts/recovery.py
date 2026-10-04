@@ -36,6 +36,7 @@ class RecoveryMailer(Protocol):
     def send_registration_code(self, recipient: str, code: str) -> None: ...
     def send_email_verification_code(self, recipient: str, code: str) -> None: ...
     def send_security_notice(self, recipient: str, event: str, at: datetime) -> None: ...
+    def send_notification(self, recipient: str, event: str) -> None: ...
 
 
 class SmtpRecoveryMailer:
@@ -101,6 +102,11 @@ class SmtpRecoveryMailer:
         from app.accounts.security_notices import notice_body
 
         self._send_message(recipient, "OpenAnonymi security notice", notice_body(event, at))
+
+    def send_notification(self, recipient: str, event: str) -> None:
+        from app.notifications.emails import SUBJECT, notification_body
+
+        self._send_message(recipient, SUBJECT, notification_body(event))
 
     def _send_message(self, recipient: str, subject: str, body: str) -> None:
         message = EmailMessage()

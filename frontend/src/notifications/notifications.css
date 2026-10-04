@@ -1,0 +1,29 @@
+.notification-link { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; color: var(--muted); border-radius: 12px; flex: none; }
+.notification-link:hover { color: var(--text); background: var(--tone-wash); }
+.notification-count { position: absolute; top: 0; right: -3px; padding: 1px 5px; border-radius: 9px; background: var(--blue-strong); color: var(--bg); font-size: .64rem; font-weight: 700; line-height: 1.5; }
+.notifications-page { display: grid; gap: 1rem; container-type: inline-size; }
+.notification-list { padding: 0; margin: 0; list-style: none; }
+.notification { display: flex; gap: .9rem; align-items: flex-start; padding: 1.1rem 0; border-bottom: 1px solid var(--border); }
+.notification:last-child { border-bottom: 0; }
+.notification-status { flex: none; display: flex; align-items: center; min-height: 1.5rem; color: var(--blue-strong); }
+.notification.is-read .notification-status { color: var(--muted); }
+.notification-details { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.notification-details h2 { font-size: .93rem; line-height: 1.5; margin: 0 0 .25rem; }
+.notification-details a { display: inline-block; color: var(--blue-strong); line-height: 1.7; text-decoration: underline; text-underline-offset: .2em; }
+.notification-details time { display: block; color: var(--muted); font-size: .72rem; margin-top: .4rem; }
+.notification > button { flex: none; }
+.notification-more { margin-top: 1rem; }
+.notification-empty { text-align: center; padding: 2rem 1rem; color: var(--muted); }
+.notification-empty h2 { font-size: 1.05rem; color: var(--text); }
+.notification-preferences { grid-column: 1 / -1; }
+@container (max-width: 600px) {
+  .notifications-page .page-heading { flex-direction: column; align-items: flex-start; }
+  .notifications-page .page-heading-action { align-self: flex-start; }
+  .notification { flex-wrap: wrap; gap: .7rem; }
+  .notification-details { flex-basis: calc(100% - 2rem); }
+  .notification > button { margin-left: 1.7rem; }
+}
+@media (forced-colors: active) {
+  .notification-count { background: Highlight; color: HighlightText; }
+  .notification-link { border: 1px solid ButtonText; }
+}

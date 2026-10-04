@@ -17,6 +17,7 @@ from app.db.durable import AttemptEvent, ReviewUndoEntry
 from app.db.email_verification import EmailVerification, PendingRegistration
 from app.db.models import AuditEvent, Document, LabelCounter, SourceRevision, Workspace
 from app.db.models import Session as StoredSession
+from app.db.notifications import Notification
 from app.db.recovery import RecoverySnapshot
 from app.db.replacement_secrets import DocumentReplacementSecret
 from app.db.second_factor import AuthChallenge, UserSecondFactor
@@ -72,6 +73,7 @@ def purge_document(session: Session, document: Document, now: datetime) -> bool:
     session.execute(delete(ReviewHandoff).where(ReviewHandoff.document_id == document.id))
     session.execute(delete(ReviewUndoEntry).where(ReviewUndoEntry.document_id == document.id))
     session.execute(delete(ScanJob).where(ScanJob.document_id == document.id))
+    session.execute(delete(Notification).where(Notification.document_id == document.id))
     session.execute(
         delete(DocumentColumnRules).where(DocumentColumnRules.document_id == document.id)
     )
@@ -116,6 +118,7 @@ def expired_row_predicates(now: datetime):
         ),
         (AttemptEvent, AttemptEvent.attempted_at <= now - timedelta(days=1)),
         (ReviewUndoEntry, ReviewUndoEntry.created_at <= now - timedelta(hours=1)),
+        (Notification, Notification.created_at <= now - timedelta(days=30)),
     )
 
 

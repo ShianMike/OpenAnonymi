@@ -17,6 +17,7 @@ from app.errors import ApiError
 from app.reviews.service import CompletionRejected
 from app.team_review.comments import CommentView, add_comment, delete_comment, load_comments
 from app.team_review.service import (
+    HandoffPolicyRejected,
     HandoffView,
     TeammateView,
     approve_review,
@@ -59,6 +60,10 @@ def _guard(function, **kwargs):
         )
     except CompletionRejected as exc:
         raise ApiError(409, exc.code, str(exc)) from None
+    except HandoffPolicyRejected:
+        raise ApiError(
+            422, "approval_required_by_policy", "Workspace policy requires reviewer approval."
+        ) from None
 
 
 def _keys(request):
