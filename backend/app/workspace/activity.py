@@ -14,6 +14,8 @@ from app.db.models import AuditEvent, Document, Membership
 
 EVENT_CODES = frozenset(
     {
+        "batch_created",
+        "batch_deleted",
         "document_created",
         "source_revised",
         "review_completed",

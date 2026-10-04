@@ -1,4 +1,5 @@
 import { ArrowRight, Check, FileText, ShieldCheck } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import type { SessionView } from '../api/client'
 import { PageHeader } from '../ui/PageHeader'
 import { GlassSelect } from '../ui/GlassSelect'
@@ -25,6 +26,7 @@ export function NewReviewPage({
         title="New review"
         titleId="new-review-title"
         description="A little care before you share. Start with the text you want to review."
+        action={<Link to="/batches">Review a batch</Link>}
       />
       <ol className="intake-steps" aria-label="Review workflow">
         <li aria-current="step">

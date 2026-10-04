@@ -81,6 +81,18 @@ def _version(document: Document) -> VersionRef:
     )
 
 
+@dataclass(frozen=True)
+class IntakeSnapshot:
+    """Trusted settings copied from an authorized, immutable batch snapshot."""
+
+    preset_id: UUID | None
+    preset_version: int | None
+    preferred_action: str
+    category_defaults: dict
+    column_rules: list[dict]
+    custom_rules: tuple[tuple[UUID, int], ...]
+
+
 def create_document(
     session: Session,
     *,
@@ -98,6 +110,45 @@ def create_document(
     layout: dict | None = None,
     layout_kind: str = "docx",
     validated_source: ValidatedSource | None = None,
+) -> SavedDocument:
+    with session.begin():
+        return create_document_in_transaction(
+            session,
+            owner_id=owner_id,
+            workspace_id=workspace_id,
+            source=source,
+            title=title,
+            categories=categories,
+            phone_region=phone_region,
+            keys=keys,
+            now=now,
+            requested_expiry=requested_expiry,
+            preset_id=preset_id,
+            language=language,
+            layout=layout,
+            layout_kind=layout_kind,
+            validated_source=validated_source,
+        )
+
+
+def create_document_in_transaction(
+    session: Session,
+    *,
+    owner_id: UUID,
+    workspace_id: UUID,
+    source: str,
+    title: str | None,
+    categories: set[FindingCategory],
+    phone_region: str,
+    keys: KeyRing,
+    now: datetime,
+    requested_expiry: datetime | None = None,
+    preset_id: UUID | None = None,
+    language: str = "en",
+    layout: dict | None = None,
+    layout_kind: str = "docx",
+    validated_source: ValidatedSource | None = None,
+    snapshot: IntakeSnapshot | None = None,
 ) -> SavedDocument:
     from app.detection.local_nlp import SUPPORTED_LANGUAGES
 
@@ -117,101 +168,128 @@ def create_document(
     if not categories.issubset(AUTOMATIC_CATEGORIES):
         raise StorageValidationError("Choose supported detection categories.")
 
-    with session.begin():
-        try:
-            workspace = active_workspace(session, workspace_id, owner_id)
-        except WorkspaceAccessDenied:
-            raise DocumentNotFound("Workspace not found.") from None
-        selected_preset = None
-        if preset_id is not None:
-            selected_preset = session.scalar(
-                select(Preset).where(Preset.id == preset_id, Preset.workspace_id == workspace_id)
-            )
-            if selected_preset is None:
-                raise PresetNotFound("Preset not found.")
-            categories = {
-                FindingCategory(value) for value in selected_preset.categories.split(",") if value
-            }
-            phone_region = selected_preset.phone_region
-        max_expiry = now + timedelta(days=workspace.content_retention_days)
-        expiry = requested_expiry or max_expiry
-        if expiry <= now or expiry > max_expiry:
-            raise StorageValidationError("Expiry must be within the workspace retention period.")
-        protected_source = keys.encrypt_text(validated.text)
-        protected_title = keys.encrypt_text(title) if title and title.strip() else None
-        document = Document(
-            id=uuid4(),
-            workspace_id=workspace_id,
-            owner_id=owner_id,
-            title_ciphertext=protected_title.ciphertext if protected_title else None,
-            title_key_id=protected_title.key_id if protected_title else None,
-            status=DocumentStatus.DRAFT,
-            decision_version=0,
-            settings_version=1,
-            category_settings=",".join(sorted(category.value for category in categories)),
-            phone_region=phone_region.upper(),
-            language=language,
-            preset_id=selected_preset.id if selected_preset else None,
-            preset_version=selected_preset.version if selected_preset else None,
-            preferred_action=selected_preset.preferred_action if selected_preset else "label",
-            category_defaults=deepcopy(selected_preset.category_defaults)
+    if not session.in_transaction():
+        raise RuntimeError("Document intake requires an active transaction.")
+    try:
+        workspace = active_workspace(session, workspace_id, owner_id)
+    except WorkspaceAccessDenied:
+        raise DocumentNotFound("Workspace not found.") from None
+    selected_preset = None
+    if preset_id is not None and snapshot is None:
+        selected_preset = session.scalar(
+            select(Preset).where(Preset.id == preset_id, Preset.workspace_id == workspace_id)
+        )
+        if selected_preset is None:
+            raise PresetNotFound("Preset not found.")
+        categories = {
+            FindingCategory(value) for value in selected_preset.categories.split(",") if value
+        }
+        phone_region = selected_preset.phone_region
+    max_expiry = now + timedelta(days=workspace.content_retention_days)
+    expiry = requested_expiry or max_expiry
+    if expiry <= now or expiry > max_expiry:
+        raise StorageValidationError("Expiry must be within the workspace retention period.")
+    protected_source = keys.encrypt_text(validated.text)
+    protected_title = keys.encrypt_text(title) if title and title.strip() else None
+    document = Document(
+        id=uuid4(),
+        workspace_id=workspace_id,
+        owner_id=owner_id,
+        title_ciphertext=protected_title.ciphertext if protected_title else None,
+        title_key_id=protected_title.key_id if protected_title else None,
+        status=DocumentStatus.DRAFT,
+        decision_version=0,
+        settings_version=1,
+        category_settings=",".join(sorted(category.value for category in categories)),
+        phone_region=phone_region.upper(),
+        language=language,
+        preset_id=snapshot.preset_id
+        if snapshot
+        else selected_preset.id
+        if selected_preset
+        else None,
+        preset_version=snapshot.preset_version
+        if snapshot
+        else selected_preset.version
+        if selected_preset
+        else None,
+        preferred_action=snapshot.preferred_action
+        if snapshot
+        else selected_preset.preferred_action
+        if selected_preset
+        else "label",
+        category_defaults=deepcopy(
+            snapshot.category_defaults
+            if snapshot
+            else selected_preset.category_defaults
             if selected_preset
-            else {},
-            created_at=now,
-            updated_at=now,
-            expires_at=expiry,
-            csv_delimiter=layout["delimiter"]
-            if layout is not None and layout_kind == "csv"
-            else None,
-            csv_has_header=layout["has_header"]
-            if layout is not None and layout_kind == "csv"
-            else None,
+            else {}
+        ),
+        created_at=now,
+        updated_at=now,
+        expires_at=expiry,
+        csv_delimiter=layout["delimiter"] if layout is not None and layout_kind == "csv" else None,
+        csv_has_header=layout["has_header"]
+        if layout is not None and layout_kind == "csv"
+        else None,
+    )
+    session.add(document)
+    session.flush()
+    revision = SourceRevision(
+        id=uuid4(),
+        document_id=document.id,
+        revision_number=1,
+        source_ciphertext=protected_source.ciphertext,
+        source_key_id=protected_source.key_id,
+        utf8_bytes=validated.utf8_bytes,
+        code_points=validated.code_points,
+        created_at=now,
+    )
+    session.add(revision)
+    session.flush()
+    from app.db.source_structures import store_csv, store_word
+
+    if layout is not None and layout_kind == "csv":
+        from app.db.column_rules import load_preset_rules, store_rules
+        from app.intake.column_rules import match_preset
+
+        store_csv(session, revision.id, layout, validated.text, keys, now)
+        rules = (
+            match_preset(snapshot.column_rules, validated.text, layout)
+            if snapshot
+            else match_preset(load_preset_rules(selected_preset, keys), validated.text, layout)
+            if selected_preset
+            else []
         )
-        session.add(document)
-        session.flush()
-        revision = SourceRevision(
-            id=uuid4(),
-            document_id=document.id,
-            revision_number=1,
-            source_ciphertext=protected_source.ciphertext,
-            source_key_id=protected_source.key_id,
-            utf8_bytes=validated.utf8_bytes,
-            code_points=validated.code_points,
-            created_at=now,
-        )
-        session.add(revision)
-        session.flush()
-        from app.db.source_structures import store_csv, store_word
+        store_rules(session, document, rules, validated.text, layout, keys)
+    else:
+        store_word(session, revision.id, layout, validated.text, keys, now)
+    document.current_revision_id = revision.id
+    from app.custom_rules.service import snapshot_rules
 
-        if layout is not None and layout_kind == "csv":
-            from app.db.column_rules import load_preset_rules, store_rules
-            from app.intake.column_rules import match_preset
-
-            store_csv(session, revision.id, layout, validated.text, keys, now)
-            rules = (
-                match_preset(load_preset_rules(selected_preset, keys), validated.text, layout)
-                if selected_preset
-                else []
-            )
-            store_rules(session, document, rules, validated.text, layout, keys)
-        else:
-            store_word(session, revision.id, layout, validated.text, keys, now)
-        document.current_revision_id = revision.id
-        from app.custom_rules.service import snapshot_rules
-
+    if snapshot is None:
         snapshot_rules(session, document)
-        session.flush()
-        record_event(
-            session,
-            workspace_id=workspace_id,
-            actor_id=owner_id,
-            document_id=document.id,
-            event_code="document_created",
-            now=now,
+    else:
+        from app.db.custom_rules import DocumentRuleSnapshot
+
+        session.add_all(
+            DocumentRuleSnapshot(
+                document_id=document.id, settings_version=1, rule_id=rule_id, rule_version=version
+            )
+            for rule_id, version in snapshot.custom_rules
         )
-        saved = SavedDocument(
-            _version(document), expiry, DocumentStatus.DRAFT, "kept" if layout else "none"
-        )
+    session.flush()
+    record_event(
+        session,
+        workspace_id=workspace_id,
+        actor_id=owner_id,
+        document_id=document.id,
+        event_code="document_created",
+        now=now,
+    )
+    saved = SavedDocument(
+        _version(document), expiry, DocumentStatus.DRAFT, "kept" if layout else "none"
+    )
     return saved
 
 

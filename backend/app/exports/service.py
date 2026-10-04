@@ -23,12 +23,17 @@ class ExportConflict(ValueError):
     pass
 
 
+class OutputTooLarge(ValueError):
+    pass
+
+
 @dataclass(frozen=True)
 class AuthorizedOutput:
     version: VersionRef
     completion_id: UUID
     text: str
     filename: str
+    confirmed_at: datetime | None = None
     layout: dict | None = field(default=None, repr=False)
     csv_cells: tuple[tuple[str, ...], ...] | None = field(default=None, repr=False)
     csv_delimiter: str | None = None
@@ -75,6 +80,7 @@ def _current_output(
             completion_id=completion.id,
             text=preview.text,
             filename=f"reviewed-{document.id}.{format}",
+            confirmed_at=completion.confirmed_at,
             layout=layout,
             csv_cells=preview.csv_cells,
             csv_delimiter=document.csv_delimiter,
@@ -187,6 +193,7 @@ def generate_output(
     now: datetime,
     format: str = "txt",
     variant: str = "spreadsheet_safe",
+    maximum_bytes: int | None = None,
 ) -> tuple[bytes, AuthorizedOutput]:
     if format not in {"txt", "docx", "csv"}:
         raise ExportConflict("Choose a supported reviewed output format.")
@@ -207,6 +214,8 @@ def generate_output(
             output = replace(output, prefixed_cells=csv.prefixed_cells)
         else:
             payload = output.text.encode("utf-8")
+        if maximum_bytes is not None and len(payload) > maximum_bytes:
+            raise OutputTooLarge("Reviewed outputs exceed the archive size limit.")
         _record_event(
             session,
             document=document,

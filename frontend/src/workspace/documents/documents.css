@@ -172,6 +172,7 @@
   border-spacing: 0;
   background: transparent;
 }
+.batch-entry-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
 .document-name-col {
   width: auto;
 }

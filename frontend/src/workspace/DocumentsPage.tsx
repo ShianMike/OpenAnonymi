@@ -121,9 +121,11 @@ export function DocumentsPage({ session }: { session: SessionView }) {
         titleId="documents-title"
         description="A little care in every document. Pick up where you left off."
         action={
+          <div className="batch-entry-actions"><Link to={`/batches?workspace=${encodeURIComponent(workspaceId)}`}>Batch reviews</Link>
           <Link className="button-primary" to="/new">
             <Plus size={17} aria-hidden="true" /> New review
           </Link>
+          </div>
         }
       />
       {notice && (

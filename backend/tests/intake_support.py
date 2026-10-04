@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.accounts.security import hash_password
 from app.config import Settings
+from app.db.batches import Batch
 from app.db.models import (
     Document,
     Membership,
@@ -76,6 +77,7 @@ def intake_site():
     finally:
         with Session(engine) as session, session.begin():
             session.execute(delete(Document).where(Document.workspace_id == workspace_id))
+            session.execute(delete(Batch).where(Batch.workspace_id == workspace_id))
             session.execute(delete(Membership).where(Membership.workspace_id == workspace_id))
             session.execute(delete(Workspace).where(Workspace.id == workspace_id))
             session.execute(delete(User).where(User.id.in_([owner_id, other_id])))

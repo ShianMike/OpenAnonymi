@@ -27,9 +27,11 @@ export function EditDraftPage({
   const review = useReviewController(session)
   const location = useLocation()
   const fromContinue = Boolean(location.state && typeof location.state === 'object' && location.state.fromContinue === true)
+  const batchParam = new URLSearchParams(location.search).get('batch')
+  const fromBatch = batchParam && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(batchParam) ? batchParam : null
   const workspaceId = review.state.kind === 'ready' ? review.state.saved.workspace_id
     : session.memberships.find((item) => item.workspace_id === location.state?.workspaceId)?.workspace_id
-  const backTo = fromContinue ? `/continue${workspaceId ? `?workspace=${workspaceId}` : ''}` : '/documents'
+  const backTo = fromBatch ? `/batches/${encodeURIComponent(fromBatch)}` : fromContinue ? `/continue${workspaceId ? `?workspace=${workspaceId}` : ''}` : '/documents'
   const stickyColumnRef = useStickyReviewColumn()
   const {
     state,
@@ -56,7 +58,7 @@ export function EditDraftPage({
         title={state.kind === 'ready' ? state.saved.title || 'Untitled review' : 'Review workspace'}
         titleId="review-title"
         description="Decide what stays, then read the full output before sharing."
-        action={<Link to={backTo}>{fromContinue ? 'Back to reviews' : 'Back to documents'}</Link>}
+        action={<Link to={backTo}>{fromBatch ? 'Back to batch' : fromContinue ? 'Back to reviews' : 'Back to documents'}</Link>}
       />
       <UnsavedNavigationPrompt
         when={(dirty || settingsDirty) && !review.recovery.protected}

@@ -1,9 +1,11 @@
 const names: Record<string, string> = {
+  batch_created: 'Batch created',
+  batch_deleted: 'Batch deleted',
   document_created: 'Review created',
   source_revised: 'Source revised',
   review_completed: 'Review confirmed',
   output_copied: 'Reviewed text copied',
-  output_generated: 'Reviewed TXT generated',
+  output_generated: 'Reviewed output generated',
   document_deleted: 'Review deleted',
   document_expired: 'Review expired',
   preset_created: 'Rules preset created',
