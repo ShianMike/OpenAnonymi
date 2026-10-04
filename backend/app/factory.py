@@ -109,6 +109,7 @@ def create_app(
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Content-Type", "X-CSRF-Token"],
+        expose_headers=["X-CSV-Prefixed-Cells"],
         max_age=600,
     )
     app.add_middleware(SecurityHeadersMiddleware, strict_transport=production)

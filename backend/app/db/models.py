@@ -154,6 +154,8 @@ class Document(Base):
     category_defaults: Mapped[dict] = mapped_column(
         JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
+    csv_delimiter: Mapped[str | None] = mapped_column(String(1))
+    csv_has_header: Mapped[bool | None] = mapped_column()
     created_at: Mapped[datetime] = timestamp_column()
     updated_at: Mapped[datetime] = timestamp_column()
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -192,6 +194,12 @@ class Document(Base):
             name="bounded_category_defaults",
         ),
         CheckConstraint("expires_at > created_at", name="expiry_after_creation"),
+        CheckConstraint(
+            "(csv_delimiter IS NULL AND csv_has_header IS NULL) OR "
+            "(csv_delimiter IS NOT NULL AND csv_has_header IS NOT NULL "
+            "AND csv_delimiter IN (',',';',E'\\t','|'))",
+            name="csv_settings_pair",
+        ),
         CheckConstraint(
             "(title_ciphertext IS NULL AND title_key_id IS NULL) OR "
             "(title_ciphertext IS NOT NULL AND title_key_id IS NOT NULL)",
@@ -450,7 +458,7 @@ class ExportEvent(Base):
             ["review_completions.document_id", "review_completions.id"],
             ondelete="CASCADE",
         ),
-        CheckConstraint("format IN ('copy','txt','docx')", name="valid_format"),
+        CheckConstraint("format IN ('copy','txt','docx','csv')", name="valid_format"),
     )
 
 
@@ -471,6 +479,8 @@ class Preset(Base):
         JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
     version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    column_rules_ciphertext: Mapped[bytes | None] = mapped_column(LargeBinary)
+    column_rules_key_id: Mapped[str | None] = mapped_column(String(80))
     is_default: Mapped[bool] = mapped_column(nullable=False, server_default="false")
     created_at: Mapped[datetime] = timestamp_column()
 
@@ -483,6 +493,11 @@ class Preset(Base):
             postgresql_where=text("is_default"),
         ),
         CheckConstraint("version > 0", name="positive_version"),
+        CheckConstraint(
+            "(column_rules_ciphertext IS NULL AND column_rules_key_id IS NULL) OR "
+            "(column_rules_ciphertext IS NOT NULL AND column_rules_key_id IS NOT NULL)",
+            name="column_rules_encryption_pair",
+        ),
         CheckConstraint(
             "jsonb_typeof(category_defaults)='object' AND octet_length(category_defaults::text)<=8192",
             name="bounded_category_defaults",

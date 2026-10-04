@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.accounts.access import owned_document_record
 from app.contracts import DocumentStatus
+from app.db.column_rules import DocumentColumnRules
 from app.db.custom_rules import DocumentRuleSnapshot
 from app.db.durable import AttemptEvent, ReviewUndoEntry
 from app.db.email_verification import EmailVerification, PendingRegistration
@@ -69,6 +70,9 @@ def purge_document(session: Session, document: Document, now: datetime) -> bool:
         )
     session.execute(delete(ReviewHandoff).where(ReviewHandoff.document_id == document.id))
     session.execute(delete(ReviewUndoEntry).where(ReviewUndoEntry.document_id == document.id))
+    session.execute(
+        delete(DocumentColumnRules).where(DocumentColumnRules.document_id == document.id)
+    )
     session.execute(
         delete(DocumentReplacementSecret).where(
             DocumentReplacementSecret.document_id == document.id

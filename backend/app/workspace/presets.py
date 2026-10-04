@@ -1,6 +1,7 @@
 """Versioned workspace presets; reviews keep their own intake snapshot."""
 
-from dataclasses import dataclass
+import json
+from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID, uuid4
 
@@ -10,6 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.accounts.access import active_workspace, require_administrator
 from app.contracts import AUTOMATIC_CATEGORIES, FindingCategory
+from app.db.column_rules import load_preset_rules
+from app.db.crypto import KeyRing, ProtectedContentError
 from app.db.models import Preset
 from app.workspace.activity import record_event
 
@@ -36,9 +39,10 @@ class PresetRecord:
     version: int
     is_default: bool
     category_defaults: dict
+    column_rules: list[dict] = field(default_factory=list)
 
 
-def _record(preset: Preset) -> PresetRecord:
+def _record(preset: Preset, keys: KeyRing | None = None) -> PresetRecord:
     return PresetRecord(
         id=preset.id,
         name=preset.name,
@@ -48,17 +52,20 @@ def _record(preset: Preset) -> PresetRecord:
         version=preset.version,
         is_default=preset.is_default,
         category_defaults=preset.category_defaults,
+        column_rules=load_preset_rules(preset, keys),
     )
 
 
-def list_presets(session: Session, *, workspace_id: UUID, actor_id: UUID) -> list[PresetRecord]:
+def list_presets(
+    session: Session, *, workspace_id: UUID, actor_id: UUID, keys: KeyRing | None = None
+) -> list[PresetRecord]:
     active_workspace(session, workspace_id, actor_id)
     rows = session.scalars(
         select(Preset)
         .where(Preset.workspace_id == workspace_id)
         .order_by(Preset.is_default.desc(), Preset.name, Preset.id)
     ).all()
-    return [_record(row) for row in rows]
+    return [_record(row, keys) for row in rows]
 
 
 def save_preset(
@@ -75,12 +82,17 @@ def save_preset(
     is_default: bool,
     now: datetime,
     category_defaults: dict | None = None,
+    column_rules: list[dict] | None = None,
+    keys: KeyRing | None = None,
 ) -> PresetRecord:
     from app.transformations.defaults import validate_defaults
 
     validated_defaults = (
         validate_defaults(category_defaults) if category_defaults is not None else None
     )
+    from app.intake.column_rules import validate_rules
+
+    validated_columns = validate_rules(column_rules) if column_rules is not None else None
     name = name.strip()
     phone_region = phone_region.upper()
     if not name or len(name) > 100:
@@ -122,6 +134,17 @@ def save_preset(
         preset.preferred_action = preferred_action
         if validated_defaults is not None or preset_id is None:
             preset.category_defaults = validated_defaults or {}
+        if validated_columns is not None:
+            if validated_columns:
+                if keys is None:
+                    raise ProtectedContentError("Protected preset settings are unavailable.")
+                protected = keys.encrypt_text(json.dumps(validated_columns, separators=(",", ":")))
+                preset.column_rules_ciphertext, preset.column_rules_key_id = (
+                    protected.ciphertext,
+                    protected.key_id,
+                )
+            else:
+                preset.column_rules_ciphertext, preset.column_rules_key_id = None, None
         preset.is_default = False
         session.flush()
         if is_default:
@@ -141,5 +164,5 @@ def save_preset(
             event_code=event_code,
             now=now,
         )
-        result = _record(preset)
+        result = _record(preset, keys)
     return result

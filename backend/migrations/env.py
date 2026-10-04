@@ -7,6 +7,7 @@ from sqlalchemy import create_engine, pool
 
 from app.config import load_settings
 from app.db import (
+    column_rules,  # noqa: F401 -- encrypted immutable CSV column settings
     custom_rules,  # noqa: F401 -- register rule version/snapshot tables
     durable,  # noqa: F401 -- register persistent content-free limits and undo
     email_verification,  # noqa: F401 -- register ownership proof and pending accounts

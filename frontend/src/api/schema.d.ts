@@ -532,6 +532,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/{document_id}/csv-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Csv Settings Route */
+        get: operations["csv_settings_route_api_v1_documents__document_id__csv_settings_get"];
+        /** Change Csv Settings Route */
+        put: operations["change_csv_settings_route_api_v1_documents__document_id__csv_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{document_id}/column-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Csv Settings Route */
+        get: operations["csv_settings_route_api_v1_documents__document_id__column_rules_get"];
+        /** Column Rules Route */
+        put: operations["column_rules_route_api_v1_documents__document_id__column_rules_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents/{document_id}/source": {
         parameters: {
             query?: never;
@@ -829,6 +865,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/{document_id}/columns/{column}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Column Decision Route */
+        post: operations["column_decision_route_api_v1_documents__document_id__columns__column__decision_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/documents/{document_id}/findings": {
         parameters: {
             query?: never;
@@ -1103,6 +1156,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/documents/{document_id}/exports/csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Csv Route */
+        post: operations["csv_route_api_v1_documents__document_id__exports_csv_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/documents/{document_id}/history": {
         parameters: {
             query?: never;
@@ -1371,6 +1441,18 @@ export interface components {
             retention_days?: number | null;
             /** Preset Id */
             preset_id?: string | null;
+            /**
+             * Csv Delimiter
+             * @default auto
+             * @enum {string}
+             */
+            csv_delimiter: "auto" | "," | ";" | "\t" | "|";
+            /**
+             * Csv Header
+             * @default auto
+             * @enum {string}
+             */
+            csv_header: "auto" | "true" | "false";
         };
         /** Body_preview_route_api_v1_documents_import_preview_post */
         Body_preview_route_api_v1_documents_import_preview_post: {
@@ -1381,6 +1463,18 @@ export interface components {
              * Format: uuid
              */
             workspace_id: string;
+            /**
+             * Csv Delimiter
+             * @default auto
+             * @enum {string}
+             */
+            csv_delimiter: "auto" | "," | ";" | "\t" | "|";
+            /**
+             * Csv Header
+             * @default auto
+             * @enum {string}
+             */
+            csv_header: "auto" | "true" | "false";
         };
         /** CategoryDefault */
         CategoryDefault: {
@@ -1443,6 +1537,68 @@ export interface components {
              * Format: date-time
              */
             checked_at: string;
+        };
+        /** ColumnDecisionRequest */
+        ColumnDecisionRequest: {
+            expected: components["schemas"]["VersionRef"];
+            action: components["schemas"]["DecisionAction"];
+            /** Affected Finding Ids */
+            affected_finding_ids: string[];
+            /** Keep Reason */
+            keep_reason?: ("false_match" | "intended_disclosure") | null;
+            /**
+             * Style
+             * @default token
+             * @enum {string}
+             */
+            style: "token" | "stand_in" | "date_shift" | "partial_mask" | "generalize";
+            /** Style Option */
+            style_option?: ("full" | "last4" | "first_letters" | "email_domain" | "email_first" | "url_host" | "secret_prefix" | "month_year" | "year" | "age_band") | null;
+            /**
+             * Same Text Same Entity
+             * @default false
+             */
+            same_text_same_entity: boolean;
+        };
+        /** ColumnRule */
+        ColumnRule: {
+            /**
+             * Style
+             * @default token
+             * @enum {string}
+             */
+            style: "token" | "stand_in" | "date_shift" | "partial_mask" | "generalize";
+            /** Style Option */
+            style_option?: ("full" | "last4" | "first_letters" | "email_domain" | "email_first" | "url_host" | "secret_prefix" | "month_year" | "year" | "age_band") | null;
+            /** Column */
+            column: number;
+            /**
+             * Header
+             * @default
+             */
+            header: string;
+            /**
+             * Mode
+             * @default scan
+             * @enum {string}
+             */
+            mode: "scan" | "category" | "keep";
+            category?: components["schemas"]["FindingCategory"] | null;
+            /**
+             * Default Action
+             * @default label
+             * @enum {string}
+             */
+            default_action: "label" | "redact" | "keep";
+            /** Keep Reason */
+            keep_reason?: ("false_match" | "intended_disclosure") | null;
+        };
+        /** ColumnRulesRequest */
+        ColumnRulesRequest: {
+            /** Rules */
+            rules: components["schemas"]["ColumnRule"][];
+            /** Expected Settings Version */
+            expected_settings_version: number;
         };
         /** CommentInput */
         CommentInput: {
@@ -1596,6 +1752,83 @@ export interface components {
              * @default en
              */
             language: string;
+        };
+        /** CsvCellView */
+        CsvCellView: {
+            /** Start */
+            start: number;
+            /** End */
+            end: number;
+            /** Quoted */
+            quoted: boolean;
+        };
+        /** CsvExportRequest */
+        CsvExportRequest: {
+            expected: components["schemas"]["VersionRef"];
+            /**
+             * Event Id
+             * Format: uuid
+             */
+            event_id: string;
+            /**
+             * Variant
+             * @default spreadsheet_safe
+             * @enum {string}
+             */
+            variant: "spreadsheet_safe" | "unmodified";
+        };
+        /** CsvInfo */
+        CsvInfo: {
+            /**
+             * Delimiter
+             * @enum {string}
+             */
+            delimiter: "," | ";" | "\t" | "|";
+            /** Has Header */
+            has_header: boolean;
+            /** Columns */
+            columns: number;
+            /** Data Rows */
+            data_rows: number;
+            /** Headers */
+            headers: string[];
+            /** Rules */
+            rules: components["schemas"]["ColumnRule"][];
+            /** Cells */
+            cells: components["schemas"]["CsvCellView"][][];
+        };
+        /** CsvSettingsRequest */
+        CsvSettingsRequest: {
+            /**
+             * Delimiter
+             * @enum {string}
+             */
+            delimiter: "," | ";" | "\t" | "|";
+            /** Has Header */
+            has_header: boolean;
+            /** Expected Settings Version */
+            expected_settings_version: number;
+        };
+        /** CsvSettingsView */
+        CsvSettingsView: {
+            /**
+             * Delimiter
+             * @enum {string}
+             */
+            delimiter: "," | ";" | "\t" | "|";
+            /** Has Header */
+            has_header: boolean;
+            /** Columns */
+            columns: number;
+            /** Data Rows */
+            data_rows: number;
+            /** Headers */
+            headers: string[];
+            /** Rules */
+            rules: components["schemas"]["ColumnRule"][];
+            /** Cells */
+            cells: components["schemas"]["CsvCellView"][][];
+            version: components["schemas"]["VersionRef"];
         };
         /**
          * DecisionAction
@@ -1976,6 +2209,7 @@ export interface components {
             utf8_bytes: number;
             /** Notes */
             notes: string[];
+            csv?: components["schemas"]["CsvInfo"] | null;
         };
         /** IntakeDefaultsView */
         IntakeDefaultsView: {
@@ -2086,6 +2320,8 @@ export interface components {
             category_defaults?: {
                 [key: string]: components["schemas"]["CategoryDefault"];
             } | null;
+            /** Column Rules */
+            column_rules?: components["schemas"]["ColumnRule"][] | null;
         };
         /** PresetView */
         PresetView: {
@@ -2113,6 +2349,8 @@ export interface components {
             category_defaults: {
                 [key: string]: components["schemas"]["CategoryDefault"];
             };
+            /** Column Rules */
+            column_rules: components["schemas"]["ColumnRule"][];
         };
         /** PreviewView */
         PreviewView: {
@@ -2694,6 +2932,7 @@ export interface components {
              * @enum {string}
              */
             structure: "kept" | "simplified" | "none";
+            csv?: components["schemas"]["CsvInfo"] | null;
         };
         /** SpanMappingView */
         SpanMappingView: {
@@ -2768,6 +3007,8 @@ export interface components {
             category_defaults?: {
                 [key: string]: components["schemas"]["CategoryDefault"];
             } | null;
+            /** Column Rules */
+            column_rules?: components["schemas"]["ColumnRule"][] | null;
             /** Expected Version */
             expected_version: number;
         };
@@ -4894,6 +5135,156 @@ export interface operations {
             };
         };
     };
+    csv_settings_route_api_v1_documents__document_id__csv_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CsvSettingsView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_csv_settings_route_api_v1_documents__document_id__csv_settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CsvSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CsvSettingsView"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    csv_settings_route_api_v1_documents__document_id__column_rules_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CsvSettingsView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    column_rules_route_api_v1_documents__document_id__column_rules_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ColumnRulesRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CsvSettingsView"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConflictResponse"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     source_route_api_v1_documents__document_id__source_get: {
         parameters: {
             query?: never;
@@ -6059,6 +6450,42 @@ export interface operations {
             };
         };
     };
+    column_decision_route_api_v1_documents__document_id__columns__column__decision_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+                column: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ColumnDecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FindingsView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     findings_route_api_v1_documents__document_id__findings_get: {
         parameters: {
             query?: never;
@@ -6775,6 +7202,41 @@ export interface operations {
                 };
                 content: {
                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    csv_route_api_v1_documents__document_id__exports_csv_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                document_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CsvExportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
                 };
             };
             /** @description Validation Error */

@@ -1,7 +1,7 @@
 """Completed output copy and UTF-8 TXT routes."""
 
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
@@ -42,6 +42,10 @@ class CopyPayloadView(BaseModel):
 class ExportRequest(BaseModel):
     expected: VersionRef
     event_id: UUID
+
+
+class CsvExportRequest(ExportRequest):
+    variant: Literal["spreadsheet_safe", "unmodified"] = "spreadsheet_safe"
 
 
 class CopyAckRequest(ExportRequest):
@@ -234,6 +238,53 @@ def create_exports_router(engine: Engine) -> APIRouter:
             ExportConflict,
             InvalidTransformation,
             InvalidLayout,
+        ) as exc:
+            error = _error(exc)
+            if isinstance(error, ApiError):
+                raise error from None
+            return error
+
+    @router.post(
+        "/{document_id}/exports/csv",
+        response_class=Response,
+        responses={200: {"content": {"text/csv": {}}}},
+    )
+    def csv_route(
+        document_id: UUID,
+        body: CsvExportRequest,
+        request: Request,
+        identity: Annotated[SessionIdentity, Depends(mutation_identity)],
+    ) -> Response:
+        try:
+            payload, output = generate_output(
+                engine,
+                document_id=document_id,
+                actor_id=identity.user_id,
+                expected=body.expected,
+                event_id=body.event_id,
+                keys=_keys(request),
+                now=datetime.now(UTC),
+                format="csv",
+                variant=body.variant,
+            )
+            return Response(
+                content=payload,
+                media_type="text/csv; charset=utf-8",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{output.filename}"',
+                    "X-Content-Type-Options": "nosniff",
+                    "X-CSV-Prefixed-Cells": str(output.prefixed_cells),
+                },
+            )
+        except (
+            VersionConflict,
+            DocumentNotFound,
+            ContentUnavailable,
+            ContentKeyUnavailable,
+            ProtectedContentError,
+            CompletionRejected,
+            ExportConflict,
+            InvalidTransformation,
         ) as exc:
             error = _error(exc)
             if isinstance(error, ApiError):

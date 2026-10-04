@@ -142,12 +142,26 @@ def _docx(content: bytes) -> ImportedText:
     return ImportedText(source, "docx", None, notes, layout)
 
 
-def extract_import(filename: str | None, content: bytes) -> ImportedText:
+def extract_import(
+    filename: str | None, content: bytes, csv_delimiter="auto", csv_header="auto"
+) -> ImportedText:
     suffix = PurePath(filename or "").suffix.lower()
+    if suffix == ".csv":
+        from app.contracts import MAX_UTF8_BYTES
+        from app.intake.csv_structure import parse_csv
+
+        if not content or len(content) > MAX_UTF8_BYTES:
+            raise SourceValidationError("CSV files must be nonempty and no larger than 1 MiB.")
+        try:
+            decoded = content.decode("utf-8", errors="strict")
+        except UnicodeDecodeError:
+            raise SourceValidationError("CSV files must be encoded as UTF-8 text.") from None
+        parsed = parse_csv(decoded, csv_delimiter, csv_header)
+        return ImportedText(parsed.source, "csv", None, (), parsed.layout)
     if suffix == ".txt":
         return ImportedText(validate_txt_file(filename, content), "txt", None, ())
     if suffix not in (".pdf", ".docx"):
-        raise SourceValidationError("Choose one UTF-8 TXT, PDF, or Word DOCX file.")
+        raise SourceValidationError("Choose one UTF-8 TXT or CSV, PDF, or Word DOCX file.")
     if not content or len(content) > MAX_FILE_BYTES:
         raise SourceValidationError("PDF and DOCX files must be nonempty and no larger than 8 MiB.")
     try:

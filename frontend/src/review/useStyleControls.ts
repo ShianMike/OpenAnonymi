@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { CategoryDefault, FindingCategory, PreviewView, SourceView, StyleChoice } from '../api/client'
 import type { ReviewFinding } from './textSegments'
+import { columnDefault } from './csvColumns'
 
 export type ReviewAction = CategoryDefault['action']
 export const tokenChoice: StyleChoice = { style: 'token', style_option: null }
@@ -33,7 +34,9 @@ export function availableChoices(preview: PreviewView | null, finding: ReviewFin
 export function preferredChoice(source: SourceView, finding: ReviewFinding, action: ReviewAction, preview: PreviewView | null): StyleChoice {
   const current = finding.action === action ? { style: finding.style, style_option: finding.style_option } : null
   const defaults = source.category_defaults[finding.category]
-  const requested = current ?? (defaults?.action === action ? defaults : tokenChoice)
+  const column = columnDefault(source, finding)
+  const requested = current ?? (column?.default_action === action ? column :
+    defaults?.action === action ? defaults : tokenChoice)
   return availableChoices(preview, finding, action).find((choice) => choiceKey(choice) === choiceKey(requested)) ?? tokenChoice
 }
 export function styleLabel(choice: StyleChoice, action: ReviewAction): string {
@@ -55,12 +58,14 @@ export function styleDisclosure(choice: StyleChoice): string | null {
 }
 
 export function useStyleControls(source: SourceView, finding: ReviewFinding, preview: PreviewView | null) {
-  const [action, setAction] = useState<ReviewAction>(finding.action ?? source.category_defaults[finding.category]?.action ?? source.preferred_action)
+  const column = columnDefault(source, finding)
+  const [action, setAction] = useState<ReviewAction>(finding.action ?? column?.default_action ?? source.category_defaults[finding.category]?.action ?? source.preferred_action)
   const [selected, setSelected] = useState(() => choiceKey(preferredChoice(source, finding, action, preview)))
   const choices = availableChoices(preview, finding, action)
   const choice = choices.find((item) => choiceKey(item) === selected) ?? tokenChoice
   function changeAction(value: ReviewAction) {
     setAction(value); setSelected(choiceKey(preferredChoice(source, finding, value, preview)))
   }
-  return { action, changeAction, choices, choice, selected: choiceKey(choice), setSelected }
+  return { action, changeAction, choices, choice, selected: choiceKey(choice), setSelected,
+    defaultKeepReason: column?.keep_reason ?? undefined }
 }

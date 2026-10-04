@@ -2,6 +2,7 @@ import { CheckCircle2, Sparkles, RotateCw, ChevronDown } from 'lucide-react'
 import type { ReviewController } from './useReviewController'
 import { ReviewSetup } from './ReviewSetup'
 import { LoadingState } from '../loading/LoadingState'
+import { CsvReview } from './CsvReview'
 
 export function ReviewSuggestions({ review }: { review: ReviewController }) {
   if (review.state.kind !== 'ready') return null
@@ -95,6 +96,7 @@ export function ReviewSuggestions({ review }: { review: ReviewController }) {
           </ul>
         </details>
       )}
+      <CsvReview key={`${review.state.saved.version.source_revision_id}:${review.state.saved.version.settings_version}`} review={review} />
       <ReviewSetup review={review} />
     </section>
   )

@@ -3,14 +3,15 @@ import {
   ApiConflictError,
   confirmReview,
   downloadReviewedFile,
+  downloadReviewedCsv,
+  type CsvVariant,
   getCopyPayload,
   getReviewSummary,
   recordCopySuccess,
   type SessionView,
   type ReviewSummaryView,
-  type VersionRef,
 } from '../api/client'
-import { messageFrom, sameVersion, type DraftState } from './reviewState'
+import { messageFrom, sameVersion, type DraftState, type ReviewedDownload } from './reviewState'
 
 type Update<T> = Dispatch<SetStateAction<T>>
 type ExportContext = {
@@ -28,7 +29,7 @@ type ExportContext = {
   setSummary: Update<ReviewSummaryView | null>
   setConflict: Update<boolean>
   setExportPending: Update<boolean>
-  setPreparedDownload: Update<{ url: string; filename: string; version: VersionRef; format: 'txt' | 'docx' } | null>
+  setPreparedDownload: Update<ReviewedDownload | null>
 }
 
 /** Completion and export share the server's version-bound review contract. */
@@ -115,18 +116,19 @@ export function createReviewExportActions({
     }
   }
 
-  async function downloadReviewedOutput(format: 'txt' | 'docx' = 'txt') {
+  async function downloadReviewedOutput(format: 'txt' | 'docx' | 'csv' = 'txt', variant: CsvVariant = 'spreadsheet_safe') {
     if (!documentId || state.kind !== 'ready' || !canExport) return
     setExportPending(true)
     setError(null)
     setNotice(null)
     try {
-      const file = await downloadReviewedFile(
+      const csv = format === 'csv' ? await downloadReviewedCsv(documentId, state.saved.version, crypto.randomUUID(), session.csrf_token, variant) : null
+      const file = csv?.file ?? await downloadReviewedFile(
         documentId,
         state.saved.version,
         crypto.randomUUID(),
         session.csrf_token,
-        format,
+        format as 'txt' | 'docx',
       )
       setState({ kind: 'ready', saved: { ...state.saved, status: 'exported' } })
       setPreparedDownload({
@@ -134,8 +136,10 @@ export function createReviewExportActions({
         filename: `reviewed-${documentId}.${format}`,
         version: state.saved.version,
         format,
+        variant: format === 'csv' ? variant : undefined,
+        prefixed: csv?.prefixed,
       })
-      setNotice(`Reviewed ${format === 'txt' ? 'TXT' : 'Word file'} generated. Use the save link to download it.`)
+      setNotice(format === 'csv' ? `Reviewed ${variant === 'spreadsheet_safe' ? 'spreadsheet-safe' : 'unmodified'} CSV generated. ${csv?.prefixed ?? 0} cells prefixed. Use the save link to download it.` : `Reviewed ${format === 'txt' ? 'TXT' : 'Word file'} generated. Use the save link to download it.`)
       try {
         const result = await getReviewSummary(documentId)
         if (sameVersion(result.version, state.saved.version)) setSummary(result)

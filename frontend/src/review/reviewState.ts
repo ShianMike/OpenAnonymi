@@ -1,5 +1,10 @@
 import type { SourceView, SourceSpan, VersionRef, StyleChoice } from '../api/client'
 
+export type ReviewedDownload = {
+  url: string; filename: string; version: VersionRef;
+  format: 'txt' | 'docx' | 'csv'; variant?: 'spreadsheet_safe' | 'unmodified'; prefixed?: number;
+}
+
 export type DraftState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string; retryable?: boolean }

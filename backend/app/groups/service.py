@@ -191,9 +191,25 @@ def _validated_selection(
 
 
 def _require_block(session, version, source, span, keys):
-    from app.db.source_structures import load_word
+    from app.db.source_structures import load_csv, load_word
+    from app.intake.csv_structure import CsvError, span_cell
     from app.intake.structure import allows_span
 
+    document = session.get(Document, version.document_id)
+    if document.csv_delimiter is not None:
+        layout = load_csv(
+            session,
+            version.source_revision_id,
+            keys,
+            source,
+            document.csv_delimiter,
+            document.csv_has_header,
+        )
+        try:
+            span_cell(layout, source, span.start, span.end)
+        except CsvError as exc:
+            raise ReviewValidationError(exc.code, str(exc)) from None
+        return
     layout = load_word(session, version.source_revision_id, keys, len(source), source)
     if not allows_span(layout, source, span.start, span.end):
         raise ReviewValidationError(
@@ -229,10 +245,27 @@ def exact_matches(
         )
         needle = source[finding.start_offset : finding.end_offset]
         occupied = _rows(session, version)
-        from app.db.source_structures import load_word
+        from app.db.source_structures import load_csv, load_word
+        from app.intake.csv_structure import CsvError, span_cell
         from app.intake.structure import allows_span
 
-        layout = load_word(session, version.source_revision_id, keys, len(source), source)
+        csv_layout = (
+            load_csv(
+                session,
+                version.source_revision_id,
+                keys,
+                source,
+                document.csv_delimiter,
+                document.csv_has_header,
+            )
+            if document.csv_delimiter is not None
+            else None
+        )
+        layout = (
+            load_word(session, version.source_revision_id, keys, len(source), source)
+            if csv_layout is None
+            else None
+        )
         spans: list[SourceSpan] = []
         cursor = 0
         occupied_index = 0
@@ -242,6 +275,11 @@ def exact_matches(
             end = position + len(needle)
             if not allows_span(layout, source, position, end):
                 continue
+            if csv_layout is not None:
+                try:
+                    span_cell(csv_layout, source, position, end)
+                except CsvError:
+                    continue
             while (
                 occupied_index < len(occupied) and occupied[occupied_index].end_offset <= position
             ):

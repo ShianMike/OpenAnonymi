@@ -26,7 +26,7 @@ from app.contracts import (
 )
 from app.db.crypto import KeyRing, ProtectedValue
 from app.db.models import Document, Finding, Preset, SourceRevision
-from app.intake.validation import validate_source
+from app.intake.validation import SourceValidationError, ValidatedSource, validate_source
 from app.lifecycle import require_transition
 from app.workspace.activity import record_event
 from app.workspace.presets import PresetNotFound
@@ -67,6 +67,7 @@ class LoadedSource:
     language: str
     category_defaults: dict
     structure: str
+    csv: dict | None = None
 
 
 def _version(document: Document) -> VersionRef:
@@ -95,12 +96,16 @@ def create_document(
     preset_id: UUID | None = None,
     language: str = "en",
     layout: dict | None = None,
+    layout_kind: str = "docx",
+    validated_source: ValidatedSource | None = None,
 ) -> SavedDocument:
     from app.detection.local_nlp import SUPPORTED_LANGUAGES
 
     if language not in SUPPORTED_LANGUAGES:
         raise StorageValidationError("Choose a supported language.")
-    validated = validate_source(source)
+    validated = validated_source or validate_source(source)
+    if validated_source is not None and validated_source.text != source:
+        raise StorageValidationError("Imported source validation is inconsistent.")
     if now.tzinfo is None:
         raise StorageValidationError("A timezone-aware time is required.")
     if requested_expiry is not None and requested_expiry.tzinfo is None:
@@ -155,6 +160,12 @@ def create_document(
             created_at=now,
             updated_at=now,
             expires_at=expiry,
+            csv_delimiter=layout["delimiter"]
+            if layout is not None and layout_kind == "csv"
+            else None,
+            csv_has_header=layout["has_header"]
+            if layout is not None and layout_kind == "csv"
+            else None,
         )
         session.add(document)
         session.flush()
@@ -170,9 +181,21 @@ def create_document(
         )
         session.add(revision)
         session.flush()
-        from app.db.source_structures import store_word
+        from app.db.source_structures import store_csv, store_word
 
-        store_word(session, revision.id, layout, validated.text, keys, now)
+        if layout is not None and layout_kind == "csv":
+            from app.db.column_rules import load_preset_rules, store_rules
+            from app.intake.column_rules import match_preset
+
+            store_csv(session, revision.id, layout, validated.text, keys, now)
+            rules = (
+                match_preset(load_preset_rules(selected_preset, keys), validated.text, layout)
+                if selected_preset
+                else []
+            )
+            store_rules(session, document, rules, validated.text, layout, keys)
+        else:
+            store_word(session, revision.id, layout, validated.text, keys, now)
         document.current_revision_id = revision.id
         from app.custom_rules.service import snapshot_rules
 
@@ -217,6 +240,9 @@ def load_current_source(
     from app.db.source_structures import SourceStructure
 
     structure = "kept" if session.get(SourceStructure, revision.id) else "none"
+    from app.intake.csv_service import csv_info
+
+    csv = csv_info(session, document, text, keys) if document.csv_delimiter is not None else None
     return LoadedSource(
         document.workspace_id,
         document.owner_id == actor_id,
@@ -233,6 +259,7 @@ def load_current_source(
         document.language,
         deepcopy(document.category_defaults),
         structure,
+        csv,
     )
 
 
@@ -252,7 +279,13 @@ def append_source_revision(
         current = _version(document)
         if expected != current:
             raise VersionConflict(current)
-        from app.db.source_structures import SourceStructure, load_word, store_word
+        from app.db.source_structures import (
+            SourceStructure,
+            load_csv,
+            load_word,
+            store_csv,
+            store_word,
+        )
         from app.intake.structure import realign_word
 
         old_layout, new_layout = None, None
@@ -261,10 +294,40 @@ def append_source_revision(
             old_text = keys.decrypt_text(
                 ProtectedValue(old_revision.source_ciphertext, old_revision.source_key_id)
             )
-            old_layout = load_word(
-                session, current.source_revision_id, keys, len(old_text), old_text
-            )
-            new_layout = realign_word(old_layout, old_text, validated.text)
+            if document.csv_delimiter is not None:
+                from app.intake.csv_structure import CsvError, parse_csv
+
+                old_layout = load_csv(
+                    session,
+                    current.source_revision_id,
+                    keys,
+                    old_text,
+                    document.csv_delimiter,
+                    document.csv_has_header,
+                )
+                try:
+                    new_layout = parse_csv(
+                        validated.text,
+                        document.csv_delimiter,
+                        "true" if document.csv_has_header else "false",
+                        remove_bom=False,
+                    ).layout
+                    if new_layout["columns"] != old_layout["columns"]:
+                        raise SourceValidationError("Column count changed.")
+                except SourceValidationError:
+                    raise CsvError(
+                        "csv_structure_invalid",
+                        "This edit changes the CSV structure or exceeds its limits. Keep the same column count.",
+                    ) from None
+            else:
+                old_layout = load_word(
+                    session, current.source_revision_id, keys, len(old_text), old_text
+                )
+                new_layout = realign_word(old_layout, old_text, validated.text)
+        elif document.csv_delimiter is not None:
+            from app.db.crypto import ProtectedContentError
+
+            raise ProtectedContentError("Protected CSV structure is unavailable.")
         previous_number = session.scalar(
             select(func.max(SourceRevision.revision_number)).where(
                 SourceRevision.document_id == document_id
@@ -283,7 +346,10 @@ def append_source_revision(
         )
         session.add(revision)
         session.flush()
-        store_word(session, revision.id, new_layout, validated.text, keys, now)
+        if document.csv_delimiter is not None:
+            store_csv(session, revision.id, new_layout, validated.text, keys, now)
+        else:
+            store_word(session, revision.id, new_layout, validated.text, keys, now)
         document.current_revision_id = revision.id
         from app.groups.undo_store import clear_document
 

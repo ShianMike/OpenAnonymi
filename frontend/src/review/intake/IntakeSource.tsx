@@ -4,6 +4,8 @@ import { AlignLeft, FileText, Upload, X } from 'lucide-react'
 import type { IntakeController } from './useIntake'
 import { InlineNotice } from '../../ui/WorkspaceControls'
 import { GlassTextarea } from '../../ui/GlassTextarea'
+import { GlassSelect } from '../../ui/GlassSelect'
+import type { CsvDelimiter } from '../../api/client'
 
 export function IntakeSource({ intake }: { intake: IntakeController }) {
   const [dragging, setDragging] = useState(false)
@@ -99,14 +101,14 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
           >
             <Upload size={27} strokeWidth={1.3} aria-hidden="true" />
             <strong>{intake.file ? intake.file.name : 'Drop your document here'}</strong>
-            <span>TXT · 1 MiB max · PDF / Word DOCX · 8 MiB max</span>
+            <span>TXT / CSV · 1 MiB max · PDF / Word DOCX · 8 MiB max</span>
             <label className="intake-file-picker">
               <input
                 ref={inputRef}
                 id="source-file"
                 type="file"
-                accept=".txt,.pdf,.docx,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                aria-label="Choose one TXT, PDF or DOCX file"
+                accept=".txt,.csv,.pdf,.docx,text/plain,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                aria-label="Choose one TXT, CSV, PDF or DOCX file"
                 disabled={intake.pending}
                 onChange={(event) => void intake.chooseFile(event.currentTarget.files?.[0] ?? null)}
               />
@@ -131,6 +133,20 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
             <LoadingState label="Reading file text…" compact />
           )}
           {intake.fileError && <InlineNotice error>{intake.fileError}</InlineNotice>}
+          {intake.file && /\.csv$/i.test(intake.file.name) && <div className="csv-intake-format">
+            <label className="field-label" htmlFor="csv-delimiter">CSV delimiter</label>
+            <GlassSelect id="csv-delimiter" value={intake.csvDelimiter} disabled={intake.pending}
+              onValueChange={(value) => intake.changeCsvFormat(value as CsvDelimiter | 'auto', intake.csvHeader)}>
+              <option value="auto">Detect automatically</option><option value=",">Comma</option><option value=";">Semicolon</option><option value={'\t'}>Tab</option><option value="|">Pipe</option>
+            </GlassSelect>
+            <label className="field-label" htmlFor="csv-header">First row</label>
+            <GlassSelect id="csv-header" value={intake.csvHeader} disabled={intake.pending}
+              onValueChange={(value) => intake.changeCsvFormat(intake.csvDelimiter, value as typeof intake.csvHeader)}>
+              <option value="auto">Detect column names</option><option value="true">Column names</option><option value="false">Data</option>
+            </GlassSelect>
+            {intake.csvPreview && <p role="status">Detected: {{ ',': 'comma', ';': 'semicolon', '\t': 'tab', '|': 'pipe' }[intake.csvPreview.delimiter]}-separated; first row {intake.csvPreview.has_header ? 'has column names' : 'is data'}. {intake.csvPreview.columns} columns · {intake.csvPreview.data_rows} data rows.</p>}
+            <p className="field-note">Up to 50 columns, 1,000 data rows and 10,000 characters per cell. Suggestions stay inside a cell. Check these settings before saving.</p>
+          </div>}
           {intake.fileNotes.map((note) => <p key={note} className="field-note">{note}</p>)}
           {intake.fileText && (
             <>
@@ -140,7 +156,7 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
               <GlassTextarea id="file-preview" readOnly value={intake.fileText} />
             </>
           )}
-          <p className="field-note">Check the extracted text. Original formatting and metadata are not exported; the reviewed result downloads as TXT. The filename is not saved as your title.</p>
+          <p className="field-note">Check the extracted text. Reviewed downloads include TXT, Word and, for CSV input, quoted CSV. Uploaded filenames are not saved as titles.</p>
         </div>
       )}
       <div

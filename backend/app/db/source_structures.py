@@ -36,7 +36,11 @@ class SourceStructure(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     __table_args__ = (
         CheckConstraint("kind IN ('docx','csv')", name="valid_kind"),
-        CheckConstraint("block_count BETWEEN 1 AND 20000", name="bounded_block_count"),
+        CheckConstraint(
+            "block_count >= 1 AND ((kind='docx' AND block_count<=20000) OR "
+            "(kind='csv' AND block_count<=50050))",
+            name="bounded_block_count",
+        ),
     )
 
 
@@ -71,6 +75,44 @@ def load_word(session, revision_id, keys: KeyRing, length, source=None):
         return layout
     except (InvalidLayout, TypeError, ValueError, KeyError):
         raise ProtectedContentError("Protected layout is unavailable.") from None
+
+
+def store_csv(session, revision_id, layout, source, keys: KeyRing, now):
+    from app.intake.csv_structure import validate_csv_layout
+
+    validate_csv_layout(layout, source)
+    protected = keys.encrypt_text(json.dumps(layout, separators=(",", ":")))
+    session.add(
+        SourceStructure(
+            revision_id=revision_id,
+            kind="csv",
+            layout_ciphertext=protected.ciphertext,
+            key_id=protected.key_id,
+            block_count=sum(map(len, layout["records"])),
+            created_at=now,
+        )
+    )
+
+
+def load_csv(session, revision_id, keys: KeyRing, source, delimiter, has_header):
+    from app.intake.csv_structure import parse_csv, validate_csv_layout
+    from app.intake.validation import SourceValidationError
+
+    row = session.get(SourceStructure, revision_id)
+    if row is None or row.kind != "csv":
+        raise ProtectedContentError("Protected CSV structure is unavailable.")
+    try:
+        layout = json.loads(keys.decrypt_text(ProtectedValue(row.layout_ciphertext, row.key_id)))
+        validate_csv_layout(layout, source)
+        if sum(map(len, layout["records"])) != row.block_count:
+            raise InvalidLayout("Invalid protected layout.")
+        if layout["delimiter"] != delimiter or layout["has_header"] != has_header:
+            layout = parse_csv(
+                source, delimiter, "true" if has_header else "false", remove_bom=False
+            ).layout
+        return layout
+    except (SourceValidationError, InvalidLayout, TypeError, ValueError, KeyError):
+        raise ProtectedContentError("Protected CSV structure is unavailable.") from None
 
 
 @event.listens_for(Session, "before_flush")

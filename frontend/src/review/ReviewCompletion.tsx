@@ -6,11 +6,13 @@ import { LoadingMark } from '../loading/LoadingMark'
 import { ReviewerCompletion } from '../team/ReviewerCompletion'
 import { useState } from 'react'
 import { GlassSelect } from '../ui/GlassSelect'
+import type { CsvVariant } from '../api/client'
 
 const styleCountLabels: Record<string, string> = { stand_in: 'Fictional stand-ins', date_shift: 'Shifted dates', partial_mask: 'Partial masks', generalize: 'Generalized dates' }
 
 export function ReviewCompletion({ review }: { review: ReviewController }) {
-  const [format, setFormat] = useState<'txt' | 'docx'>('txt')
+  const [format, setFormat] = useState<'txt' | 'docx' | 'csv'>('txt')
+  const [csvVariant, setCsvVariant] = useState<CsvVariant>('spreadsheet_safe')
   const { state, canConfirm, canExport, currentSummary, preparedDownload } = review
   if (state.kind !== 'ready') return null
   if (!review.canEdit) return <ReviewerCompletion review={review} />
@@ -88,23 +90,33 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
           <GlassSelect id="download-format" value={format} disabled={review.exportPending}
             onValueChange={(value) => setFormat(value as typeof format)}>
             <option value="txt">Plain text (TXT)</option><option value="docx">Word (DOCX)</option>
+            {state.saved.csv && <option value="csv">CSV</option>}
           </GlassSelect></div>
         <button
           type="button"
-          onClick={() => void review.downloadReviewedOutput(format)}
+          onClick={() => void review.downloadReviewedOutput(format, csvVariant)}
           disabled={!canExport}
         >
           {review.exportPending ? <LoadingMark small /> : <Download size={16} aria-hidden="true" />}
-          {review.exportPending ? 'Preparing output…' : format === 'txt' ? 'Generate reviewed TXT' : 'Generate reviewed Word'}
+          {review.exportPending ? 'Preparing output…' : format === 'txt' ? 'Generate reviewed TXT' : format === 'docx' ? 'Generate reviewed Word' : 'Generate reviewed CSV'}
         </button>
       </div>
+      {format === 'csv' && <div className="csv-export-options">
+        <label className="field-label" htmlFor="csv-export-variant">CSV variant</label>
+        <GlassSelect id="csv-export-variant" value={csvVariant} disabled={review.exportPending} onValueChange={(value) => setCsvVariant(value as CsvVariant)}>
+          <option value="spreadsheet_safe">Spreadsheet-safe (default)</option><option value="unmodified">Unmodified cell values</option>
+        </GlassSelect>
+        {csvVariant === 'unmodified' && <p role="alert" className="field-note">Opening this file in a spreadsheet can run formulas from the data.</p>}
+        <p className="field-note">Spreadsheet-safe CSV prefixes formula-leading cells with an apostrophe, including negative numbers. Apostrophes are visible to other programs. A spreadsheet can reactivate a formula after the file is edited and saved.</p>
+      </div>}
       {preparedDownload &&
         canExport &&
         sameVersion(preparedDownload.version, state.saved.version) && (
           <p>
             <a href={preparedDownload.url} download={preparedDownload.filename}>
-              {preparedDownload.format === 'txt' ? 'Save reviewed TXT' : 'Save reviewed Word'}
+              {preparedDownload.format === 'txt' ? 'Save reviewed TXT' : preparedDownload.format === 'docx' ? 'Save reviewed Word' : `Save reviewed CSV (${preparedDownload.variant === 'unmodified' ? 'unmodified' : 'spreadsheet-safe'})`}
             </a>
+            {preparedDownload.format === 'csv' && <span> · {preparedDownload.prefixed ?? 0} cells prefixed</span>}
           </p>
         )}
       {currentSummary && !review.dirty && !review.settingsDirty && (

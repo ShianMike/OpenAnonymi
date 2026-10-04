@@ -143,6 +143,34 @@ def load_scan_state(
         return _snapshot(session, version, run)
 
 
+def invalidate_scan_settings(session, document, actor_id, now, *, copy_columns=True):
+    """All scan-setting mutations share versioning, undo and review invalidation."""
+    previous_settings = document.settings_version
+    document.settings_version += 1
+    from app.custom_rules.service import copy_snapshot
+    from app.db.column_rules import copy_rules
+    from app.groups.undo_store import clear_document
+
+    clear_document(session, document.id)
+    copy_snapshot(session, document, previous_settings)
+    if copy_columns:
+        copy_rules(session, document, previous_settings)
+    document.decision_version += 1
+    if document.status != DocumentStatus.DRAFT:
+        require_transition(DocumentStatus(document.status), DocumentStatus.DRAFT)
+    document.status = DocumentStatus.DRAFT
+    document.updated_at = now
+    session.flush()
+    record_event(
+        session,
+        workspace_id=document.workspace_id,
+        actor_id=actor_id,
+        document_id=document.id,
+        event_code="scan_settings_changed",
+        now=now,
+    )
+
+
 def change_scan_settings(
     engine: Engine,
     *,
@@ -182,28 +210,7 @@ def change_scan_settings(
         document.category_settings = encoded_categories
         document.phone_region = region
         document.language = selected_language
-        previous_settings = document.settings_version
-        document.settings_version += 1
-        from app.groups.undo_store import clear_document
-
-        clear_document(session, document.id)
-        from app.custom_rules.service import copy_snapshot
-
-        copy_snapshot(session, document, previous_settings)
-        document.decision_version += 1
-        if document.status != DocumentStatus.DRAFT:
-            require_transition(DocumentStatus(document.status), DocumentStatus.DRAFT)
-        document.status = DocumentStatus.DRAFT
-        document.updated_at = now
-        session.flush()
-        record_event(
-            session,
-            workspace_id=document.workspace_id,
-            actor_id=actor_id,
-            document_id=document.id,
-            event_code="scan_settings_changed",
-            now=now,
-        )
+        invalidate_scan_settings(session, document, actor_id, now)
         return _version(document)
 
 
@@ -288,10 +295,25 @@ def scan_document(
         source = keys.decrypt_text(
             ProtectedValue(revision.source_ciphertext, revision.source_key_id)
         )
-        from app.db.source_structures import load_word
+        from app.db.source_structures import load_csv, load_word
         from app.intake.structure import allows_span
 
-        layout = load_word(session, current.source_revision_id, keys, len(source), source)
+        csv_layout, column_rules = None, []
+        if document.csv_delimiter is not None:
+            from app.db.column_rules import load_rules
+
+            csv_layout = load_csv(
+                session,
+                current.source_revision_id,
+                keys,
+                source,
+                document.csv_delimiter,
+                document.csv_has_header,
+            )
+            column_rules = load_rules(session, document, keys)
+            layout = None
+        else:
+            layout = load_word(session, current.source_revision_id, keys, len(source), source)
         categories = {
             FindingCategory(value) for value in document.category_settings.split(",") if value
         }
@@ -330,12 +352,19 @@ def scan_document(
         attempt_count = run.attempt_count
 
     try:
-        detected = detect_suggestions(source, categories, region, language)
-        from app.custom_rules.matching import detect_custom
+        if csv_layout is not None:
+            from app.detection.columns import detect_columns
 
-        detected.extend(
-            detect_custom(source, [(rule.id, rule.version, rule) for rule in custom_rules])
-        )
+            detected = detect_columns(
+                source, csv_layout, column_rules, categories, region, language, custom_rules
+            )
+        else:
+            detected = detect_suggestions(source, categories, region, language)
+            from app.custom_rules.matching import detect_custom
+
+            detected.extend(
+                detect_custom(source, [(rule.id, rule.version, rule) for rule in custom_rules])
+            )
         unique = {}
         for suggestion in detected:
             unique.setdefault(

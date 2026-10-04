@@ -34,7 +34,7 @@ function Choices({ finding, review, source }: { finding: ReviewFinding; review: 
     {finding.category === 'date' && !finding.date_format && <p className="field-note">This date could not be parsed. A category label or [REDACTED] is available.</p>}
     {fallback && <p role="status" className="field-note">A unique fictional replacement could not be found. This occurrence uses its category label.</p>}
     <button type="button" className="button-primary" disabled={blocked}
-      onClick={() => { setAttempted(true); void review.changeReview('decision', finding.finding_id, { action: mode.action, choice: mode.choice }) }}>Apply style to this occurrence</button>
+      onClick={() => { setAttempted(true); void review.changeReview('decision', finding.finding_id, { action: mode.action, choice: mode.choice, keepReason: mode.action === 'keep' ? mode.defaultKeepReason : undefined }) }}>Apply style to this occurrence</button>
     {linked.length > 1 && <button type="button" disabled={blocked} onClick={(event) => {
       if (review.state.kind !== 'ready') return
       groupTriggerRef.current = event.currentTarget

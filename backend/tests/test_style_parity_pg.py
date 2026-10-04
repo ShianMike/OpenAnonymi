@@ -1,5 +1,7 @@
 """Real decisions, current-version confirmation and identical preview/copy/TXT."""
 
+import csv
+import io
 import json
 from datetime import UTC, datetime, timedelta, timezone
 from uuid import UUID, uuid4
@@ -10,11 +12,14 @@ from sqlalchemy.orm import Session
 from app.db.crypto import KeyRing
 from app.db.models import Document
 from app.db.replacement_secrets import DocumentReplacementSecret
+from tests.csv_support import upload_csv
 from tests.docx_fixtures import read_word
+from tests.docx_support import mark
 from tests.intake_support import _login
 from tests.styles_support import decide, draft
 
 
+@pytest.mark.parametrize("csv_mode", [False, True], ids=["plain", "csv"])
 @pytest.mark.parametrize(
     "value,category,action,style,option,expected",
     [
@@ -59,11 +64,20 @@ from tests.styles_support import decide, draft
         ("2000-01-01", "date", "redact", "generalize", "age_band", "aged 20–29"),
     ],
 )
-def test_exact_style_parity(intake_site, value, category, action, style, option, expected):
+def test_exact_style_parity(
+    intake_site, value, category, action, style, option, expected, csv_mode
+):
     owner, _, engine, workspace, _ = intake_site
     headers = _login(owner, "intake-owner@example.invalid")
     prefix = "😀 DOB: " if option == "age_band" else "😀 Detail: "
-    base, state = draft(owner, headers, workspace, prefix + value, [(value, category)])
+    if csv_mode:
+        source = f"Value,Other\n{prefix}{value},Unmarked\n"
+        base, state, _ = upload_csv(owner, headers, workspace, source)
+        state = mark(owner, headers, base, state, source, value, category)
+        expected_text = f"Value,Other\n{prefix}{expected},Unmarked\n"
+    else:
+        base, state = draft(owner, headers, workspace, prefix + value, [(value, category)])
+        expected_text = prefix + expected
     if style == "date_shift":
         keys = KeyRing.from_settings(owner.app.state.settings)
         protected = keys.encrypt_text(
@@ -83,7 +97,7 @@ def test_exact_style_parity(intake_site, value, category, action, style, option,
     state = saved.json()
     assert state["findings"][0]["style"] == style and state["findings"][0]["style_option"] == option
     preview = owner.get(base + "/preview").json()
-    assert preview["text"] == prefix + expected and preview["status"] == "complete"
+    assert preview["text"] == expected_text and preview["status"] == "complete"
     assert preview["version"] == state["version"]
     completed = owner.post(
         base + "/complete",
@@ -107,6 +121,17 @@ def test_exact_style_parity(intake_site, value, category, action, style, option,
         headers=headers,
     )
     assert word.status_code == 200 and read_word(word.content)[0] == preview["text"]
+    if csv_mode:
+        for variant in ("spreadsheet_safe", "unmodified"):
+            exported = owner.post(
+                base + "/exports/csv",
+                json={"expected": state["version"], "event_id": str(uuid4()), "variant": variant},
+                headers=headers,
+            )
+            assert exported.status_code == 200, exported.text
+            assert list(
+                csv.reader(io.StringIO(exported.content.decode("utf-8-sig"), newline=""))
+            ) == [["Value", "Other"], [prefix + expected, "Unmarked"]]
     summary = owner.get(base + "/summary").json()
     assert summary["counts_by_action_and_style"][action][style] == 1
     assert summary["fictional_replacements"] == 0

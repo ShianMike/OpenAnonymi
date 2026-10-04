@@ -30,6 +30,9 @@ class AuthorizedOutput:
     text: str
     filename: str
     layout: dict | None = field(default=None, repr=False)
+    csv_cells: tuple[tuple[str, ...], ...] | None = field(default=None, repr=False)
+    csv_delimiter: str | None = None
+    prefixed_cells: int = 0
 
 
 def _current_output(
@@ -53,7 +56,9 @@ def _current_output(
             "review_not_completed", "The completed review no longer has a valid output."
         )
     layout = None
-    if format == "docx":
+    if format == "csv" and preview.csv_cells is None:
+        raise ExportConflict("CSV output requires an imported CSV document.")
+    if format == "docx" and document.csv_delimiter is None:
         from app.db.models import SourceRevision
         from app.db.source_structures import load_word
         from app.intake.structure import output_layout
@@ -71,6 +76,8 @@ def _current_output(
             text=preview.text,
             filename=f"reviewed-{document.id}.{format}",
             layout=layout,
+            csv_cells=preview.csv_cells,
+            csv_delimiter=document.csv_delimiter,
         ),
         completion,
     )
@@ -179,8 +186,9 @@ def generate_output(
     keys: KeyRing,
     now: datetime,
     format: str = "txt",
+    variant: str = "spreadsheet_safe",
 ) -> tuple[bytes, AuthorizedOutput]:
-    if format not in {"txt", "docx"}:
+    if format not in {"txt", "docx", "csv"}:
         raise ExportConflict("Choose a supported reviewed output format.")
     with Session(engine) as session, session.begin():
         document = owned_document(session, document_id, actor_id, now, lock=True)
@@ -189,6 +197,14 @@ def generate_output(
             from app.exports.docx import generate_word
 
             payload = generate_word(output.text, output.layout, now)
+        elif format == "csv":
+            from dataclasses import replace
+
+            from app.exports.csv_export import generate_csv
+
+            csv = generate_csv(output.csv_cells, output.csv_delimiter, variant)
+            payload = csv.payload
+            output = replace(output, prefixed_cells=csv.prefixed_cells)
         else:
             payload = output.text.encode("utf-8")
         _record_event(

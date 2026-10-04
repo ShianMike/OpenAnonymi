@@ -161,30 +161,15 @@ def test_standins_consistent_unique_source_excluded_and_seed_scoped():
 
 
 def test_exact_standin_fixtures_for_every_supported_category():
-    categories = ("person", "organization", "location", "address", "email", "url", "phone")
-    originals = (
-        "Nora Caldwell",
-        "Original Co",
-        "Original Place",
-        "1 Original St",
-        "original@example.test",
-        "https://original.test",
-        "+44 7400 123456",
-    )
+    from tests.style_fixtures import STAND_IN_FIXTURES
+
     rows = [
         styles.StandInGroup(UUID(int=i + 1), category, category.upper() + "_001", (value,))
-        for i, (category, value) in enumerate(zip(categories, originals, strict=True))
+        for i, (category, value, _expected) in enumerate(STAND_IN_FIXTURES)
     ]
-    expected = (
-        "Fiora Flintdale",
-        "Wise Pond Ltd",
-        "Maplehaven",
-        "3392 Pine Haven Road, Dawnhaven",
-        "emina.pinegrove@example.net",
-        "https://example.org/port-53223",
-        "+447700900686",
-    )
-    assert styles.stand_ins(bytes(32), rows, " ".join(originals), "GB") == {
+    expected = [expected for _category, _value, expected in STAND_IN_FIXTURES]
+    source = " ".join(value for _category, value, _expected in STAND_IN_FIXTURES)
+    assert styles.stand_ins(bytes(32), rows, source, "GB") == {
         row.id: value for row, value in zip(rows, expected, strict=True)
     }
 

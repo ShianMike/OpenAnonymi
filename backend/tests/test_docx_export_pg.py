@@ -11,6 +11,7 @@ from app.cleanup.service import purge_unavailable_content
 from app.db.models import Document, ExportEvent, Membership
 from app.db.source_structures import SourceStructure
 from app.exports.docx import MEDIA_TYPE, PARTS_ALLOWLIST
+from tests.csv_support import upload_csv
 from tests.docx_fixtures import SENTINEL, read_word, simple_docx, structured_docx
 from tests.docx_support import confirm, mark, output, upload
 from tests.intake_support import _login
@@ -117,14 +118,20 @@ def test_structured_word_has_style_parity_fresh_parts_no_hidden_original_and_ide
     assert owner.get(base + "/source").json()["text"] == text
 
 
-def test_same_gate_requires_exact_completion_owner_and_active_second_approval(intake_site):
+@pytest.mark.parametrize("format", ["docx", "csv"])
+def test_same_gate_requires_exact_completion_owner_and_active_second_approval(intake_site, format):
     owner, reviewer, engine, workspace, _actor = intake_site
     headers, rh = (
         _login(owner, "intake-owner@example.invalid"),
         _login(reviewer, "intake-other@example.invalid"),
     )
     reviewer_id = reviewer.get("/api/v1/auth/session").json()["user_id"]
-    base, state, _ = upload(owner, headers, workspace, simple_docx("Fictional review"))
+    if format == "csv":
+        base, state, _ = upload_csv(
+            owner, headers, workspace, "Value,Other\nFictional review,Unmarked\n"
+        )
+    else:
+        base, state, _ = upload(owner, headers, workspace, simple_docx("Fictional review"))
     handoff = owner.put(
         base + "/handoff",
         json={"expected": state["version"], "reviewer_id": reviewer_id, "require_approval": True},
@@ -133,8 +140,8 @@ def test_same_gate_requires_exact_completion_owner_and_active_second_approval(in
     assert handoff.status_code == 200
     state = owner.get(base + "/findings").json()
     confirm(owner, headers, base, state)
-    assert output(owner, headers, base, state).status_code == 409
-    assert output(reviewer, rh, base, state).status_code == 404
+    assert output(owner, headers, base, state, format).status_code == 409
+    assert output(reviewer, rh, base, state, format).status_code == 404
     assert (
         reviewer.post(
             base + "/approval",
@@ -143,10 +150,10 @@ def test_same_gate_requires_exact_completion_owner_and_active_second_approval(in
         ).status_code
         == 200
     )
-    assert output(owner, headers, base, state).status_code == 200
+    assert output(owner, headers, base, state, format).status_code == 200
     assert (
         owner.post(
-            base + "/exports/docx",
+            base + "/exports/" + format,
             json={"expected": state["version"], "event_id": str(uuid4())},
             headers={"Origin": "http://localhost:5173"},
         ).status_code
@@ -154,12 +161,12 @@ def test_same_gate_requires_exact_completion_owner_and_active_second_approval(in
     )
     with Session(engine) as session, session.begin():
         session.get(Membership, (workspace, UUID(reviewer_id))).revoked_at = datetime.now(UTC)
-    assert output(owner, headers, base, state).status_code == 409
+    assert output(owner, headers, base, state, format).status_code == 409
     with Session(engine) as session, session.begin():
         document = session.get(Document, UUID(state["version"]["document_id"]))
         document.created_at = datetime.now(UTC) - timedelta(days=2)
         document.expires_at = datetime.now(UTC) - timedelta(seconds=1)
-    assert output(owner, headers, base, state).status_code == 410
+    assert output(owner, headers, base, state, format).status_code == 410
     assert (
         purge_unavailable_content(engine, now=datetime.now(UTC), batch_size=100).documents_purged
         >= 1

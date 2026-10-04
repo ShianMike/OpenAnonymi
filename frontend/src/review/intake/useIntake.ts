@@ -12,6 +12,8 @@ import {
   type PresetView,
   type SessionView,
   type FindingCategory,
+  type CsvInfo,
+  type CsvDelimiter,
 } from '../../api/client'
 
 type Defaults =
@@ -38,6 +40,9 @@ export function useIntake(session: SessionView) {
   const [fileLoading, setFileLoading] = useState(false)
   const [fileNotes, setFileNotes] = useState<string[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
+  const [csvDelimiter, setCsvDelimiter] = useState<CsvDelimiter | 'auto'>('auto')
+  const [csvHeader, setCsvHeader] = useState<'auto' | 'true' | 'false'>('auto')
+  const [csvPreview, setCsvPreview] = useState<CsvInfo | null>(null)
   const [title, setTitle] = useState('')
   const [emailEnabled, setEmailEnabled] = useState(true)
   const [phoneEnabled, setPhoneEnabled] = useState(true)
@@ -75,12 +80,13 @@ export function useIntake(session: SessionView) {
 
   const fileAttempt = useRef(0)
 
-  async function chooseFile(selected: File | null, selectionCount = 1) {
+  async function chooseFile(selected: File | null, selectionCount = 1, delimiter = csvDelimiter, header = csvHeader) {
     const request = ++fileAttempt.current
     setFile(selected)
     setFileText('')
     setFileError(null)
     setFileNotes([])
+    setCsvPreview(null)
     setFileLoading(false)
     if (!selected) return
     if (selectionCount !== 1) {
@@ -88,26 +94,32 @@ export function useIntake(session: SessionView) {
       return
     }
     setFileLoading(true)
-    if (!/\.(txt|pdf|docx)$/i.test(selected.name)) {
-      setFileError('Choose one UTF-8 TXT, PDF or Word DOCX file.')
+    if (!/\.(txt|csv|pdf|docx)$/i.test(selected.name)) {
+      setFileError('Choose one UTF-8 TXT or CSV, PDF or Word DOCX file.')
       setFileLoading(false)
       return
     }
-    if (selected.size > (/\.txt$/i.test(selected.name) ? 1_048_576 : 8_388_608)) {
-      setFileError('TXT supports 1 MiB; PDF and DOCX support 8 MiB.')
+    if (selected.size > (/\.(txt|csv)$/i.test(selected.name) ? 1_048_576 : 8_388_608)) {
+      setFileError('TXT and CSV support 1 MiB; PDF and DOCX support 8 MiB.')
       setFileLoading(false)
       return
     }
     try {
-      const result = await importPreview(workspaceId, selected, session.csrf_token)
+      const result = await importPreview(workspaceId, selected, session.csrf_token, delimiter, header)
       if (fileAttempt.current !== request) return
       setFileText(result.text)
       setFileNotes(result.notes)
+      setCsvPreview(result.csv ?? null)
     } catch (cause) {
       if (fileAttempt.current === request) setFileError(messageFrom(cause))
     } finally {
       if (fileAttempt.current === request) setFileLoading(false)
     }
+  }
+
+  function changeCsvFormat(delimiter: typeof csvDelimiter, header: typeof csvHeader) {
+    setCsvDelimiter(delimiter); setCsvHeader(header)
+    if (file) void chooseFile(file, 1, delimiter, header)
   }
 
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -118,7 +130,7 @@ export function useIntake(session: SessionView) {
     setError(null)
     const categories = [...(emailEnabled ? ['email'] : []), ...(phoneEnabled ? ['phone'] : []), ...extraCategories]
     try {
-      const saved = mode === 'file' && file ? await createFileDraft(workspaceId, file, title.trim(), categories, phoneRegion, retentionDays, session.csrf_token, presetId || undefined, language) : await createPastedDraft({ workspace_id: workspaceId,
+      const saved = mode === 'file' && file ? await createFileDraft(workspaceId, file, title.trim(), categories, phoneRegion, retentionDays, session.csrf_token, presetId || undefined, language, csvDelimiter, csvHeader) : await createPastedDraft({ workspace_id: workspaceId,
         source: mode === 'paste' ? source : fileText, title: title.trim() || null,
         categories: categories as FindingCategory[], phone_region: phoneRegion, language,
         retention_days: retentionDays, preset_id: presetId || null,
@@ -205,6 +217,10 @@ export function useIntake(session: SessionView) {
     fileLoading,
     fileError,
     fileNotes,
+    csvDelimiter,
+    csvHeader,
+    csvPreview,
+    changeCsvFormat,
     chooseFile,
     title,
     setTitle,

@@ -22,6 +22,7 @@ from app.groups.service import (
     _version,
 )
 from app.groups.undo_store import capture, remember
+from app.intake.csv_structure import CsvError
 from app.transformations.secrets import ensure_secret
 from app.transformations.styles import StyleUnavailable, validate_style
 from app.workspace.activity import record_event
@@ -78,6 +79,22 @@ def decide_findings(
                 source = keys.decrypt_text(
                     ProtectedValue(revision.source_ciphertext, revision.source_key_id)
                 )
+                values = {row.id: source[row.start_offset : row.end_offset] for row in rows}
+                if document.csv_delimiter is not None:
+                    from app.db.source_structures import load_csv
+                    from app.intake.csv_review import logical_finding_values
+
+                    layout = load_csv(
+                        session,
+                        revision.id,
+                        keys,
+                        source,
+                        document.csv_delimiter,
+                        document.csv_has_header,
+                    )
+                    values = logical_finding_values(
+                        source, layout, [(row.id, row.start_offset, row.end_offset) for row in rows]
+                    )
                 secret = (
                     ensure_secret(session, document.id, keys, now)
                     if style in {"stand_in", "date_shift"}
@@ -89,13 +106,15 @@ def decide_findings(
                         style,
                         style_option,
                         row.category,
-                        value=source[row.start_offset : row.end_offset],
+                        value=values[row.id],
                         date_format=row.date_format,
                         region=document.phone_region,
                         offset=secret.offset if secret else None,
                         created=document.created_at.astimezone(UTC).date(),
                     )
         except StyleUnavailable as error:
+            raise ReviewValidationError(error.code, str(error)) from None
+        except CsvError as error:
             raise ReviewValidationError(error.code, str(error)) from None
         before = capture(session, rows)
         if action == DecisionAction.LABEL:

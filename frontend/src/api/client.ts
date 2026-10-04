@@ -16,6 +16,12 @@ export type CleanupHealthView = components['schemas']['CleanupHealthView']
 export type IntakeDefaultsView = components['schemas']['IntakeDefaultsView']
 export type SavedDraftView = components['schemas']['SavedDraftView']
 export type SourceView = components['schemas']['SourceView']
+export type CsvInfo = components['schemas']['CsvInfo']
+export type ColumnRule = components['schemas']['ColumnRule']
+export type CsvSettingsView = components['schemas']['CsvSettingsView']
+export type CsvDelimiter = CsvInfo['delimiter']
+export type CsvVariant = 'spreadsheet_safe' | 'unmodified'
+export type ColumnDecisionRequest = components['schemas']['ColumnDecisionRequest']
 export type VersionRef = components['schemas']['VersionRef']
 export type CreateDraftRequest = components['schemas']['CreateDraftRequest']
 export type ScanView = components['schemas']['ScanView']
@@ -406,6 +412,7 @@ export async function createFileDraft(
   workspaceId: string, file: File, title: string, categories: string[],
   phoneRegion: string, retentionDays: number, csrfToken: string, presetId?: string,
   language = 'en',
+  csvDelimiter: CsvDelimiter | 'auto' = 'auto', csvHeader: 'auto' | 'true' | 'false' = 'auto',
 ): Promise<SavedDraftView> {
   const form = new FormData()
   form.append('workspace_id', workspaceId)
@@ -414,6 +421,8 @@ export async function createFileDraft(
   form.append('categories', categories.join(','))
   form.append('phone_region', phoneRegion)
   form.append('language', language)
+  form.append('csv_delimiter', csvDelimiter)
+  form.append('csv_header', csvHeader)
   form.append('retention_days', String(retentionDays))
   if (presetId) form.append('preset_id', presetId)
   return trackedRequest(apiUrl('/documents/from-file'), {
@@ -430,6 +439,29 @@ export async function createFileDraft(
 
 export function getDraft(documentId: string, signal?: AbortSignal): Promise<SourceView> {
   return get<SourceView>(`/documents/${encodeURIComponent(documentId)}/source`, signal)
+}
+
+export function updateCsvSettings(documentId: string, expected: number, delimiter: CsvDelimiter, hasHeader: boolean, csrf: string): Promise<CsvSettingsView> {
+  return sendJson<CsvSettingsView>('PUT', `/documents/${encodeURIComponent(documentId)}/csv-settings`,
+    { expected_settings_version: expected, delimiter, has_header: hasHeader }, csrf)
+}
+export function updateColumnRules(documentId: string, expected: number, rules: ColumnRule[], csrf: string): Promise<CsvSettingsView> {
+  return sendJson<CsvSettingsView>('PUT', `/documents/${encodeURIComponent(documentId)}/column-rules`,
+    { expected_settings_version: expected, rules }, csrf)
+}
+export function decideColumn(documentId: string, column: number, body: ColumnDecisionRequest, csrf: string): Promise<FindingsView> {
+  return post<FindingsView>(`/documents/${encodeURIComponent(documentId)}/columns/${column}/decision`, body, csrf)
+}
+export function downloadReviewedCsv(documentId: string, expected: VersionRef, eventId: string, csrf: string, variant: CsvVariant): Promise<{ file: Blob; prefixed: number }> {
+  return trackedRequest(apiUrl(`/documents/${encodeURIComponent(documentId)}/exports/csv`), {
+    method: 'POST', credentials: API_CREDENTIALS, cache: 'no-store',
+    headers: { Accept: 'text/csv', 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+    body: JSON.stringify({ expected, event_id: eventId, variant }),
+  }, async (response) => {
+    await requireSuccess(response)
+    const prefixed = Number(response.headers.get('X-CSV-Prefixed-Cells'))
+    return { file: await response.blob(), prefixed: Number.isFinite(prefixed) ? prefixed : 0 }
+  })
 }
 
 export function saveDraftSource(

@@ -2,7 +2,7 @@ import type { Dispatch, SetStateAction } from 'react'
 import { ApiConflictError, addExactMatch, decideFindings, mergeFindings, splitFinding, undoReviewEdit,
   refreshCategoryDefaults, getDraft, type FindingsView, type ExactMatchesView, type PreviewView,
   type ReviewSummaryView, type SourceSpan, type StyleChoice, type VersionRef } from '../api/client'
-import { messageFrom, sameVersion, type DraftState, type GroupConfirmation } from './reviewState'
+import { messageFrom, sameVersion, type DraftState, type GroupConfirmation, type ReviewedDownload } from './reviewState'
 import { preferredChoice } from './useStyleControls'
 
 type Update<T> = Dispatch<SetStateAction<T>>
@@ -22,7 +22,7 @@ export function createReviewDecisionActions({ documentId, state, findings, previ
   setFindingPending: Update<boolean>; setError: Update<string | null>; setNotice: Update<string | null>;
   setFindings: Update<FindingsView | null>; setMergeTargets: Update<Record<string, string>>;
   setState: Update<DraftState>; setSummary: Update<ReviewSummaryView | null>; setConfirmedPreview: Update<boolean>;
-  setPreparedDownload: Update<{ url: string; filename: string; version: VersionRef } | null>;
+  setPreparedDownload: Update<ReviewedDownload | null>;
   setExactMatches: Update<{findingId: string; result: ExactMatchesView} | null>;
   setGroupConfirmation: Update<GroupConfirmation | null>; setConflict: Update<boolean>;
 }) {

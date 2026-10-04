@@ -1,4 +1,5 @@
 import { createReviewDecisionActions } from './reviewDecisionActions'
+import { createReviewCsvActions } from './reviewCsvActions'
 import { useUndoState } from './useUndoState'
 import { createReviewScanActions } from './reviewScanActions'
 import { useReviewHandoff } from '../team/useReviewHandoff'
@@ -43,6 +44,7 @@ import {
   sameScanVersion,
   type DraftState,
   type GroupConfirmation,
+  type ReviewedDownload,
 } from './reviewState'
 
 export function useReviewController(session: SessionView) {
@@ -65,12 +67,7 @@ export function useReviewController(session: SessionView) {
   const [confirmedPreview, setConfirmedPreview] = useState(false)
   const [completionPending, setCompletionPending] = useState(false)
   const [exportPending, setExportPending] = useState(false)
-  const [preparedDownload, setPreparedDownload] = useState<{
-    url: string
-    filename: string
-    version: VersionRef
-    format: 'txt' | 'docx'
-  } | null>(null)
+  const [preparedDownload, setPreparedDownload] = useState<ReviewedDownload | null>(null)
   const sourceRef = useRef<HTMLTextAreaElement>(null)
   const previewRef = useRef<HTMLTextAreaElement>(null)
   const groupConfirmRef = useRef<HTMLButtonElement>(null)
@@ -102,6 +99,9 @@ export function useReviewController(session: SessionView) {
   const [phoneRegion, setPhoneRegion] = useState('PH')
   const [language, setLanguage] = useState('en')
   const canEdit = state.kind === 'ready' && state.saved.can_edit
+  const canManagePresets = state.kind === 'ready' && session.memberships.some(
+    (item) => item.workspace_id === state.saved.workspace_id && item.role === 'administrator',
+  )
   const handoff = useReviewHandoff({ saved: state.kind === 'ready' ? state.saved : null,
     onChanged: () => setConflict(true),
     onUnavailable: (message) => {
@@ -321,6 +321,20 @@ export function useReviewController(session: SessionView) {
     setConflict,
     onSaved: async (saved, source) => {
       if (state.kind !== 'ready' || !documentId) return
+      let csv = state.saved.csv
+      if (csv) {
+        resetSourceReview()
+        setPreview(null)
+        setFindings(null)
+        try {
+          const latest = await getDraft(documentId)
+          if (!sameVersion(latest.version, saved.version) || !latest.csv) throw new Error('Review changed.')
+          csv = latest.csv
+        } catch {
+          setConflict(true)
+          throw new Error('Source saved, but its CSV cells could not be refreshed. Reload the saved review.')
+        }
+      }
       await recovery.clear().catch(() => {
         setNotice('Source saved. An older working backup remains available until it expires.')
       })
@@ -333,6 +347,7 @@ export function useReviewController(session: SessionView) {
           status: saved.status,
           expires_at: saved.expires_at,
           structure: saved.structure,
+          csv,
         },
       })
       setConflict(false)
@@ -572,6 +587,12 @@ export function useReviewController(session: SessionView) {
     refreshPreview, setFindingPending, setError, setNotice, setFindings, setMergeTargets, setState,
     setSummary, setConfirmedPreview, setPreparedDownload, setExactMatches, setGroupConfirmation, setConflict,
   })
+
+  const csvActions = createReviewCsvActions({
+    state, blocked: actionPending || conflict || dirty || settingsDirty, canManagePresets,
+    csrf: session.csrf_token, resetReview: resetSourceReview, refreshPreview, setState,
+    setSettingsPending, setFindingPending, setError, setNotice, setConflict, setScan, setFindings,
+  })
   const { changeReview, undoReview, useLatestDefaults } = decisionActions
   function confirmGroupDecision() { lastFocusedRef.current = groupTriggerRef.current; decisionActions.confirmGroupDecision() }
   function cancelGroupDecision() { decisionActions.cancelGroupDecision(); requestAnimationFrame(() => groupTriggerRef.current?.focus()) }
@@ -602,6 +623,8 @@ export function useReviewController(session: SessionView) {
 
   return {
     canEdit,
+    canManagePresets,
+    ...csvActions,
     handoff,
     recovery,
     actionPending,

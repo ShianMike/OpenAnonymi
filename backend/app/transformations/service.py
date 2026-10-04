@@ -1,6 +1,6 @@
 """Owner-scoped, version-bound preview of the current saved review."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID
 
@@ -33,6 +33,7 @@ class PreviewSnapshot:
     fictional_ids: tuple[UUID, ...] = ()
     stand_in_fallback_ids: tuple[UUID, ...] = ()
     style_capabilities: dict | None = None
+    csv_cells: tuple[tuple[str, ...], ...] | None = field(default=None, repr=False)
 
 
 def load_preview(
@@ -58,8 +59,34 @@ def build_current_preview(
         raise ContentUnavailable("The current source revision is unavailable.")
     source = keys.decrypt_text(ProtectedValue(revision.source_ciphertext, revision.source_key_id))
     findings = _snapshot(session, version)
+    csv_layout, logical_values, collision_source = None, None, None
+    if document.csv_delimiter is not None:
+        from app.db.column_rules import load_rules
+        from app.db.source_structures import load_csv
+        from app.intake.csv_review import logical_finding_values, logical_source
+        from app.intake.csv_structure import CsvError
+        from app.transformations.engine import InvalidTransformation
+
+        csv_layout = load_csv(
+            session, revision.id, keys, source, document.csv_delimiter, document.csv_has_header
+        )
+        load_rules(session, document, keys)
+        try:
+            logical_values = logical_finding_values(
+                source,
+                csv_layout,
+                [
+                    (finding.id, finding.span.start, finding.span.end)
+                    for finding in findings.findings
+                ],
+            )
+        except CsvError:
+            raise InvalidTransformation("CSV findings cannot be applied to this version.") from None
+        collision_source = logical_source(source, csv_layout)
     unresolved_ids = tuple(finding.id for finding in findings.findings if finding.action is None)
-    capabilities = style_capabilities(document, source, findings.findings)
+    capabilities = style_capabilities(
+        document, source, findings.findings, logical_values=logical_values
+    )
     if findings.overlaps:
         return PreviewSnapshot(
             version,
@@ -71,7 +98,15 @@ def build_current_preview(
             style_capabilities=capabilities,
         )
     try:
-        plan = build_plan(session, document, source, findings.findings, keys)
+        plan = build_plan(
+            session,
+            document,
+            source,
+            findings.findings,
+            keys,
+            logical_values=logical_values,
+            collision_source=collision_source,
+        )
     except StyleUnavailable:
         from app.transformations.engine import InvalidTransformation
 
@@ -89,6 +124,11 @@ def build_current_preview(
         ],
         plan,
     )
+    csv_cells = None
+    if csv_layout is not None:
+        from app.intake.csv_review import reviewed_cells
+
+        csv_cells = reviewed_cells(source, csv_layout, transformed.text, transformed.mappings)
     return PreviewSnapshot(
         version=version,
         status="complete" if transformed.complete else "incomplete",
@@ -99,4 +139,5 @@ def build_current_preview(
         fictional_ids=plan.fictional_ids,
         stand_in_fallback_ids=plan.fallback_ids,
         style_capabilities=capabilities,
+        csv_cells=csv_cells,
     )

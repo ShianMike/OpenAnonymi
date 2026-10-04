@@ -4,9 +4,9 @@ from datetime import UTC, datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Path, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.engine import Engine
 
 from app.accounts.access import ContentUnavailable, DocumentNotFound
@@ -105,6 +105,17 @@ class DecisionRequest(BaseModel):
     style_option: str | None = Field(default=None, max_length=24)
 
 
+class ColumnDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected: VersionRef
+    action: DecisionAction
+    affected_finding_ids: set[UUID] = Field(max_length=1000)
+    keep_reason: Literal["false_match", "intended_disclosure"] | None = None
+    style: StyleName = "token"
+    style_option: StyleOption | None = None
+    same_text_same_entity: bool = False
+
+
 class RefreshDefaultsRequest(BaseModel):
     expected_decision_version: int = Field(ge=0)
 
@@ -162,6 +173,47 @@ def _keys(request: Request) -> KeyRing:
 
 def create_groups_router(engine: Engine) -> APIRouter:
     router = APIRouter(prefix="/api/v1/documents", tags=["findings"])
+
+    @router.post("/{document_id}/columns/{column}/decision", response_model=FindingsView)
+    def column_decision_route(
+        document_id: UUID,
+        column: Annotated[int, Path(ge=0, le=49)],
+        body: ColumnDecisionRequest,
+        request: Request,
+        identity: Annotated[SessionIdentity, Depends(mutation_identity)],
+    ):
+        from app.groups.columns import decide_column
+
+        try:
+            return _view(
+                decide_column(
+                    engine,
+                    document_id=document_id,
+                    actor_id=identity.user_id,
+                    column=column,
+                    expected=body.expected,
+                    affected_ids=body.affected_finding_ids,
+                    action=body.action,
+                    keep_reason=body.keep_reason,
+                    style=body.style,
+                    style_option=body.style_option,
+                    same_text_same_entity=body.same_text_same_entity,
+                    keys=_keys(request),
+                    now=datetime.now(UTC),
+                )
+            )
+        except (
+            VersionConflict,
+            DocumentNotFound,
+            ContentUnavailable,
+            ReviewValidationError,
+            ContentKeyUnavailable,
+            ProtectedContentError,
+        ) as exc:
+            error = _error(exc)
+            if isinstance(error, ApiError):
+                raise error from None
+            return error
 
     @router.get(
         "/{document_id}/findings",

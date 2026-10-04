@@ -36,6 +36,14 @@ from app.db.repository import (
     load_current_source,
 )
 from app.errors import ApiError
+from app.intake.csv_contracts import (
+    ColumnRulesRequest,
+    CsvInfo,
+    CsvSettingsRequest,
+    CsvSettingsView,
+)
+from app.intake.csv_service import change_csv_settings
+from app.intake.csv_structure import CsvError, Delimiter, Header
 from app.intake.imports import MAX_FILE_BYTES, extract_import
 from app.intake.validation import SourceValidationError
 from app.transformations.contracts import CategoryDefault
@@ -58,6 +66,7 @@ class SourceView(BaseModel):
     preferred_action: Literal["label", "redact"]
     category_defaults: dict[FindingCategory, CategoryDefault]
     structure: Literal["kept", "simplified", "none"]
+    csv: CsvInfo | None = None
 
 
 class IntakeDefaultsView(BaseModel):
@@ -108,6 +117,7 @@ def _source_view(source: LoadedSource) -> SourceView:
         preferred_action=source.preferred_action,
         category_defaults=source.category_defaults,
         structure=source.structure,
+        csv=source.csv,
     )
 
 
@@ -137,7 +147,7 @@ def _categories(values: list[FindingCategory]) -> set[FindingCategory]:
 
 
 def _input_error(exc: ValueError) -> ApiError:
-    return ApiError(422, "invalid_source", str(exc))
+    return ApiError(422, exc.code if isinstance(exc, CsvError) else "invalid_source", str(exc))
 
 
 def _conflict(exc: VersionConflict) -> JSONResponse:
@@ -248,6 +258,8 @@ def create_intake_router(engine: Engine) -> APIRouter:
         language: Annotated[str, Form(min_length=2, max_length=2)] = "en",
         retention_days: Annotated[int | None, Form(ge=1, le=30)] = None,
         preset_id: Annotated[UUID | None, Form()] = None,
+        csv_delimiter: Annotated[Delimiter, Form()] = "auto",
+        csv_header: Annotated[Header, Form()] = "auto",
     ) -> SavedDraftView:
         # FastAPI has already parsed the multipart body. Reject extra file parts and
         # bound the bytes read from the uploaded file before decoding.
@@ -257,7 +269,7 @@ def create_intake_router(engine: Engine) -> APIRouter:
             or sum(isinstance(value, StarletteUploadFile) for _name, value in form.multi_items())
             != 1
         ):
-            raise ApiError(422, "invalid_file", "Choose exactly one TXT, PDF or Word DOCX file.")
+            raise ApiError(422, "invalid_file", "Choose exactly one TXT, CSV, PDF or Word DOCX file.")
         try:
             with Session(engine) as session:
                 active_workspace(session, workspace_id, identity.user_id)
@@ -267,7 +279,9 @@ def create_intake_router(engine: Engine) -> APIRouter:
             raise ApiError(422, "invalid_file", "File exceeds the 8 MiB import limit.")
         raw = await file.read(MAX_FILE_BYTES + 1)
         try:
-            imported = await run_in_threadpool(extract_import, file.filename, raw)
+            imported = await run_in_threadpool(
+                extract_import, file.filename, raw, csv_delimiter, csv_header
+            )
             validated = imported.source
             parsed_categories = [
                 FindingCategory(value.strip()) for value in categories.split(",") if value.strip()
@@ -298,6 +312,8 @@ def create_intake_router(engine: Engine) -> APIRouter:
                     else None,
                     preset_id=preset_id,
                     layout=imported.layout,
+                    layout_kind=imported.format,
+                    validated_source=imported.source,
                 )
         except DocumentNotFound:
             raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
@@ -305,7 +321,74 @@ def create_intake_router(engine: Engine) -> APIRouter:
             raise ApiError(404, "preset_not_found", "Preset not found.") from None
         except (SourceValidationError, StorageValidationError) as exc:
             raise _input_error(exc) from None
+        except (ContentKeyUnavailable, ProtectedContentError):
+            raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
         return _saved_view(saved)
+
+    def _csv_mutation(document_id, body, request, identity, *, column_rules=False):
+        try:
+            result = change_csv_settings(
+                engine,
+                document_id=document_id,
+                actor_id=identity.user_id,
+                expected_settings_version=body.expected_settings_version,
+                delimiter=None if column_rules else body.delimiter,
+                has_header=None if column_rules else body.has_header,
+                rules=[rule.model_dump(mode="json") for rule in body.rules]
+                if column_rules
+                else None,
+                keys=_keys(request),
+                now=datetime.now(UTC),
+            )
+            return CsvSettingsView.model_validate(result)
+        except DocumentNotFound:
+            raise ApiError(404, "document_not_found", "Document not found.") from None
+        except ContentUnavailable:
+            raise ApiError(410, "content_expired", "Document content is unavailable.") from None
+        except VersionConflict as exc:
+            return _conflict(exc)
+        except SourceValidationError as exc:
+            raise _input_error(exc) from None
+        except (ContentKeyUnavailable, ProtectedContentError):
+            raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
+
+    @router.get("/{document_id}/column-rules", response_model=CsvSettingsView)
+    @router.get("/{document_id}/csv-settings", response_model=CsvSettingsView)
+    def csv_settings_route(
+        document_id: UUID,
+        request: Request,
+        identity: Annotated[SessionIdentity, Depends(current_identity)],
+    ):
+        source = _load_owned_source(engine, request, document_id, identity.user_id)
+        if source.csv is None:
+            raise ApiError(422, "csv_required", "These settings apply to an imported CSV document.")
+        return CsvSettingsView(version=source.version, **source.csv)
+
+    @router.put(
+        "/{document_id}/csv-settings",
+        response_model=CsvSettingsView,
+        responses={409: {"model": ConflictResponse}, 422: {"model": ErrorResponse}},
+    )
+    def change_csv_settings_route(
+        document_id: UUID,
+        body: CsvSettingsRequest,
+        request: Request,
+        identity: Annotated[SessionIdentity, Depends(mutation_identity)],
+    ):
+        return _csv_mutation(document_id, body, request, identity)
+
+    @router.put(
+        "/{document_id}/column-rules",
+        response_model=CsvSettingsView,
+        responses={409: {"model": ConflictResponse}, 422: {"model": ErrorResponse}},
+    )
+    def column_rules_route(
+        document_id: UUID,
+        body: ColumnRulesRequest,
+        request: Request,
+        identity: Annotated[SessionIdentity, Depends(mutation_identity)],
+    ):
+        return _csv_mutation(document_id, body, request, identity, column_rules=True)
 
     @router.get(
         "/{document_id}/source",
