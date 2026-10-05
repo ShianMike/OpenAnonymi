@@ -104,7 +104,7 @@ def create_second_factor_router(engine: Engine, settings: Settings) -> APIRouter
         prefix="/api/v1/auth",
         tags=["account security"],
         responses={
-            status: {"model": ErrorResponse} for status in (400, 401, 403, 404, 422, 429, 503)
+            status: {"model": ErrorResponse} for status in (400, 401, 403, 404, 409, 422, 429, 503)
         },
     )
 
@@ -142,10 +142,19 @@ def create_second_factor_router(engine: Engine, settings: Settings) -> APIRouter
 
     @router.get("/second-factor", response_model=SecondFactorState)
     def state(request: Request, identity: Annotated[SessionIdentity, Depends(current_identity)]):
-        return SecondFactorState(
-            **security_status(engine, identity.user_id, datetime.now(UTC)),
-            security_emails_available=request.app.state.recovery_mailer is not None,
-        )
+        def view(current):
+            return SecondFactorState(
+                **security_status(engine, current.user_id, datetime.now(UTC)),
+                security_emails_available=request.app.state.recovery_mailer is not None,
+            )
+
+        prepared = view(identity)
+
+        def authorize(current):
+            if view(current) != prepared:
+                raise ApiError(409, "security_state_changed", "Security settings changed. Reload to continue.")
+
+        return protected(prepared, request, identity, authorize)
 
     @router.post("/second-factor/enrollment/start", response_model=EnrollmentView)
     def start(request: Request, identity: Annotated[SessionIdentity, Depends(mutation_identity)]):
@@ -329,8 +338,19 @@ def create_second_factor_router(engine: Engine, settings: Settings) -> APIRouter
             unavailable()
 
     @router.get("/sessions", response_model=list[DeviceView])
-    def devices(identity: Annotated[SessionIdentity, Depends(current_identity)]):
-        return list_devices(engine, identity.user_id, identity.session_id, datetime.now(UTC))
+    def devices(request: Request, identity: Annotated[SessionIdentity, Depends(current_identity)]):
+        def view(current):
+            return [DeviceView(**row) for row in list_devices(
+                engine, current.user_id, current.session_id, datetime.now(UTC),
+            )]
+
+        prepared = view(identity)
+
+        def authorize(current):
+            if view(current) != prepared:
+                raise ApiError(409, "devices_changed", "Device sessions changed. Reload to continue.")
+
+        return protected(prepared, request, identity, authorize)
 
     @router.post("/sessions/revoke-others", status_code=204)
     def others(
@@ -340,7 +360,8 @@ def create_second_factor_router(engine: Engine, settings: Settings) -> APIRouter
     ):
         try:
             delivered = revoke_others(
-                engine, identity.user_id, identity.session_id, datetime.now(UTC)
+                engine, identity.user_id, identity.session_id, datetime.now(UTC),
+                reauthorize=lambda: current_identity(request),
             )
             notices(background, request, delivered)
             return Response(status_code=204, background=background)
@@ -355,7 +376,8 @@ def create_second_factor_router(engine: Engine, settings: Settings) -> APIRouter
     ):
         try:
             current = revoke_device(
-                engine, identity.user_id, identity.session_id, session_id, datetime.now(UTC)
+                engine, identity.user_id, identity.session_id, session_id, datetime.now(UTC),
+                reauthorize=lambda: current_identity(request),
             )
             response = Response(status_code=204)
             if current:

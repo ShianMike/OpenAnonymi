@@ -221,8 +221,14 @@ def current_identity(request: Request) -> SessionIdentity:
     token = request.cookies.get(COOKIE_NAME)
     try:
         with Session(request.app.state.engine) as session:
-            identity = read_session(session, token=token, now=datetime.now(UTC))
+            identity = read_session(
+                session, token=token, now=datetime.now(UTC),
+                touch=not getattr(request.state, "session_seen_checked", False),
+            )
             session.commit()
+            # Rechecks still read current authorization, but must not write to
+            # a session row locked by this request's password/sign-out change.
+            request.state.session_seen_checked = True
             return identity
     except InvalidSession:
         raise ApiError(401, "sign_in_required", "Sign in to continue.") from None
@@ -479,13 +485,22 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
     @router.get(
         "/session",
         response_model=SessionView,
-        responses={401: {"model": ErrorResponse}},
+        responses={status: {"model": ErrorResponse} for status in (401, 409)},
     )
     def session_route(
         request: Request,
         identity: Annotated[SessionIdentity, Depends(current_identity)],
-    ) -> SessionView:
-        return _view(identity, request.app.state.recovery_mailer is not None)
+    ) -> Response:
+        from app.accounts.response_boundary import protected_json_response
+
+        mail_available = request.app.state.recovery_mailer is not None
+        view = _view(identity, mail_available)
+
+        def authorize(current):
+            if view != _view(current, mail_available):
+                raise ApiError(409, "session_changed", "Account access changed. Reload to continue.")
+
+        return protected_json_response(view, request, identity, authorize)
 
     @router.post(
         "/sign-out",
@@ -523,6 +538,7 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
                     current_password=body.current_password.get_secret_value(),
                     new_password=body.new_password.get_secret_value(),
                     now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
                 )
         except InvalidCredentials:
             raise ApiError(

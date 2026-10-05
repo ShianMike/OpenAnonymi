@@ -2,6 +2,7 @@
 
 import hashlib
 import secrets
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
@@ -166,6 +167,7 @@ def update_workspace_settings(
     activity_retention_days: int,
     require_second_factor: bool | None = None,
     approval_policy: str | None = None,
+    reauthorize: Callable[[], object] | None = None,
 ) -> WorkspaceRecord:
     if not 1 <= content_retention_days <= 30 or not 1 <= activity_retention_days <= 365:
         raise ValueError("Choose valid retention periods.")
@@ -175,6 +177,8 @@ def update_workspace_settings(
         workspace = require_administrator(
             session, workspace_id=workspace_id, actor_id=actor_id, lock=True
         )
+        if reauthorize is not None:
+            reauthorize()
         if workspace.settings_version != expected_version:
             raise WorkspaceVersionConflict(workspace.settings_version)
         if require_second_factor is True:
@@ -210,6 +214,8 @@ def update_workspace_settings(
         )
         session.flush()
         result = _workspace_record(session, workspace)
+        if reauthorize is not None:
+            reauthorize()
     return result
 
 
@@ -220,9 +226,12 @@ def change_member_role(
     actor_id: UUID,
     user_id: UUID,
     role: WorkspaceRole,
+    reauthorize: Callable[[], object] | None = None,
 ) -> MemberRecord:
     with session.begin():
         require_administrator(session, workspace_id=workspace_id, actor_id=actor_id, lock=True)
+        if reauthorize is not None:
+            reauthorize()
         membership, user = _target(session, workspace_id, user_id)
         if membership.revoked_at is not None:
             raise MemberNotFound("Member not found.")
@@ -240,14 +249,20 @@ def change_member_role(
             )
         session.flush()
         result = _member_record(membership, user)
+        if reauthorize is not None:
+            reauthorize()
     return result
 
 
 def revoke_member(
-    session: Session, *, workspace_id: UUID, actor_id: UUID, user_id: UUID, now: datetime
+    session: Session, *, workspace_id: UUID, actor_id: UUID, user_id: UUID, now: datetime,
+    reauthorize: Callable[[], object] | None = None,
+    before_commit: Callable[[MemberRecord], object] | None = None,
 ) -> MemberRecord:
     with session.begin():
         require_administrator(session, workspace_id=workspace_id, actor_id=actor_id, lock=True)
+        if reauthorize is not None:
+            reauthorize()
         membership, user = _target(session, workspace_id, user_id)
         session.scalar(select(User.id).where(User.id == user_id).with_for_update(key_share=True))
         if membership.revoked_at is None:
@@ -277,14 +292,21 @@ def revoke_member(
             )
         session.flush()
         result = _member_record(membership, user)
+        if before_commit is not None:
+            before_commit(result)
+        if reauthorize is not None:
+            reauthorize()
     return result
 
 
 def restore_member(
-    session: Session, *, workspace_id: UUID, actor_id: UUID, user_id: UUID
+    session: Session, *, workspace_id: UUID, actor_id: UUID, user_id: UUID,
+    reauthorize: Callable[[], object] | None = None,
 ) -> MemberRecord:
     with session.begin():
         require_administrator(session, workspace_id=workspace_id, actor_id=actor_id, lock=True)
+        if reauthorize is not None:
+            reauthorize()
         membership, user = _target(session, workspace_id, user_id)
         if user.disabled_at is not None:
             raise MemberNotFound("Member not found.")
@@ -300,6 +322,8 @@ def restore_member(
             )
         session.flush()
         result = _member_record(membership, user)
+        if reauthorize is not None:
+            reauthorize()
     return result
 
 
@@ -313,12 +337,15 @@ def invite_member(
     mailer: RecoveryMailer,
     settings: Settings,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ) -> MemberRecord:
     normalized = creation_email(email, settings)
     unknown_password_hash = hash_password(secrets.token_urlsafe(32))
     code = secrets.token_urlsafe(24)
     with session.begin():
         require_administrator(session, workspace_id=workspace_id, actor_id=actor_id, lock=True)
+        if reauthorize is not None:
+            reauthorize()
         if session.scalar(select(User).where(User.email.in_(lookup_forms(email)))) is not None:
             raise MemberExists("This account already exists. Manage its membership separately.")
         user = User(
@@ -344,7 +371,6 @@ def invite_member(
         session.flush()
         session.add_all([membership, token])
         session.flush()
-        mailer.send_invitation_code(user.email, code)
         record_event(
             session,
             workspace_id=workspace_id,
@@ -354,4 +380,12 @@ def invite_member(
             now=now,
         )
         result = _member_record(membership, user)
+        session.flush()
+        if reauthorize is not None:
+            reauthorize()
+        mailer.send_invitation_code(user.email, code)
+        if reauthorize is not None:
+            # SMTP cannot be rolled back; a denial here invalidates its token
+            # by rolling back all account, membership and recovery rows.
+            reauthorize()
     return result

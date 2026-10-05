@@ -1,6 +1,7 @@
 """Authorized cross-workspace resets force enrollment and revoke prior challenges."""
 
 import argparse
+from collections.abc import Callable
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -18,6 +19,20 @@ from app.db.second_factor import AuthChallenge, UserBackupCode, UserSecondFactor
 from app.workspace.activity import record_event
 
 
+def _require_reset_scope(session, user_id, actor_id, workspace_id):
+    active = set(session.scalars(select(Membership.workspace_id).where(
+        Membership.user_id == user_id, Membership.revoked_at.is_(None),
+    )))
+    administered = set(session.scalars(
+        select(Membership.workspace_id).join(User, User.id == Membership.user_id).where(
+            Membership.user_id == actor_id, Membership.role == "administrator",
+            Membership.revoked_at.is_(None), User.disabled_at.is_(None),
+        )
+    ))
+    if actor_id == user_id or workspace_id not in active or not active.issubset(administered):
+        raise FactorError(403, "reset_requires_operator", "This reset requires the system operator.")
+
+
 def reset_factor(
     engine: Engine,
     user_id: UUID,
@@ -26,6 +41,7 @@ def reset_factor(
     actor_id: UUID | None = None,
     workspace_id: UUID | None = None,
     actor_session_id: UUID | None = None,
+    reauthorize: Callable[[], object] | None = None,
 ) -> list[SecurityNotice]:
     with Session(engine) as session, session.begin():
         if actor_id is not None:
@@ -46,33 +62,9 @@ def reset_factor(
         if actor_id is not None:
             require_administrator(session, workspace_id=workspace_id, actor_id=actor_id, lock=True)
             locked_user(session, actor_id, now, actor_session_id)
-            active = set(
-                session.scalars(
-                    select(Membership.workspace_id).where(
-                        Membership.user_id == user_id, Membership.revoked_at.is_(None)
-                    )
-                )
-            )
-            administered = set(
-                session.scalars(
-                    select(Membership.workspace_id)
-                    .join(User, User.id == Membership.user_id)
-                    .where(
-                        Membership.user_id == actor_id,
-                        Membership.role == "administrator",
-                        Membership.revoked_at.is_(None),
-                        User.disabled_at.is_(None),
-                    )
-                )
-            )
-            if (
-                actor_id == user_id
-                or workspace_id not in active
-                or not active.issubset(administered)
-            ):
-                raise FactorError(
-                    403, "reset_requires_operator", "This reset requires the system operator."
-                )
+            if reauthorize is not None:
+                reauthorize()
+            _require_reset_scope(session, user_id, actor_id, workspace_id)
             event_workspaces = [workspace_id]
         else:
             event_workspaces = list(
@@ -111,6 +103,10 @@ def reset_factor(
                 event_code="second_factor_reset",
                 now=now,
             )
+        session.flush()
+        if reauthorize is not None:
+            reauthorize()
+            _require_reset_scope(session, user_id, actor_id, workspace_id)
         return [SecurityNotice(user.email, "second_factor_reset", now)]
 
 

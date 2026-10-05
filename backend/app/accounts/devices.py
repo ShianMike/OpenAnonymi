@@ -1,5 +1,6 @@
 """List and revoke only the signed-in user's own active server-side sessions."""
 
+from collections.abc import Callable
 from datetime import datetime
 from uuid import UUID
 
@@ -43,10 +44,13 @@ def list_devices(engine: Engine, user_id: UUID, current_id: UUID, now: datetime)
 
 
 def revoke_device(
-    engine: Engine, user_id: UUID, current_id: UUID, target_id: UUID, now: datetime
+    engine: Engine, user_id: UUID, current_id: UUID, target_id: UUID, now: datetime,
+    *, reauthorize: Callable[[], object] | None = None,
 ) -> bool:
     with Session(engine) as session, session.begin():
         locked_user(session, user_id, now, current_id)
+        if reauthorize is not None:
+            reauthorize()
         row = session.scalar(
             select(StoredSession)
             .where(
@@ -62,14 +66,20 @@ def revoke_device(
         row.revoked_at = now
         if row.id != current_id:
             security_activity(session, user_id, "device_signed_out", now)
+        session.flush()
+        if reauthorize is not None:
+            reauthorize()
         return row.id == current_id
 
 
 def revoke_others(
-    engine: Engine, user_id: UUID, current_id: UUID, now: datetime
+    engine: Engine, user_id: UUID, current_id: UUID, now: datetime,
+    *, reauthorize: Callable[[], object] | None = None,
 ) -> list[SecurityNotice]:
     with Session(engine) as session, session.begin():
         user = locked_user(session, user_id, now, current_id)
+        if reauthorize is not None:
+            reauthorize()
         changed = session.execute(
             update(StoredSession)
             .where(
@@ -82,5 +92,7 @@ def revoke_others(
         ).rowcount
         if changed:
             security_activity(session, user_id, "other_devices_signed_out", now)
-            return [SecurityNotice(user.email, "other_sessions_signed_out", now)]
-        return []
+        session.flush()
+        if reauthorize is not None:
+            reauthorize()
+        return [SecurityNotice(user.email, "other_sessions_signed_out", now)] if changed else []

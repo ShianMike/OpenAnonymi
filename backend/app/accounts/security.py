@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import secrets
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
@@ -175,7 +176,9 @@ def issue_session(
     return IssuedSession(token, identity)
 
 
-def read_session(session: Session, *, token: str | None, now: datetime) -> SessionIdentity:
+def read_session(
+    session: Session, *, token: str | None, now: datetime, touch: bool = True
+) -> SessionIdentity:
     if token is None or len(token) > 100 or not token.isascii():
         raise InvalidSession("Sign in to continue.")
     record = session.scalar(select(StoredSession).where(StoredSession.token_hash == _digest(token)))
@@ -190,7 +193,7 @@ def read_session(session: Session, *, token: str | None, now: datetime) -> Sessi
     csrf_token = _csrf_token(token)
     if not hmac.compare_digest(record.csrf_hash, _digest(csrf_token)):
         raise InvalidSession("Sign in to continue.")
-    if record.last_seen_at <= now - timedelta(minutes=5):
+    if touch and record.last_seen_at <= now - timedelta(minutes=5):
         session.execute(
             update(StoredSession)
             .where(
@@ -228,6 +231,7 @@ def change_password(
     current_password: str,
     new_password: str,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ) -> None:
     """Change only the signed-in account and end all of its sessions."""
     with session.begin():
@@ -240,6 +244,8 @@ def change_password(
             raise InvalidCredentials("Current password was not accepted.")
         if _verify_password(new_password, user.password_hash):
             raise ValueError("Choose a different new password.")
+        if reauthorize is not None:
+            reauthorize()
         user.password_hash = hash_password(new_password)
         session.execute(
             update(AuthChallenge)
@@ -251,3 +257,8 @@ def change_password(
             .where(StoredSession.user_id == user.id, StoredSession.revoked_at.is_(None))
             .values(revoked_at=now)
         )
+        session.flush()
+        if reauthorize is not None:
+            # A separate HTTP session read sees the committed authorization,
+            # before this transaction intentionally ends the account's sessions.
+            reauthorize()
