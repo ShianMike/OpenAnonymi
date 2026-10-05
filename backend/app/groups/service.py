@@ -193,6 +193,18 @@ def _require_current_review_access(
         review_document(session, document_id, actor_id, datetime.now(UTC))
 
 
+def _authorized_snapshot(
+    session: Session,
+    version: VersionRef,
+    actor_id: UUID,
+    now: datetime,
+    reauthorize: Callable[[], object] | None,
+) -> FindingsSnapshot:
+    snapshot = _snapshot(session, version, actor_id, now)
+    _require_current_review_access(session, version.document_id, actor_id, reauthorize)
+    return snapshot
+
+
 def _validated_selection(
     session: Session, version: VersionRef, span: SourceSpan, keys: KeyRing
 ) -> str:
@@ -366,9 +378,11 @@ def add_finding(
     category: FindingCategory,
     keys: KeyRing,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ) -> FindingsSnapshot:
     with Session(engine) as session, session.begin():
         document, version = _current_locked(session, document_id, actor_id, expected, now)
+        _require_current_review_access(session, document_id, actor_id, reauthorize)
         source = _validated_selection(session, version, span, keys)
         _require_nonoverlap(session, version, span)
         created_id = uuid4()
@@ -399,7 +413,7 @@ def add_finding(
             payload=before,
             now=now,
         )
-        snapshot = _snapshot(session, _version(document), actor_id, now)
+        snapshot = _authorized_snapshot(session, _version(document), actor_id, now, reauthorize)
     return snapshot
 
 
@@ -414,9 +428,11 @@ def revise_finding(
     category: FindingCategory,
     keys: KeyRing,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ) -> FindingsSnapshot:
     with Session(engine) as session, session.begin():
         document, version = _current_locked(session, document_id, actor_id, expected, now)
+        _require_current_review_access(session, document_id, actor_id, reauthorize)
         finding = _active_finding(session, version, finding_id)
         source = _validated_selection(session, version, span, keys)
         _require_nonoverlap(session, version, span, exclude_id=finding_id)
@@ -425,7 +441,7 @@ def revise_finding(
             span.end,
             category.value,
         ):
-            return _snapshot(session, version, actor_id, now)
+            return _authorized_snapshot(session, version, actor_id, now, reauthorize)
         before = capture(session, [finding])
         finding.start_offset = span.start
         finding.end_offset = span.end
@@ -455,7 +471,7 @@ def revise_finding(
             payload=before,
             now=now,
         )
-        snapshot = _snapshot(session, _version(document), actor_id, now)
+        snapshot = _authorized_snapshot(session, _version(document), actor_id, now, reauthorize)
     return snapshot
 
 
@@ -467,9 +483,11 @@ def remove_finding(
     actor_id: UUID,
     expected: VersionRef,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ) -> FindingsSnapshot:
     with Session(engine) as session, session.begin():
         document, version = _current_locked(session, document_id, actor_id, expected, now)
+        _require_current_review_access(session, document_id, actor_id, reauthorize)
         finding = _active_finding(session, version, finding_id)
         before = capture(session, [finding])
         finding.removed_at = now
@@ -487,7 +505,7 @@ def remove_finding(
             payload=before,
             now=now,
         )
-        snapshot = _snapshot(session, _version(document), actor_id, now)
+        snapshot = _authorized_snapshot(session, _version(document), actor_id, now, reauthorize)
     return snapshot
 
 
@@ -501,10 +519,12 @@ def add_exact_match(
     span: SourceSpan,
     keys: KeyRing,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ) -> FindingsSnapshot:
     """Mark one user-confirmed exact occurrence; never infer a shared identity."""
     with Session(engine) as session, session.begin():
         document, version = _current_locked(session, document_id, actor_id, expected, now)
+        _require_current_review_access(session, document_id, actor_id, reauthorize)
         source_finding = _active_finding(session, version, finding_id)
         source = _validated_selection(session, version, span, keys)
         if (
@@ -542,7 +562,7 @@ def add_exact_match(
             payload=before,
             now=now,
         )
-        snapshot = _snapshot(session, _version(document), actor_id, now)
+        snapshot = _authorized_snapshot(session, _version(document), actor_id, now, reauthorize)
     return snapshot
 
 
@@ -568,9 +588,11 @@ def split_finding(
     finding_id: UUID,
     expected: VersionRef,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ) -> FindingsSnapshot:
     with Session(engine) as session, session.begin():
         document, version = _current_locked(session, document_id, actor_id, expected, now)
+        _require_current_review_access(session, document_id, actor_id, reauthorize)
         finding = _active_finding(session, version, finding_id)
         if finding.group_id is None:
             raise ReviewValidationError("not_grouped", "This occurrence is not in a group.")
@@ -592,7 +614,7 @@ def split_finding(
             payload=before,
             now=now,
         )
-        snapshot = _snapshot(session, _version(document), actor_id, now)
+        snapshot = _authorized_snapshot(session, _version(document), actor_id, now, reauthorize)
     return snapshot
 
 
@@ -605,9 +627,11 @@ def merge_findings(
     target_finding_id: UUID,
     expected: VersionRef,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ) -> FindingsSnapshot:
     with Session(engine) as session, session.begin():
         document, version = _current_locked(session, document_id, actor_id, expected, now)
+        _require_current_review_access(session, document_id, actor_id, reauthorize)
         source = _active_finding(session, version, source_finding_id)
         target = _active_finding(session, version, target_finding_id)
         if source.id == target.id:
@@ -616,7 +640,7 @@ def merge_findings(
             raise ReviewValidationError("incompatible_category", "Categories must match to merge.")
         already_merged = source.group_id is not None and source.group_id == target.group_id
         if already_merged:
-            return _snapshot(session, version, actor_id, now)
+            return _authorized_snapshot(session, version, actor_id, now, reauthorize)
         before = capture(
             session,
             [
@@ -647,7 +671,7 @@ def merge_findings(
             payload=before,
             now=now,
         )
-        snapshot = _snapshot(session, _version(document), actor_id, now)
+        snapshot = _authorized_snapshot(session, _version(document), actor_id, now, reauthorize)
     return snapshot
 
 

@@ -32,3 +32,17 @@ def test_birth_context_and_format_do_not_store_values():
     assert rows[1].date_format == 'n:ymd:-:422:0:0:1'  # Same-line DOB within 40 characters.
     assert rows[2].rule_id == 'date.month_name'
     assert all('2026' not in x.date_format for x in rows)
+
+
+@pytest.mark.parametrize("value", ["2000-01-01", "03.04.2026", "3/4/2026"])
+def test_sentence_period_is_outside_the_exact_date_span(value):
+    source = "😀 Born: " + value + ". Next sentence."
+    rows = detect_dates(source, "GB")
+    assert len(rows) == 1
+    assert source[rows[0].span.start:rows[0].span.end] == value
+    assert rows[0].rule_id == "date.birth" and rows[0].date_format.endswith(":1")
+
+
+@pytest.mark.parametrize("suffix", [".1", ".version", "/part", "-1", "a"])
+def test_date_does_not_match_a_prefix_of_an_identifier_or_path(suffix):
+    assert detect_dates("2026-10-03" + suffix, "GB") == []

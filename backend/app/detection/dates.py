@@ -11,7 +11,7 @@ MONTH_NAMES = ("January", "February", "March", "April", "May", "June", "July", "
 MONTHS = {name.casefold(): i for i, name in enumerate(MONTH_NAMES, 1)}
 MONTHS.update({name[:3].casefold(): i for i, name in enumerate(MONTH_NAMES, 1)})
 MONTH = "(?:" + "|".join(sorted(MONTHS, key=len, reverse=True)) + ")"
-NUMERIC = re.compile(r"(?<![\w./-])(?:[12][0-9]{3}-[0-9]{1,2}-[0-9]{1,2}|[0-9]{1,2}([/.-])[0-9]{1,2}\1[12][0-9]{3})(?![\w./-])")
+NUMERIC = re.compile(r"(?<![\w./-])(?:[12][0-9]{3}-[0-9]{1,2}-[0-9]{1,2}|[0-9]{1,2}([/.-])[0-9]{1,2}\1[12][0-9]{3})(?![\w/-]|\.[\w./-])")
 NAMED = re.compile(r"(?<!\w)(?:[0-9]{1,2}(?:st|nd|rd|th)? " + MONTH + r" [12][0-9]{3}|" + MONTH + r" [0-9]{1,2}(?:st|nd|rd|th)?(?:,)? [12][0-9]{3})(?!\w)", re.IGNORECASE)
 BIRTH = re.compile(r"\b(?:DOB|D\.O\.B\.|date of birth|birth date|birthdate|born|birthday)(?:\b|(?<=\.))", re.IGNORECASE)
 

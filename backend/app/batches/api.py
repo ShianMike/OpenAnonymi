@@ -203,7 +203,13 @@ def create_batch_router(engine: Engine) -> APIRouter:
             body.request_id,
             body.mode,
             _keys(request),
+            reauthorize=lambda: current_identity(request),
         )
+        try:
+            await run_in_threadpool(current_identity, request)
+        except BaseException:
+            spool.close()
+            raise
         background.add_task(spool.close)
         return StreamingResponse(
             archive_chunks(spool),

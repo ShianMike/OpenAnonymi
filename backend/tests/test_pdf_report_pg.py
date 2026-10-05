@@ -290,7 +290,8 @@ def test_access_or_policy_change_during_real_pdf_render_discards_output(
 
     monkeypatch.setattr(pdf, "generate_pdf", render_then_change)
     response = output(owner, headers, base, findings, "pdf")
-    assert response.status_code == (404 if change == "owner_revoked" else 409)
+    # Losing the actor's only membership also ends their current session.
+    assert response.status_code == (401 if change == "owner_revoked" else 409)
     if change == "policy_enabled":
         assert response.json()["code"] == "approval_required_by_policy"
     elif change == "reviewer_revoked":

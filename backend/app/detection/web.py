@@ -53,15 +53,16 @@ def detect_urls(source: str):
 def detect_web_identifiers(source: str):
     result = []
     for match in IPV6.finditer(source):
-        if match[0].count(":") < 2:
+        value = match[0].rstrip(".")
+        if value.count(":") < 2:
             continue
         try:
-            address = ipaddress.IPv6Address(match[0])
+            address = ipaddress.IPv6Address(value)
         except ValueError:
             continue
         if address.is_unspecified or address == ipaddress.IPv6Address("::1"):
             continue
-        suggest(result, match.start(), match.end(), FindingCategory.IDENTIFIER, "identifier.ipv6", "Valid IPv6 address syntax; review whether it identifies a system.")
+        suggest(result, match.start(), match.start() + len(value), FindingCategory.IDENTIFIER, "identifier.ipv6", "Valid IPv6 address syntax; review whether it identifies a system.")
     for match in HANDLE.finditer(source):
         if match[1].casefold() in AT_WORDS:
             continue

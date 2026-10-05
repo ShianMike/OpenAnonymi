@@ -1,4 +1,4 @@
-"""Exact-span manual finding routes for one authorized document owner."""
+"""Exact-span finding routes for a current owner or assigned reviewer."""
 
 from datetime import UTC, datetime
 from typing import Annotated, Literal
@@ -200,6 +200,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
                     same_text_same_entity=body.same_text_same_entity,
                     keys=_keys(request),
                     now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
                 )
             )
         except (
@@ -261,6 +262,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
                     category=body.category,
                     keys=_keys(request),
                     now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
                 )
             )
         except (
@@ -300,6 +302,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
                     category=body.category,
                     keys=_keys(request),
                     now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
                 )
             )
         except (
@@ -325,6 +328,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
         document_id: UUID,
         finding_id: UUID,
         body: RemoveFindingRequest,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ) -> FindingsView | JSONResponse:
         try:
@@ -336,6 +340,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
                     actor_id=identity.user_id,
                     expected=body.expected,
                     now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
                 )
             )
         except (VersionConflict, DocumentNotFound, FindingNotFound, ContentUnavailable) as exc:
@@ -400,6 +405,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
                     span=body.span,
                     keys=_keys(request),
                     now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
                 )
             )
         except (
@@ -424,6 +430,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
         document_id: UUID,
         finding_id: UUID,
         body: RemoveFindingRequest,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ) -> FindingsView | JSONResponse:
         try:
@@ -435,6 +442,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
                     actor_id=identity.user_id,
                     expected=body.expected,
                     now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
                 )
             )
         except (
@@ -457,6 +465,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
         document_id: UUID,
         finding_id: UUID,
         body: MergeRequest,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ) -> FindingsView | JSONResponse:
         try:
@@ -469,6 +478,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
                     actor_id=identity.user_id,
                     expected=body.expected,
                     now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
                 )
             )
         except (

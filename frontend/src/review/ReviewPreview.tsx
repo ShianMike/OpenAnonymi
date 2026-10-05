@@ -65,7 +65,7 @@ export function ReviewPreview({ review }: { review: ReviewController }) {
           </p>
           {(preview.fictional_finding_ids?.length ?? 0) > 0 && <p className="fictional-legend"><strong>Fictional stand-ins</strong> · These replacements are not real people, organizations, places or contacts.</p>}
           {(preview.stand_in_fallback_ids?.length ?? 0) > 0 && <p className="fictional-legend">A unique fictional stand-in was unavailable for {preview.stand_in_fallback_ids?.length} occurrences. Their category labels are used instead.</p>}
-          {!plainPreview && (
+          {!plainPreview && review.mobilePanel === 'preview' && (
             <ReviewText
               text={preview.text as string}
               review={review}

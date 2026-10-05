@@ -30,3 +30,16 @@ def test_mapped_ipv6_and_handle_length():
     source = '::ffff:192.0.2.9 @' + 'a'*31 + ' @.no @no. @yes '
     rows = detect_web_identifiers(source)
     assert [source[x.span.start:x.span.end] for x in rows] == ['::ffff:192.0.2.9','@yes']
+
+
+@pytest.mark.parametrize("value", ["2001:db8::42", "::ffff:192.0.2.9"])
+def test_ipv6_sentence_period_stays_outside_the_exact_address_span(value):
+    source = "😀 System: " + value + ". Next sentence."
+    rows = detect_web_identifiers(source)
+    assert len(rows) == 1 and rows[0].rule_id == "identifier.ipv6"
+    assert source[rows[0].span.start:rows[0].span.end] == value
+
+
+@pytest.mark.parametrize("value", ["2001:db8::42.9", "2001:db8::42%eth0", "bad2001:db8::42", ":::."])
+def test_ipv6_trimming_does_not_admit_invalid_or_partial_addresses(value):
+    assert detect_web_identifiers(value) == []

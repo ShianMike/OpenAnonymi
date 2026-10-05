@@ -1,4 +1,4 @@
-import { useId, useState, type ReactElement } from 'react'
+import { cloneElement, useId, useState, type ButtonHTMLAttributes, type ReactElement } from 'react'
 import * as Popover from '@radix-ui/react-popover'
 import { Check, Eye, ScanLine, Tag, X } from 'lucide-react'
 import { GlassSelect } from '../ui/GlassSelect'
@@ -23,10 +23,12 @@ export function FindingPopover({
   finding,
   review,
   children,
+  getReview,
 }: {
   finding: ReviewFinding
   review: ReviewController
-  children: ReactElement
+  children: ReactElement<ButtonHTMLAttributes<HTMLButtonElement>>
+  getReview?: () => ReviewController
 }) {
   const [open, setOpen] = useState(false)
   const [attempted, setAttempted] = useState(false)
@@ -38,19 +40,30 @@ export function FindingPopover({
   const linkedCount = finding.group_id
     ? (review.groupMembers.get(finding.group_id)?.length ?? 1)
     : 1
+  function changeOpen(next: boolean) {
+    setOpen(next)
+    setAttempted(false)
+    if (next) {
+      const current = getReview?.() ?? review
+      current.setSelectedFindingId(finding.finding_id)
+      current.setKeepReason(
+        finding.keep_reason === 'intended_disclosure' ? 'intended_disclosure' : 'false_match',
+      )
+    }
+  }
+  // Keep the selected trigger mounted for Radix focus restoration. Other marks
+  // remain native buttons instead of mounting hundreds of closed popover trees.
+  if (!open && review.selectedFindingId !== finding.finding_id) {
+    return cloneElement(children, { 'aria-haspopup': 'dialog', 'aria-expanded': false, onClick: event => {
+      children.props.onClick?.(event)
+      const current = getReview?.() ?? review
+      if (!event.defaultPrevented && !current.dirty && !current.settingsDirty) changeOpen(true)
+    } })
+  }
   return (
     <Popover.Root
       open={open && !review.dirty && !review.settingsDirty}
-      onOpenChange={(next) => {
-        setOpen(next)
-        setAttempted(false)
-        if (next) {
-          review.setSelectedFindingId(finding.finding_id)
-          review.setKeepReason(
-            finding.keep_reason === 'intended_disclosure' ? 'intended_disclosure' : 'false_match',
-          )
-        }
-      }}
+      onOpenChange={changeOpen}
     >
       <Popover.Trigger asChild>{children}</Popover.Trigger>
       {open && <Popover.Portal>

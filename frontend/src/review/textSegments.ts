@@ -18,18 +18,26 @@ export function segmentText(text: string, marks: TextMark[]): TextSegment[] {
   const boundaries = Array.from(
     new Set([0, characters.length, ...valid.flatMap(({ span }) => [span.start, span.end])]),
   ).sort((a, b) => a - b)
+  const starts = new Map<number, number[]>()
+  const ends = new Map<number, number[]>()
+  valid.forEach(({ span }, index) => {
+    starts.set(span.start, [...(starts.get(span.start) ?? []), index])
+    ends.set(span.end, [...(ends.get(span.end) ?? []), index])
+  })
+  const active = new Set<number>()
   const segments: TextSegment[] = []
   for (let index = 0; index < boundaries.length - 1; index++) {
     const start = boundaries[index]
     const end = boundaries[index + 1]
     if (start === end) continue
+    for (const mark of ends.get(start) ?? []) active.delete(mark)
+    for (const mark of starts.get(start) ?? []) active.add(mark)
     segments.push({
       text: characters.slice(start, end).join(''),
       start,
       end,
-      findings: valid
-        .filter(({ span }) => span.start <= start && span.end >= end)
-        .map(({ finding }) => finding),
+      // Input order determines which overlapping finding opens from a mark.
+      findings: Array.from(active).sort((a, b) => a - b).map(mark => valid[mark].finding),
     })
   }
   return segments

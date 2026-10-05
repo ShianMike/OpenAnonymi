@@ -1,7 +1,8 @@
 """Atomic authorized output snapshots and content-free export events."""
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from time import perf_counter
 from uuid import UUID
 
@@ -105,6 +106,16 @@ def _report(version, confirmed_at, findings, preview):
     return build_report(version, confirmed_at, findings, preview)
 
 
+def _require_current_output_access(session, document, actor_id, now, reauthorize):
+    if reauthorize is not None:
+        reauthorize()
+        now = max(now, datetime.now(UTC))
+    owned_document(session, document.id, actor_id, now, lock=True)
+    from app.team_review.service import require_second_approval
+
+    require_second_approval(session, document)
+
+
 def prepare_copy(
     engine: Engine,
     *,
@@ -113,10 +124,16 @@ def prepare_copy(
     expected: VersionRef,
     keys: KeyRing,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ) -> AuthorizedOutput:
+    started = perf_counter()
     with Session(engine) as session, session.begin():
         document = owned_document(session, document_id, actor_id, now, lock=True)
+        if reauthorize is not None:
+            reauthorize()
         output, _completion = _current_output(session, document, expected, keys)
+        finished_at = now + timedelta(seconds=max(0, perf_counter() - started))
+        _require_current_output_access(session, document, actor_id, finished_at, reauthorize)
         return output
 
 
@@ -174,9 +191,13 @@ def record_copy_success(
     completion_id: UUID,
     event_id: UUID,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ) -> datetime:
+    started = perf_counter()
     with Session(engine) as session, session.begin():
         document = owned_document(session, document_id, actor_id, now, lock=True)
+        if reauthorize is not None:
+            reauthorize()
         version = _version(document)
         if version != expected:
             raise VersionConflict(version)
@@ -195,6 +216,8 @@ def record_copy_success(
             format="copy",
             now=now,
         )
+        finished_at = now + timedelta(seconds=max(0, perf_counter() - started))
+        _require_current_output_access(session, document, actor_id, finished_at, reauthorize)
         return event.occurred_at
 
 
@@ -210,12 +233,15 @@ def generate_output(
     format: str = "txt",
     variant: str = "spreadsheet_safe",
     maximum_bytes: int | None = None,
+    reauthorize: Callable[[], object] | None = None,
 ) -> tuple[bytes, AuthorizedOutput]:
     started = perf_counter()
     if format not in {"txt", "docx", "csv", "pdf", "report"}:
         raise ExportConflict("Choose a supported reviewed output format.")
     with Session(engine) as session, session.begin():
         document = owned_document(session, document_id, actor_id, now, lock=True)
+        if reauthorize is not None:
+            reauthorize()
         output, completion = _current_output(session, document, expected, keys, format=format)
         if format == "pdf":
             from app.exports.pdf import generate_pdf
@@ -243,10 +269,7 @@ def generate_output(
             raise OutputTooLarge("Reviewed outputs exceed the archive size limit.")
         # Rendering may take time. Recheck access/expiry and fresh policy before release.
         finished_at = now + timedelta(seconds=max(0, perf_counter() - started))
-        owned_document(session, document_id, actor_id, finished_at, lock=True)
-        from app.team_review.service import require_second_approval
-
-        require_second_approval(session, document)
+        _require_current_output_access(session, document, actor_id, finished_at, reauthorize)
         _record_event(
             session,
             document=document,
@@ -256,6 +279,7 @@ def generate_output(
             format=format,
             now=finished_at,
         )
+        _require_current_output_access(session, document, actor_id, finished_at, reauthorize)
         return payload, output
 
 

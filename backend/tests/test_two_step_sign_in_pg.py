@@ -29,6 +29,10 @@ from tests.second_factor_support import enroll, invalid_code, password_step, tot
 def test_password_alone_never_issues_session_backup_is_single_use_and_cookie_clears(intake_site):
     owner, other, engine, _, user_id = intake_site
     _, key, backups = enroll(owner)
+    with Session(engine) as session:
+        used_step = session.get(UserSecondFactor, user_id).last_used_step
+    assert used_step is not None
+    consumed_code = totp(key, datetime.fromtimestamp(used_step * 30, UTC))
     response = password_step(other)
     cookie = next(
         value
@@ -39,7 +43,7 @@ def test_password_alone_never_issues_session_backup_is_single_use_and_cookie_cle
     assert "openanonymi_challenge" not in response.text
     assert other.get("/api/v1/auth/session").status_code == 401
     denied = other.post(
-        "/api/v1/auth/sign-in/second-factor", headers={"Origin": ORIGIN}, json={"code": totp(key)}
+        "/api/v1/auth/sign-in/second-factor", headers={"Origin": ORIGIN}, json={"code": consumed_code}
     )
     assert denied.status_code == 400  # enrollment already consumed this step
     finished = other.post(

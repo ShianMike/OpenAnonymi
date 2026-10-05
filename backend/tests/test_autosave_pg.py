@@ -47,7 +47,7 @@ def test_encrypted_intake_roundtrip_and_version_guard(intake_site):
     restored = owner.get(path(workspace, snapshot))
     assert restored.status_code == 200
     assert restored.headers["Cache-Control"] == "no-store"
-    assert restored.json()["payload"] == payload["payload"] | {"preset_id": None}
+    assert restored.json()["payload"] == payload["payload"] | {"preset_id": None, "language": "en"}
     with Session(engine) as session:
         row = session.get(RecoverySnapshot, snapshot)
         assert payload["payload"]["source"].encode() not in row.payload_ciphertext

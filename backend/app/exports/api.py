@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy.engine import Engine
 
 from app.accounts.access import ContentUnavailable, DocumentNotFound
-from app.accounts.api import mutation_identity
+from app.accounts.api import current_identity, mutation_identity
 from app.accounts.security import SessionIdentity
 from app.contracts import ConflictResponse, ErrorResponse, VersionRef
 from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedContentError
@@ -104,6 +104,7 @@ def create_exports_router(engine: Engine) -> APIRouter:
                 expected=body.expected,
                 keys=_keys(request),
                 now=datetime.now(UTC),
+                reauthorize=lambda: current_identity(request),
             )
             return CopyPayloadView(
                 version=result.version, completion_id=result.completion_id, text=result.text
@@ -129,6 +130,7 @@ def create_exports_router(engine: Engine) -> APIRouter:
     def copy_success_route(
         document_id: UUID,
         body: CopyAckRequest,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ) -> ExportEventView | JSONResponse:
         try:
@@ -140,6 +142,7 @@ def create_exports_router(engine: Engine) -> APIRouter:
                 completion_id=body.completion_id,
                 event_id=body.event_id,
                 now=datetime.now(UTC),
+                reauthorize=lambda: current_identity(request),
             )
             return ExportEventView(event_id=body.event_id, recorded_at=recorded_at)
         except (
@@ -174,6 +177,7 @@ def create_exports_router(engine: Engine) -> APIRouter:
                 event_id=body.event_id,
                 keys=_keys(request),
                 now=datetime.now(UTC),
+                reauthorize=lambda: current_identity(request),
             )
             return Response(
                 content=payload,
@@ -219,6 +223,7 @@ def create_exports_router(engine: Engine) -> APIRouter:
                 keys=_keys(request),
                 now=datetime.now(UTC),
                 format="docx",
+                reauthorize=lambda: current_identity(request),
             )
             return Response(
                 content=payload,
@@ -266,6 +271,7 @@ def create_exports_router(engine: Engine) -> APIRouter:
                 now=datetime.now(UTC),
                 format="csv",
                 variant=body.variant,
+                reauthorize=lambda: current_identity(request),
             )
             return Response(
                 content=payload,

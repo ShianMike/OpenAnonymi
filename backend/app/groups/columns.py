@@ -13,6 +13,7 @@ from app.db.repository import VersionConflict
 from app.db.source_structures import load_csv
 from app.groups.service import (
     ReviewValidationError,
+    _require_current_review_access,
     _require_nonoverlap,
     _rows,
     _snapshot,
@@ -42,6 +43,7 @@ def decide_column(
     same_text_same_entity,
     keys,
     now,
+    reauthorize=None,
 ):
     if action == DecisionAction.KEEP and keep_reason not in ("false_match", "intended_disclosure"):
         raise ReviewValidationError("keep_reason_required", "Choose a Keep reason.")
@@ -53,6 +55,7 @@ def decide_column(
         )
     with Session(engine) as session, session.begin():
         document = owned_document(session, document_id, actor_id, now, lock=True)
+        _require_current_review_access(session, document_id, actor_id, reauthorize)
         version = _version(document)
         if expected != version:
             raise VersionConflict(version)
@@ -168,4 +171,6 @@ def decide_column(
             decision_before=before,
             decision_version=document.decision_version,
         )
-        return _snapshot(session, _version(document), actor_id, now)
+        snapshot = _snapshot(session, _version(document), actor_id, now)
+        _require_current_review_access(session, document_id, actor_id, reauthorize)
+        return snapshot

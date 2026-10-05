@@ -9,7 +9,7 @@ from fastapi.responses import Response
 from sqlalchemy.engine import Engine
 
 from app.accounts.access import ContentUnavailable, DocumentNotFound
-from app.accounts.api import mutation_identity
+from app.accounts.api import current_identity, mutation_identity
 from app.accounts.security import SessionIdentity
 from app.db.crypto import ContentKeyUnavailable, ProtectedContentError
 from app.db.repository import VersionConflict
@@ -35,6 +35,7 @@ def create_render_router(engine: Engine) -> APIRouter:
                 keys=_keys(request),
                 now=datetime.now(UTC),
                 format=format,
+                reauthorize=lambda: current_identity(request),
             )
             return Response(
                 payload,

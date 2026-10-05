@@ -133,7 +133,9 @@ def eligibility(engine: Engine, batch_id: UUID, actor_id: UUID, now: datetime):
     )
 
 
-def _authorize(engine: Engine, batch_id: UUID, actor_id: UUID):
+def _authorize(engine: Engine, batch_id: UUID, actor_id: UUID, reauthorize=None):
+    if reauthorize is not None:
+        reauthorize()
     with Session(engine) as session:
         owned_batch(session, batch_id, actor_id)
 
@@ -147,9 +149,11 @@ def build_zip(
     keys: KeyRing,
     *,
     maximum_bytes: int = MAX_UNCOMPRESSED_BYTES,
+    reauthorize=None,
 ):
     if mode not in {"original", "txt"}:
         raise BatchOutputRejected("invalid_output_mode", "Choose Original or TXT output.")
+    _authorize(engine, batch_id, actor_id, reauthorize)
     candidates = _candidates(engine, batch_id, actor_id, mode, datetime.now(UTC))
     if not any(row.reason is None for row in candidates):
         raise BatchOutputRejected(
@@ -162,7 +166,7 @@ def build_zip(
     try:
         with ZipFile(spool, "w", compression=ZIP_DEFLATED) as archive:
             for row in candidates:
-                _authorize(engine, batch_id, actor_id)
+                _authorize(engine, batch_id, actor_id, reauthorize)
                 reason = row.reason
                 if reason is None:
                     try:
@@ -177,6 +181,7 @@ def build_zip(
                             format=row.format,
                             variant="spreadsheet_safe",
                             maximum_bytes=maximum_bytes - total,
+                            reauthorize=reauthorize,
                         )
                     except VersionConflict:
                         reason = "stale_confirmation"
@@ -239,7 +244,7 @@ def build_zip(
                 )
             archive.writestr("manifest.json", metadata)
         # A mid-build owner revocation or batch deletion must stop the entire download.
-        _authorize(engine, batch_id, actor_id)
+        _authorize(engine, batch_id, actor_id, reauthorize)
         spool.seek(0)
         return spool
     except BaseException:
