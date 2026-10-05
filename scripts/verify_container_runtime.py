@@ -70,6 +70,8 @@ def native_inventory():
     if sys.platform == "linux":
         provenance = json.loads(Path("native-runtime.json").read_text("utf-8"))
         assert features.version("libtiff") == provenance["libtiff"]["version"] == "4.7.2"
+        assert importlib.metadata.version("pypdfium2") == provenance["pypdfium2"]["version"]
+        assert str(pypdfium2.PDFIUM_INFO) == provenance["pypdfium2"]["pdfium_version"]
         assert features.version("freetype2") and features.version("webp")
         packages = subprocess.run(["dpkg-query", "-W", "-f=${Package} ${Version}\\n"],
             capture_output=True, text=True, timeout=10, check=True).stdout.splitlines()

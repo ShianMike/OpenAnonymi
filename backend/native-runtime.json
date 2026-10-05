@@ -12,6 +12,12 @@
     "release_changes": "https://libtiff.gitlab.io/libtiff/releases/v4.7.2.html",
     "build": "official source, shared library, tools/tests/contrib/docs excluded"
   },
+  "pypdfium2": {
+    "version": "5.14.0",
+    "pdfium_version": "156.0.8076.0",
+    "source": "locked official PyPI wheels from uv.lock",
+    "release": "https://github.com/pypdfium2-team/pypdfium2/releases/tag/5.14.0"
+  },
   "other_pillow_native_libraries": "Debian packages; exact installed versions and linked hashes recorded by the container verification gate",
   "native_patch_status_certified": false
 }
