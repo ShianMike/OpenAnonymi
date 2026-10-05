@@ -1,8 +1,9 @@
 """Password proof yields a bounded HttpOnly challenge before any full session."""
 
 import secrets
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -63,9 +64,7 @@ def password_step(
     return IssuedChallenge(token, status, expires)
 
 
-def locked_challenge(
-    session: Session, token: str | None, kind: str, now: datetime
-) -> tuple[User, AuthChallenge]:
+def _challenge_statement(token: str | None, kind: str, now: datetime):
     if token is None or len(token) != 43 or not token.isascii():
         raise FactorError(
             401,
@@ -73,51 +72,58 @@ def locked_challenge(
             "Sign in again; the verification step expired.",
             clear_challenge=True,
         )
-    user_id = session.scalar(
-        select(AuthChallenge.user_id).where(AuthChallenge.token_digest == _digest(token))
+    return select(AuthChallenge).join(User, User.id == AuthChallenge.user_id).where(
+        AuthChallenge.token_digest == _digest(token), AuthChallenge.kind == kind,
+        AuthChallenge.consumed_at.is_(None), AuthChallenge.expires_at > now,
+        AuthChallenge.failed_attempts < 5, User.disabled_at.is_(None),
+        select(Membership.user_id).where(
+            Membership.user_id == AuthChallenge.user_id, Membership.revoked_at.is_(None),
+        ).exists(),
     )
-    if user_id is None:
+
+
+def _current_challenge(session, token, kind, now, *, lock=False):
+    statement = _challenge_statement(token, kind, now)
+    if lock:
+        statement = statement.with_for_update(of=AuthChallenge)
+    row = session.scalar(statement.execution_options(populate_existing=True))
+    if row is None:
         raise FactorError(
             401,
             "challenge_expired",
             "Sign in again; the verification step expired.",
             clear_challenge=True,
         )
-    user = locked_user(session, user_id, now)
-    if not session.scalar(
-        select(Membership.user_id)
-        .where(Membership.user_id == user_id, Membership.revoked_at.is_(None))
-        .limit(1)
-    ):
-        raise FactorError(
-            401, "challenge_expired", "Sign in again; account access changed.", clear_challenge=True
-        )
-    row = session.scalar(
-        select(AuthChallenge).where(AuthChallenge.token_digest == _digest(token)).with_for_update()
-    )
-    if (
-        row is None
-        or row.kind != kind
-        or row.consumed_at is not None
-        or row.expires_at <= now
-        or row.failed_attempts >= 5
-    ):
-        raise FactorError(
-            401,
-            "challenge_expired",
-            "Sign in again; the verification step expired.",
-            clear_challenge=True,
-        )
-    return user, row
+    return row
+
+
+def locked_challenge(
+    session: Session, token: str | None, kind: str, now: datetime
+) -> tuple[User, AuthChallenge]:
+    row = _current_challenge(session, token, kind, now)
+    user = locked_user(session, row.user_id, now)
+    return user, _current_challenge(session, token, kind, now, lock=True)
+
+
+def validate_challenge(engine, token, kind, *, expires_at=None):
+    """Fresh read of the actual pre-session capability; never lock a caller's rows."""
+    with Session(engine) as session:
+        row = _current_challenge(session, token, kind, datetime.now(UTC))
+        if expires_at is not None and row.expires_at != expires_at:
+            raise FactorError(401, "challenge_expired", "Sign in again; account access changed.", clear_challenge=True)
+        return row.user_id
 
 
 def finish_password_step(
-    engine: Engine, settings: Settings, token: str | None, code: str, now: datetime, user_agent: str
+    engine: Engine, settings: Settings, token: str | None, code: str, now: datetime, user_agent: str,
+    *, reauthorize: Callable[[], object] | None = None,
 ) -> tuple[IssuedSession, list[SecurityNotice]]:
     keys = KeyRing.from_settings(settings)
     error, issued, notices = None, None, []
     with Session(engine) as session, session.begin():
         user, challenge = locked_challenge(session, token, "second_factor", now)
+        if reauthorize is not None:
+            reauthorize()
         factor = session.get(UserSecondFactor, user.id)
         if factor is None or factor.status != "active":
             error = FactorError(
@@ -151,25 +157,40 @@ def finish_password_step(
                     )
                     if method == "password_backup_code":
                         notices.append(SecurityNotice(user.email, "backup_code_used", now))
+        session.flush()
+        if reauthorize is not None:
+            reauthorize()
     if error:
         raise error
     return issued, notices
 
 
-def start_forced_enrollment(engine: Engine, settings: Settings, token: str | None, now: datetime):
+def start_forced_enrollment(
+    engine: Engine, settings: Settings, token: str | None, now: datetime,
+    *, reauthorize: Callable[[], object] | None = None,
+):
     keys = KeyRing.from_settings(settings)
     with Session(engine) as session, session.begin():
         user, _ = locked_challenge(session, token, "enrollment", now)
-        return start_locked_enrollment(session, user, keys, now)
+        if reauthorize is not None:
+            reauthorize()
+        result = start_locked_enrollment(session, user, keys, now)
+        session.flush()
+        if reauthorize is not None:
+            reauthorize()
+        return result
 
 
 def finish_forced_enrollment(
-    engine: Engine, settings: Settings, token: str | None, code: str, now: datetime, user_agent: str
+    engine: Engine, settings: Settings, token: str | None, code: str, now: datetime, user_agent: str,
+    *, reauthorize: Callable[[], object] | None = None,
 ) -> tuple[IssuedSession, list[str], list[SecurityNotice]]:
     keys = KeyRing.from_settings(settings)
     error, issued, codes, notices = None, None, [], []
     with Session(engine) as session, session.begin():
         user, challenge = locked_challenge(session, token, "enrollment", now)
+        if reauthorize is not None:
+            reauthorize()
         factor = session.get(UserSecondFactor, user.id)
         if (
             factor is None
@@ -205,6 +226,9 @@ def finish_forced_enrollment(
                         session, user=user, now=now, user_agent=user_agent, auth_method="enrollment"
                     )
                     notices.append(SecurityNotice(user.email, "second_factor_enabled", now))
+        session.flush()
+        if reauthorize is not None:
+            reauthorize()
     if error:
         raise error
     return issued, codes, notices

@@ -110,7 +110,8 @@ def _memberships(session: Session, user_id: UUID) -> tuple[ActiveMembership, ...
 
 
 def sign_in(
-    session: Session, *, email: str, password: str, now: datetime, user_agent: str = ""
+    session: Session, *, email: str, password: str, now: datetime, user_agent: str = "",
+    reauthorize: "Callable[[Session, IssuedSession | IssuedChallenge], object] | None" = None,
 ) -> "IssuedSession | IssuedChallenge":
     from app.accounts.challenges import password_step
 
@@ -131,6 +132,9 @@ def sign_in(
         if not memberships:
             raise InvalidCredentials("Email or password was not accepted.")
         issued = password_step(session, user, now, user_agent)
+        session.flush()
+        if reauthorize is not None:
+            reauthorize(session, issued)
     return issued
 
 

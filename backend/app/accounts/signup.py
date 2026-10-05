@@ -3,8 +3,9 @@
 import hashlib
 import hmac
 import secrets
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from sqlalchemy import delete, select, text
@@ -120,6 +121,7 @@ def verify_registration(
     password: str,
     now: datetime,
     user_agent: str = "",
+    reauthorize: Callable[[Session, IssuedSession], object] | None = None,
 ) -> IssuedSession:
     try:
         forms = lookup_forms(email)
@@ -177,6 +179,11 @@ def verify_registration(
                 )
                 session.flush()
                 issued = issue_session(session, user=user, now=now, user_agent=user_agent)
+                session.flush()
+                if reauthorize is not None:
+                    if row.expires_at <= datetime.now(UTC):
+                        raise InvalidRegistrationCode
+                    reauthorize(session, issued)
         if unavailable:
             raise AccountUnavailable
         return issued

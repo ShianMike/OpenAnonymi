@@ -19,12 +19,14 @@ from app.accounts.api import (
     mutation_identity,
     require_mutation_origin,
     set_session_cookie,
+    validate_session_view,
 )
 from app.accounts.challenges import (
     CHALLENGE_NAME,
     finish_forced_enrollment,
     finish_password_step,
     start_forced_enrollment,
+    validate_challenge,
 )
 from app.accounts.devices import list_devices, revoke_device, revoke_others
 from app.accounts.response_boundary import protected_json_response
@@ -117,9 +119,9 @@ def create_second_factor_router(engine: Engine, settings: Settings) -> APIRouter
             503, "second_factor_unavailable", "Authenticator setup is unavailable right now."
         ) from None
 
-    def protected(view, request, identity, authorize, background=None):
+    def protected(view, request, identity, authorize, background=None, *, token=None):
         try:
-            response = protected_json_response(view, request, identity, authorize)
+            response = protected_json_response(view, request, identity, authorize, token=token)
         except ApiError as error:
             # The authorized change already committed: preserve its fixed
             # security notice even when the subsequent private body is denied.
@@ -138,6 +140,19 @@ def create_second_factor_router(engine: Engine, settings: Settings) -> APIRouter
                 headers={"Cache-Control": "no-store", "Vary": "Cookie, Origin"},
             )
         response.background = background
+        return response
+
+    def issued_response(view, request, issued, background):
+        def authorize(current):
+            session_view = view.session if isinstance(view, ForcedEnrollmentView) else view
+            validate_session_view(session_view, current, request.app.state.recovery_mailer is not None)
+            if isinstance(view, ForcedEnrollmentView):
+                validate_backup_codes(engine, current.user_id, view.backup_codes)
+
+        response = protected(view, request, issued.identity, authorize, background, token=issued.token)
+        clear_challenge_cookie(response, settings)
+        if response.status_code == 200:
+            set_session_cookie(response, issued.token, settings)
         return response
 
     @router.get("/second-factor", response_model=SecondFactorState)
@@ -277,7 +292,7 @@ def create_second_factor_router(engine: Engine, settings: Settings) -> APIRouter
 
     @router.post("/sign-in/second-factor", response_model=SessionView)
     def finish(
-        body: FactorCodeRequest, request: Request, response: Response, background: BackgroundTasks
+        body: FactorCodeRequest, request: Request, background: BackgroundTasks
     ):
         require_mutation_origin(request)
         try:
@@ -288,11 +303,12 @@ def create_second_factor_router(engine: Engine, settings: Settings) -> APIRouter
                 body.code.get_secret_value(),
                 datetime.now(UTC),
                 request.headers.get("user-agent", ""),
+                reauthorize=lambda: validate_challenge(engine, request.cookies.get(CHALLENGE_NAME), "second_factor"),
             )
             notices(background, request, delivered)
-            set_session_cookie(response, issued.token, settings)
-            clear_challenge_cookie(response, settings)
-            return _view(issued.identity, request.app.state.recovery_mailer is not None)
+            return issued_response(
+                _view(issued.identity, request.app.state.recovery_mailer is not None), request, issued, background,
+            )
         except FactorError as error:
             return factor_failure(error, request)
         except (ContentKeyUnavailable, ProtectedContentError):
@@ -303,9 +319,16 @@ def create_second_factor_router(engine: Engine, settings: Settings) -> APIRouter
         require_mutation_origin(request)
         try:
             result = start_forced_enrollment(
-                engine, settings, request.cookies.get(CHALLENGE_NAME), datetime.now(UTC)
+                engine, settings, request.cookies.get(CHALLENGE_NAME), datetime.now(UTC),
+                reauthorize=lambda: validate_challenge(engine, request.cookies.get(CHALLENGE_NAME), "enrollment"),
             )
-            return EnrollmentView(**result.__dict__)
+            view = EnrollmentView(**result.__dict__)
+            payload = view.model_dump_json()
+            actor = validate_challenge(engine, request.cookies.get(CHALLENGE_NAME), "enrollment")
+            validate_enrollment(engine, actor, view.manual_key, view.expires_at, KeyRing.from_settings(settings))
+            validate_challenge(engine, request.cookies.get(CHALLENGE_NAME), "enrollment")
+            return Response(payload, media_type="application/json",
+                            headers={"Cache-Control":"no-store", "Vary":"Cookie, Origin"})
         except FactorError as error:
             return factor_failure(error, request)
         except (ContentKeyUnavailable, ProtectedContentError):
@@ -313,7 +336,7 @@ def create_second_factor_router(engine: Engine, settings: Settings) -> APIRouter
 
     @router.post("/sign-in/enrollment/confirm", response_model=ForcedEnrollmentView)
     def forced_confirm(
-        body: FactorCodeRequest, request: Request, response: Response, background: BackgroundTasks
+        body: FactorCodeRequest, request: Request, background: BackgroundTasks
     ):
         require_mutation_origin(request)
         try:
@@ -324,14 +347,13 @@ def create_second_factor_router(engine: Engine, settings: Settings) -> APIRouter
                 body.code.get_secret_value(),
                 datetime.now(UTC),
                 request.headers.get("user-agent", ""),
+                reauthorize=lambda: validate_challenge(engine, request.cookies.get(CHALLENGE_NAME), "enrollment"),
             )
             notices(background, request, delivered)
-            set_session_cookie(response, issued.token, settings)
-            clear_challenge_cookie(response, settings)
-            return ForcedEnrollmentView(
+            return issued_response(ForcedEnrollmentView(
                 session=_view(issued.identity, request.app.state.recovery_mailer is not None),
                 backup_codes=codes,
-            )
+            ), request, issued, background)
         except FactorError as error:
             return factor_failure(error, request)
         except (ContentKeyUnavailable, ProtectedContentError):

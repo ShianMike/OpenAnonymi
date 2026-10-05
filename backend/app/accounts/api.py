@@ -12,7 +12,14 @@ from pydantic import BaseModel, Field, SecretStr, field_validator
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from app.accounts.challenges import CHALLENGE_NAME, CHALLENGE_PATH, CHALLENGE_TTL, IssuedChallenge
+from app.accounts.challenges import (
+    CHALLENGE_NAME,
+    CHALLENGE_PATH,
+    CHALLENGE_TTL,
+    IssuedChallenge,
+    _current_challenge,
+    validate_challenge,
+)
 from app.accounts.email_rules import EmailRuleError, lookup_forms
 from app.accounts.limits import AttemptLimiter
 from app.accounts.recovery import (
@@ -21,6 +28,7 @@ from app.accounts.recovery import (
     complete_recovery,
     request_recovery,
 )
+from app.accounts.second_factor import FactorError
 from app.accounts.security import (
     COOKIE_NAME,
     COOKIE_PATH,
@@ -217,21 +225,44 @@ def require_mutation_origin(request: Request) -> None:
         raise ApiError(403, "origin_denied", "This request origin is not allowed.")
 
 
-def current_identity(request: Request) -> SessionIdentity:
-    token = request.cookies.get(COOKIE_NAME)
+def _token_identity(request: Request, token: str | None, *, touch=False) -> SessionIdentity:
     try:
         with Session(request.app.state.engine) as session:
             identity = read_session(
                 session, token=token, now=datetime.now(UTC),
-                touch=not getattr(request.state, "session_seen_checked", False),
+                touch=touch,
             )
             session.commit()
-            # Rechecks still read current authorization, but must not write to
-            # a session row locked by this request's password/sign-out change.
-            request.state.session_seen_checked = True
             return identity
     except InvalidSession:
         raise ApiError(401, "sign_in_required", "Sign in to continue.") from None
+
+
+def current_identity(request: Request) -> SessionIdentity:
+    identity = _token_identity(
+        request, request.cookies.get(COOKIE_NAME),
+        touch=not getattr(request.state, "session_seen_checked", False),
+    )
+    # Rechecks remain fresh without writing to a row locked by this request.
+    request.state.session_seen_checked = True
+    return identity
+
+
+def validate_session_view(view: SessionView, identity: SessionIdentity, mail_available: bool):
+    if view != _view(identity, mail_available):
+        raise ApiError(409, "session_changed", "Account access changed. Reload to continue.")
+
+
+def session_response(request, identity, *, token=None, status_code=200):
+    from app.accounts.response_boundary import protected_json_response
+
+    mail_available = request.app.state.recovery_mailer is not None
+    view = _view(identity, mail_available)
+    return protected_json_response(
+        view, request, identity,
+        lambda current: validate_session_view(view, current, mail_available),
+        token=token, status_code=status_code,
+    )
 
 
 def mutation_identity(request: Request) -> SessionIdentity:
@@ -271,18 +302,33 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
     recovery_request_limiter = AttemptLimiter(engine, settings, scope="recovery_request", maximum=3)
     recovery_completion_limiter = AttemptLimiter(engine, settings, scope="recovery_complete")
 
+    def authorize_issued(session, issued):
+        try:
+            if isinstance(issued, IssuedChallenge):
+                kind = "second_factor" if issued.status == "second_factor_required" else "enrollment"
+                _current_challenge(session, issued.token, kind, datetime.now(UTC))
+            else:
+                current = read_session(session, token=issued.token, now=datetime.now(UTC), touch=False)
+                if current != issued.identity:
+                    raise ApiError(409, "session_changed", "Account access changed. Reload to continue.")
+        except InvalidSession:
+            raise ApiError(401, "sign_in_required", "Sign in to continue.") from None
+        except FactorError as error:
+            raise ApiError(error.status, error.code, error.message) from None
+
     @router.post(
         "/sign-in",
         response_model=SessionView | ChallengeView,
         responses={
             202: {"model": ChallengeView},
             401: {"model": ErrorResponse},
+            409: {"model": ErrorResponse},
             429: {"model": ErrorResponse},
         },
     )
     def sign_in_route(
-        body: SignInRequest, request: Request, response: Response
-    ) -> SessionView | ChallengeView:
+        body: SignInRequest, request: Request
+    ) -> Response:
         require_mutation_origin(request)
         client_ip = request_client_ip(request)
         if not limiter.take(client_ip):
@@ -295,19 +341,29 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
                     password=body.password.get_secret_value(),
                     now=datetime.now(UTC),
                     user_agent=request.headers.get("user-agent", ""),
+                    reauthorize=authorize_issued,
                 )
         except InvalidCredentials:
             raise ApiError(
                 401, "invalid_credentials", "Email or password was not accepted."
             ) from None
         if isinstance(issued, IssuedChallenge):
-            response.status_code = 202
+            view = ChallengeView(status=issued.status, expires_at=issued.expires_at)
+            payload = view.model_dump_json()
+            kind = "second_factor" if issued.status == "second_factor_required" else "enrollment"
+            try:
+                validate_challenge(engine, issued.token, kind, expires_at=issued.expires_at)
+            except FactorError as error:
+                raise ApiError(error.status, error.code, error.message) from None
+            response = Response(payload, status_code=202, media_type="application/json",
+                                headers={"Cache-Control":"no-store", "Vary":"Cookie, Origin"})
             clear_session_cookie(response, settings)
             set_challenge_cookie(response, issued.token, settings)
-            return ChallengeView(status=issued.status, expires_at=issued.expires_at)
+            return response
+        response = session_response(request, issued.identity, token=issued.token)
         set_session_cookie(response, issued.token, settings)
         clear_challenge_cookie(response, settings)
-        return _view(issued.identity, request.app.state.recovery_mailer is not None)
+        return response
 
     def dispatch(mailer, delivery: CodeDelivery, method: str, event: str):
         try:
@@ -377,13 +433,14 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
         response_model=SessionView,
         responses={
             400: {"model": ErrorResponse},
+            401: {"model": ErrorResponse},
             409: {"model": ErrorResponse},
             429: {"model": ErrorResponse},
         },
     )
     def verify_sign_up_route(
-        body: RegistrationVerification, request: Request, response: Response
-    ) -> SessionView:
+        body: RegistrationVerification, request: Request
+    ) -> Response:
         require_mutation_origin(request)
         try:
             subject = lookup_forms(body.email)[0]
@@ -406,6 +463,7 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
                 password=body.password.get_secret_value(),
                 now=datetime.now(UTC),
                 user_agent=request.headers.get("user-agent", ""),
+                reauthorize=authorize_issued,
             )
         except InvalidRegistrationCode:
             raise ApiError(
@@ -423,8 +481,9 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
             raise ApiError(
                 503, "registration_unavailable", "Self-registration is unavailable right now."
             ) from None
+        response = session_response(request, issued.identity, token=issued.token, status_code=201)
         set_session_cookie(response, issued.token, settings)
-        return _view(issued.identity, request.app.state.recovery_mailer is not None)
+        return response
 
     @router.post("/email-verification", status_code=202, response_model=RegistrationMessage)
     def request_email_proof_route(
@@ -491,16 +550,7 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
         request: Request,
         identity: Annotated[SessionIdentity, Depends(current_identity)],
     ) -> Response:
-        from app.accounts.response_boundary import protected_json_response
-
-        mail_available = request.app.state.recovery_mailer is not None
-        view = _view(identity, mail_available)
-
-        def authorize(current):
-            if view != _view(current, mail_available):
-                raise ApiError(409, "session_changed", "Account access changed. Reload to continue.")
-
-        return protected_json_response(view, request, identity, authorize)
+        return session_response(request, identity)
 
     @router.post(
         "/sign-out",
