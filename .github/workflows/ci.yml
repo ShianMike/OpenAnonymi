@@ -116,7 +116,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Build image
-        run: docker build --pull -t openanonymi-api:ci backend
+        run: docker build --pull -t openanonymi-api:ci .
       - name: Image runs as a non-root user
         run: test "$(docker run --rm --entrypoint id openanonymi-api:ci -u)" != "0"
       - name: Start in production mode
@@ -150,6 +150,13 @@ jobs:
           set -eu
           base=http://127.0.0.1:8080/api/v1
           origin=https://app.example.invalid
+          curl -fsS http://127.0.0.1:8080/ | grep -q 'Content-Security-Policy'
+          curl -fsS http://127.0.0.1:8080/documents | grep -q 'id="root"'
+          site_headers="$(curl -fsS -D - -o /dev/null http://127.0.0.1:8080/documents)"
+          echo "$site_headers" | grep -qi "^content-security-policy: frame-ancestors 'none'"
+          echo "$site_headers" | grep -qi '^cache-control: no-store'
+          test "$(curl -s -o /dev/null -w '%{http_code}' "$base/unknown")" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/assets/missing.js)" = 404
           curl -fsS "$base/health/live" | grep -q '"ok"'
           curl -fsS "$base/health/ready" | grep -q '"ok"'
           headers="$(curl -fsS -D - -o /dev/null "$base/meta?probe=synthetic-query")"

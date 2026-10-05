@@ -146,12 +146,17 @@ def test_team_operations_recheck_after_actual_document_lock(intake_site, monkeyp
 @pytest.mark.parametrize("operation", OPERATIONS)
 def test_team_content_expiry_uses_current_wall_clock(intake_site, monkeypatch, operation):
     case = team_case(intake_site, operation)
+    # Leave time for the real storage fingerprint and HTTP authorization on a busy
+    # runner, then cross the same persisted deadline at the late operation hook.
+    expires_at = datetime.now(UTC) + timedelta(seconds=5)
     with Session(case["engine"]) as session, session.begin():
-        session.get(Document, case["document_id"]).expires_at = datetime.now(UTC) + timedelta(
-            seconds=1
-        )
+        session.get(Document, case["document_id"]).expires_at = expires_at
     before = fingerprint(case)
-    fired = after_team(monkeypatch, case, lambda: time.sleep(1.2))
+
+    def cross_deadline():
+        time.sleep(max(0, (expires_at - datetime.now(UTC)).total_seconds()) + 0.1)
+
+    fired = after_team(monkeypatch, case, cross_deadline)
     assert_denied(team_perform(case), 410)
     assert fired
     assert_storage(case, before)

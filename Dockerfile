@@ -1,10 +1,19 @@
-# OpenAnonymi API: one container, one Uvicorn worker.
+# OpenAnonymi website and API: one container, one Uvicorn worker.
 #
-# Keep one worker and one instance for the spaCy model's memory budget on Free hosting.
+# Keep one worker and one instance; each worker loads its own spaCy model.
 # Attempt limits and bounded review undo history are shared in PostgreSQL and survive
 # restarts. Each additional worker would load its own local language model.
 #
-# Build from this directory:  docker build -t openanonymi-api backend
+# Build from the repository root: docker build -t openanonymi-api .
+
+FROM node:24-slim AS website
+WORKDIR /website
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/index.html frontend/vite.config.ts frontend/tsconfig*.json ./
+COPY frontend/src ./src
+COPY frontend/public ./public
+RUN npm run build
 
 FROM python:3.11-slim AS build
 COPY --from=ghcr.io/astral-sh/uv:0.10.6 /uv /uvx /bin/
@@ -28,18 +37,18 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_PYTHON_DOWNLOADS=never \
     UV_PROJECT_ENVIRONMENT=/app/.venv
 WORKDIR /app
-COPY pyproject.toml uv.lock .python-version ./
+COPY backend/pyproject.toml backend/uv.lock backend/.python-version ./
 # Locked runtime dependencies only, including spaCy 3.8 and the en_core_web_sm 3.8.0 model.
 RUN uv sync --locked --no-dev --no-install-project --no-cache --no-binary-package pillow \
     --config-settings-package pillow:tiff=enable \
     --config-settings-package pillow:webp=enable \
     --config-settings-package pillow:freetype=enable
 RUN /app/.venv/bin/python -c "from PIL import features; assert features.version('libtiff') == '4.7.2'; assert all(features.check(f) for f in ('jpg', 'zlib', 'webp', 'freetype2'))"
-COPY native-runtime.json ./
-COPY alembic.ini ./
-COPY migrations ./migrations
-COPY app ./app
-COPY certs ./certs
+COPY backend/native-runtime.json ./
+COPY backend/alembic.ini ./
+COPY backend/migrations ./migrations
+COPY backend/app ./app
+COPY backend/certs ./certs
 RUN /app/.venv/bin/python -m compileall -q app migrations
 
 FROM python:3.11-slim
@@ -58,11 +67,12 @@ COPY --from=build /tmp/native/tiff-4.7.2/LICENSE.md /usr/share/doc/openanonymi-l
 RUN ldconfig
 WORKDIR /app
 COPY --from=build /app /app
-COPY docker-entrypoint.sh /usr/local/bin/openanonymi-start
+COPY --from=website /website/dist /app/frontend
+COPY backend/docker-entrypoint.sh /usr/local/bin/openanonymi-start
 RUN sed -i 's/\r$//' /usr/local/bin/openanonymi-start && chmod 0755 /usr/local/bin/openanonymi-start
 USER app
 EXPOSE 8000
 # Process liveness only; readiness (GET /api/v1/health/ready) also checks PostgreSQL.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
     CMD ["python", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('PORT', '8000') + '/api/v1/health/live', timeout=4)"]
-ENTRYPOINT ["openanonymi-start"]
+CMD ["openanonymi-start"]

@@ -1,0 +1,32 @@
+# Allowlist: only locked application inputs go to the remote builder.
+# Never send .env, private evidence, virtual environments, tests or local data.
+*
+!Dockerfile
+!backend/
+backend/*
+!backend/pyproject.toml
+!backend/uv.lock
+!backend/native-runtime.json
+!backend/.python-version
+!backend/alembic.ini
+!backend/app/
+!backend/app/**
+!backend/certs/
+!backend/certs/**
+!backend/migrations/
+!backend/migrations/**
+!backend/docker-entrypoint.sh
+!frontend/
+frontend/*
+!frontend/package.json
+!frontend/package-lock.json
+!frontend/index.html
+!frontend/vite.config.ts
+!frontend/tsconfig*.json
+!frontend/src/
+!frontend/src/**
+!frontend/public/
+!frontend/public/**
+**/.env*
+**/__pycache__
+**/*.py[cod]
