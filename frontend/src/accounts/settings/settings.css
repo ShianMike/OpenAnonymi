@@ -110,6 +110,21 @@
   font-weight: 500;
   overflow-wrap: anywhere;
 }
+.email-verification {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  margin-bottom: 20px;
+}
+.email-verification > p {
+  margin: 0;
+}
+.email-verification form {
+  width: 100%;
+}
 .account-privacy-note {
   margin-top: auto;
   display: flex;
