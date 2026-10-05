@@ -198,12 +198,15 @@ def verify_registration(
 
 
 def request_email_verification(
-    engine: Engine, *, user_id: UUID, now: datetime
+    engine: Engine, *, user_id: UUID, now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ) -> CodeDelivery | None:
     with Session(engine) as session, session.begin():
         user = session.scalar(select(User).where(User.id == user_id).with_for_update())
         if user is None or user.disabled_at is not None:
             raise InvalidSession
+        if reauthorize is not None:
+            reauthorize()
         if user.email_verified_at is not None:
             return None
         row = session.get(EmailVerification, user_id)
@@ -218,17 +221,38 @@ def request_email_verification(
             0,
         )
         recipient = user.email
+        session.flush()
+        if reauthorize is not None:
+            reauthorize()
     return CodeDelivery(recipient, code)
 
 
-def confirm_email_verification(engine: Engine, *, user_id: UUID, code: str, now: datetime) -> None:
+def validate_email_delivery(engine: Engine, user_id: UUID, delivery: CodeDelivery) -> None:
+    """Only deliver the current, unexpired code to the current unverified address."""
+    with Session(engine) as session:
+        current = session.scalar(select(EmailVerification.user_id).join(User).where(
+            EmailVerification.user_id == user_id, EmailVerification.code_digest == digest(delivery.code),
+            EmailVerification.expires_at > datetime.now(UTC), EmailVerification.failed_attempts < 5,
+            User.email == delivery.recipient, User.disabled_at.is_(None), User.email_verified_at.is_(None),
+        ))
+        if current is None:
+            raise InvalidEmailVerificationCode
+
+
+def confirm_email_verification(
+    engine: Engine, *, user_id: UUID, code: str, now: datetime,
+    reauthorize: Callable[[], object] | None = None,
+) -> None:
     invalid = False
     with Session(engine) as session, session.begin():
         user = session.scalar(select(User).where(User.id == user_id).with_for_update())
         if user is None or user.disabled_at is not None:
             raise InvalidSession
+        if reauthorize is not None:
+            reauthorize()
         row = session.get(EmailVerification, user_id)
-        if row is None or row.expires_at <= now or row.failed_attempts >= 5:
+        current_time = datetime.now(UTC) if reauthorize is not None else now
+        if row is None or row.expires_at <= current_time or row.failed_attempts >= 5:
             invalid = True
         elif not hmac.compare_digest(row.code_digest, digest(code)):
             row.failed_attempts += 1
@@ -236,5 +260,10 @@ def confirm_email_verification(engine: Engine, *, user_id: UUID, code: str, now:
         else:
             user.email_verified_at = now
             session.delete(row)
+        session.flush()
+        if reauthorize is not None:
+            reauthorize()
+            if not invalid and row.expires_at <= datetime.now(UTC):
+                raise InvalidEmailVerificationCode
     if invalid:
         raise InvalidEmailVerificationCode

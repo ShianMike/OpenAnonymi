@@ -50,6 +50,7 @@ from app.accounts.signup import (
     confirm_email_verification,
     request_email_verification,
     request_registration,
+    validate_email_delivery,
     verify_registration,
 )
 from app.config import Settings
@@ -365,9 +366,13 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
         clear_challenge_cookie(response, settings)
         return response
 
-    def dispatch(mailer, delivery: CodeDelivery, method: str, event: str):
+    def dispatch(mailer, delivery: CodeDelivery, method: str, event: str, *, reauthorize=None):
         try:
+            if reauthorize is not None:
+                reauthorize()
             getattr(mailer, method)(delivery.recipient, delivery.code)
+        except (ApiError, InvalidEmailVerificationCode):
+            return
         except RecoveryDeliveryError:
             logging.getLogger("app.accounts").warning(event)
 
@@ -485,12 +490,17 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
         set_session_cookie(response, issued.token, settings)
         return response
 
-    @router.post("/email-verification", status_code=202, response_model=RegistrationMessage)
+    @router.post(
+        "/email-verification", status_code=202, response_model=RegistrationMessage,
+        responses={401: {"model": ErrorResponse}},
+    )
     def request_email_proof_route(
         request: Request,
         background: BackgroundTasks,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
-    ) -> RegistrationMessage:
+    ) -> Response:
+        from app.accounts.response_boundary import _same_session, protected_json_response
+
         mailer = request.app.state.recovery_mailer
         if mailer is None:
             raise ApiError(
@@ -504,32 +514,47 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
             )
         try:
             delivery = request_email_verification(
-                engine, user_id=identity.user_id, now=datetime.now(UTC)
+                engine, user_id=identity.user_id, now=datetime.now(UTC),
+                reauthorize=lambda: _same_session(request, identity),
             )
         except InvalidSession:
             raise ApiError(401, "sign_in_required", "Sign in to continue.") from None
+        response = protected_json_response(RegistrationMessage(
+            message="If verification is needed, we sent you a code. It expires in 15 minutes."
+        ), request, identity, lambda _: None, status_code=202)
         if delivery:
+            def authorize_delivery():
+                _same_session(request, identity)
+                validate_email_delivery(engine, identity.user_id, delivery)
+                _same_session(request, identity)
+
             background.add_task(
                 dispatch,
                 mailer,
                 delivery,
                 "send_email_verification_code",
                 "email_verification_delivery_failed",
+                reauthorize=authorize_delivery,
             )
-        return RegistrationMessage(
-            message="If verification is needed, we sent you a code. It expires in 15 minutes."
-        )
+        response.background = background
+        return response
 
-    @router.post("/email-verification/confirm", status_code=204)
+    @router.post(
+        "/email-verification/confirm", status_code=204,
+        responses={status: {"model": ErrorResponse} for status in (400, 401)},
+    )
     def confirm_email_proof_route(
-        body: EmailProofCode, identity: Annotated[SessionIdentity, Depends(mutation_identity)]
+        body: EmailProofCode, request: Request, identity: Annotated[SessionIdentity, Depends(mutation_identity)]
     ) -> Response:
+        from app.accounts.response_boundary import _same_session
+
         try:
             confirm_email_verification(
                 engine,
                 user_id=identity.user_id,
                 code=body.code.get_secret_value(),
                 now=datetime.now(UTC),
+                reauthorize=lambda: _same_session(request, identity),
             )
         except InvalidEmailVerificationCode:
             raise ApiError(
