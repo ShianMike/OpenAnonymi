@@ -5,6 +5,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
+from sqlalchemy import and_
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
@@ -24,6 +25,7 @@ from app.config import Settings
 from app.contracts import ErrorResponse
 from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedContentError
 from app.db.document_preferences import DocumentPreference
+from app.db.models import Document
 from app.errors import ApiError
 from app.workspace.organize import (
     BulkDocumentOutcome,
@@ -33,6 +35,7 @@ from app.workspace.organize import (
     DocumentPreferenceView,
     DocumentSearchRequest,
     DocumentSearchView,
+    available_documents,
     delete_owned_document,
     search_documents,
     update_preference,
@@ -71,14 +74,27 @@ def create_organize_router(engine: Engine, settings: Settings) -> APIRouter:
         def authorize(current):
             with Session(engine) as session:
                 rows = view.outcomes if isinstance(view, BulkDocumentsView) else [view]
+                updated = [row for row in rows if not isinstance(row, BulkDocumentOutcome) or row.outcome == "updated"]
+                flags = {
+                    document_id: (bool(favorite), bool(pinned))
+                    for document_id, favorite, pinned in session.execute(
+                        available_documents(current.user_id, datetime.now(UTC))
+                        .outerjoin(DocumentPreference, and_(
+                            DocumentPreference.document_id == Document.id,
+                            DocumentPreference.actor_id == current.user_id,
+                        ))
+                        .with_only_columns(Document.id, DocumentPreference.favorite, DocumentPreference.pinned)
+                        .where(Document.id.in_([row.document_id for row in updated]))
+                    ).all()
+                } if updated else {}
                 for row in rows:
                     if isinstance(row, BulkDocumentOutcome) and row.outcome != "updated":
                         if row.outcome == "deleted":
                             owned_document_record(session, row.document_id, current.user_id)
                         continue
-                    review_document(session, row.document_id, current.user_id, datetime.now(UTC))
-                    flag = session.get(DocumentPreference, (current.user_id, row.document_id))
-                    if (row.favorite, row.pinned) != (bool(flag and flag.favorite), bool(flag and flag.pinned)):
+                    if row.document_id not in flags:
+                        review_document(session, row.document_id, current.user_id, datetime.now(UTC))
+                    if (row.favorite, row.pinned) != flags.get(row.document_id):
                         raise ApiError(409, "preferences_changed", "Document preferences changed. Reload to continue.")
         return protected_json_response(view, request, identity, authorize)
 
