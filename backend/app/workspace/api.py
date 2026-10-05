@@ -9,7 +9,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from app.accounts.access import ContentUnavailable, DocumentNotFound, WorkspaceAccessDenied
+from app.accounts.access import (
+    ContentUnavailable,
+    DocumentNotFound,
+    WorkspaceAccessDenied,
+    active_workspace,
+    require_administrator,
+)
 from app.accounts.api import current_identity
 from app.accounts.response_boundary import protected_json_response
 from app.accounts.security import SessionIdentity
@@ -183,13 +189,13 @@ def create_workspace_router(engine: Engine) -> APIRouter:
     @router.get(
         "/{workspace_id}/overview",
         response_model=OverviewView,
-        responses={404: {"model": ErrorResponse}},
+        responses={status: {"model": ErrorResponse} for status in (401, 404)},
     )
     def overview_route(
         workspace_id: UUID,
         request: Request,
         identity: Annotated[SessionIdentity, Depends(current_identity)],
-    ) -> OverviewView:
+    ):
         try:
             record = load_overview(
                 engine,
@@ -197,21 +203,21 @@ def create_workspace_router(engine: Engine) -> APIRouter:
                 actor_id=identity.user_id,
                 now=datetime.now(UTC),
             )
-            current_identity(request)
-            return OverviewView.model_validate(record, from_attributes=True)
+            view = OverviewView.model_validate(record, from_attributes=True)
+            return protected_reporting(view, request, identity, workspace_id)
         except WorkspaceAccessDenied:
             raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
 
     @router.get(
         "/{workspace_id}/activity",
         response_model=ActivityView,
-        responses={404: {"model": ErrorResponse}},
+        responses={status: {"model": ErrorResponse} for status in (401, 404)},
     )
     def activity_route(
         workspace_id: UUID,
         request: Request,
         identity: Annotated[SessionIdentity, Depends(current_identity)],
-    ) -> ActivityView:
+    ):
         try:
             record = load_activity(
                 engine,
@@ -219,9 +225,19 @@ def create_workspace_router(engine: Engine) -> APIRouter:
                 actor_id=identity.user_id,
                 now=datetime.now(UTC),
             )
-            current_identity(request)
-            return ActivityView.model_validate(record, from_attributes=True)
+            view = ActivityView.model_validate(record, from_attributes=True)
+            return protected_reporting(view, request, identity, workspace_id)
         except WorkspaceAccessDenied:
             raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
+
+    def protected_reporting(view, request, identity, workspace_id):
+        def authorize(current):
+            with Session(engine) as session:
+                private_counts = view.workspace_total if isinstance(view, OverviewView) else view.workspace_counts
+                if private_counts is not None:
+                    require_administrator(session, workspace_id=workspace_id, actor_id=current.user_id)
+                else:
+                    active_workspace(session, workspace_id, current.user_id)
+        return protected_json_response(view, request, identity, authorize)
 
     return router

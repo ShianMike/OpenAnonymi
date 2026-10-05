@@ -9,6 +9,7 @@ from sqlalchemy.engine import Engine
 from app.accounts.access import ContentUnavailable, DocumentNotFound
 from app.accounts.api import current_identity, mutation_identity
 from app.accounts.limits import AttemptLimiter
+from app.accounts.response_boundary import protected_json_response
 from app.accounts.security import SessionIdentity
 from app.config import Settings
 from app.contracts import ErrorResponse
@@ -38,6 +39,13 @@ def create_retention_router(engine: Engine, settings: Settings) -> APIRouter:
                 410, "content_expired", "Expired or deleted content cannot be renewed."
             ) from None
 
+    def protected(view, document_id, request, identity):
+        def authorize(current):
+            latest = retention_view(engine, document_id=document_id, actor_id=current.user_id)
+            if (view.expires_at, view.maximum_days) != (latest.expires_at, latest.maximum_days):
+                raise ApiError(409, "retention_changed", "The retention date changed. Check it before renewing.")
+        return translate(lambda: protected_json_response(view, request, identity, authorize))
+
     @router.get("/{document_id}/retention", response_model=RetentionView, responses=errors)
     def read(
         document_id: UUID,
@@ -47,8 +55,7 @@ def create_retention_router(engine: Engine, settings: Settings) -> APIRouter:
         view = translate(
             lambda: retention_view(engine, document_id=document_id, actor_id=identity.user_id)
         )
-        current_identity(request)
-        return view
+        return protected(view, document_id, request, identity)
 
     @router.patch("/{document_id}/retention", response_model=RetentionView, responses=errors)
     def renew(
@@ -59,7 +66,7 @@ def create_retention_router(engine: Engine, settings: Settings) -> APIRouter:
     ):
         if not limiter.take(str(identity.user_id)):
             raise ApiError(429, "action_limited", "Please wait a minute and try again.")
-        return translate(
+        view = translate(
             lambda: renew_retention(
                 engine,
                 document_id=document_id,
@@ -68,5 +75,6 @@ def create_retention_router(engine: Engine, settings: Settings) -> APIRouter:
                 authorize=lambda: mutation_identity(request),
             )
         )
+        return protected(view, document_id, request, identity)
 
     return router

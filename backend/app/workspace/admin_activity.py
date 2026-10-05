@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.accounts.access import WorkspaceAccessDenied, require_administrator
 from app.accounts.api import mutation_identity
 from app.accounts.limits import AttemptLimiter
+from app.accounts.response_boundary import _same_session, protected_json_response
 from app.accounts.security import SessionIdentity
 from app.config import Settings
 from app.contracts import ErrorResponse
@@ -225,12 +226,14 @@ def create_admin_activity_router(engine: Engine, settings: Settings) -> APIRoute
         except WorkspaceAccessDenied:
             raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
 
-    def recheck(request, workspace_id, actor_id):
-        mutation_identity(request)
+    def require_current_admin(workspace_id, actor_id):
         with Session(engine) as session:
-            guarded(
-                lambda: require_administrator(session, workspace_id=workspace_id, actor_id=actor_id)
-            )
+            require_administrator(session, workspace_id=workspace_id, actor_id=actor_id)
+
+    def recheck(request, workspace_id, identity):
+        current = _same_session(request, identity)
+        guarded(lambda: require_current_admin(workspace_id, current.user_id))
+        _same_session(request, identity)
 
     @router.post(
         "/{workspace_id}/activity/admin", response_model=AdminActivityView, responses=errors
@@ -246,8 +249,9 @@ def create_admin_activity_router(engine: Engine, settings: Settings) -> APIRoute
                 engine, workspace_id=workspace_id, actor_id=identity.user_id, body=body
             )
         )
-        recheck(request, workspace_id, identity.user_id)
-        return view
+        return protected_json_response(view, request, identity, lambda current: guarded(
+            lambda: require_current_admin(workspace_id, current.user_id)
+        ))
 
     @router.post("/{workspace_id}/activity/admin/csv", response_class=Response, responses=errors)
     def export(
@@ -274,7 +278,7 @@ def create_admin_activity_router(engine: Engine, settings: Settings) -> APIRoute
             )
         )
         payload = activity_csv(view)
-        recheck(request, workspace_id, identity.user_id)
+        recheck(request, workspace_id, identity)
         return Response(
             payload,
             media_type="text/csv; charset=utf-8",

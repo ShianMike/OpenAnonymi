@@ -355,11 +355,10 @@ def test_bulk_stops_when_session_is_revoked_between_items(intake_site, monkeypat
         json={"document_ids": ids, "action": "favorite"},
         headers=headers,
     )
-    assert [item["outcome"] for item in response.json()["outcomes"]] == [
-        "updated",
-        "session_ended",
-        "session_ended",
-    ]
+    # The authorized first item stays committed, but the ended session cannot
+    # receive its prepared flag metadata or the remaining per-item outcomes.
+    assert response.status_code == 401 and response.json()["code"] == "sign_in_required"
+    assert response.headers["cache-control"] == "no-store" and "outcomes" not in response.json()
     with Session(engine) as session:
         assert [
             str(row.document_id)

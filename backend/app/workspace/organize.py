@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.accounts.access import (
     active_workspace,
     owned_document_record,
+    refresh_document_access,
     review_document,
     review_document_statement,
 )
@@ -211,6 +212,7 @@ def update_preference(
 ) -> DocumentPreferenceView:
     with Session(engine) as session, session.begin():
         document = review_document(session, document_id, actor_id, datetime.now(UTC), lock=True)
+        refresh_document_access(session, document_id, actor_id, authorize)
         if workspace_id is not None and document.workspace_id != workspace_id:
             from app.accounts.access import DocumentNotFound
 
@@ -218,8 +220,6 @@ def update_preference(
         flag = session.get(DocumentPreference, (actor_id, document_id))
         favorite = body.favorite if body.favorite is not None else bool(flag and flag.favorite)
         pinned = body.pinned if body.pinned is not None else bool(flag and flag.pinned)
-        authorize()
-        review_document(session, document_id, actor_id, datetime.now(UTC))
         if not favorite and not pinned:
             if flag is not None:
                 session.delete(flag)
@@ -231,7 +231,10 @@ def update_preference(
             )
         else:
             flag.favorite, flag.pinned = favorite, pinned
-        return DocumentPreferenceView(document_id=document_id, favorite=favorite, pinned=pinned)
+        view = DocumentPreferenceView(document_id=document_id, favorite=favorite, pinned=pinned)
+        session.flush()
+        refresh_document_access(session, document_id, actor_id, authorize)
+        return view
 
 
 def delete_owned_document(
@@ -271,3 +274,6 @@ def delete_owned_document(
         session.execute(
             delete(DocumentPreference).where(DocumentPreference.document_id == document_id)
         )
+        session.flush()
+        authorize()
+        owned_document_record(session, document_id, actor_id)

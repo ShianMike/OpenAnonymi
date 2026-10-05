@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from app.accounts.access import owned_document, owned_document_record
+from app.accounts.access import owned_document, owned_document_record, refresh_document_access
 from app.db.models import Workspace
 from app.errors import ApiError
 from app.workspace.activity import record_event
@@ -52,6 +52,7 @@ def renew_retention(
     with Session(engine) as session, session.begin():
         now = datetime.now(UTC)
         document = owned_document(session, document_id, actor_id, now, lock=True)
+        refresh_document_access(session, document_id, actor_id, authorize, owner=True)
         workspace = session.scalar(
             select(Workspace)
             .where(Workspace.id == document.workspace_id)
@@ -94,4 +95,11 @@ def renew_retention(
             event_code="document_retention_renewed",
             now=now,
         )
-        return RetentionView(expires_at=expires, current_time=now, maximum_days=maximum)
+        view = RetentionView(expires_at=expires, current_time=now, maximum_days=maximum)
+        session.flush()
+        refresh_document_access(session, document_id, actor_id, authorize, owner=True)
+        if body.expected_expires_at <= datetime.now(UTC):
+            from app.accounts.access import ContentUnavailable
+
+            raise ContentUnavailable("Expired content cannot be renewed.")
+        return view
