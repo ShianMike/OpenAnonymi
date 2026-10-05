@@ -56,7 +56,7 @@ jobs:
           PRIVACY_REVIEW_ALLOWED_ORIGINS: '["http://localhost:5173"]'
           PRIVACY_REVIEW_ENVIRONMENT: test
         run: uv run --locked alembic upgrade head --sql > "$RUNNER_TEMP/migrations.sql"
-      - name: Apply migrations 0001-0009
+      - name: Apply migrations through head
         env:
           PRIVACY_REVIEW_DATABASE_URL: ${{ env.PRIVACY_REVIEW_TEST_DATABASE_URL }}
           PRIVACY_REVIEW_ALLOWED_ORIGINS: '["http://localhost:5173"]'
@@ -125,6 +125,8 @@ jobs:
           echo "::add-mask::$key"
           docker run -d --name api --network host \
             --health-interval=5s --health-start-period=5s \
+            --memory=512m --memory-swap=512m \
+            -v "$GITHUB_WORKSPACE/backend/tests:/app/tests:ro" \
             -e PORT=8080 \
             -e PRIVACY_REVIEW_DATABASE_URL="$PRIVACY_REVIEW_TEST_DATABASE_URL" \
             -e PRIVACY_REVIEW_ALLOWED_ORIGINS='["https://app.example.invalid"]' \
@@ -189,3 +191,17 @@ jobs:
           docker logs api 2>&1 | grep -q '\[unsupported\] /api/v1/meta'
           if docker logs api 2>&1 | grep -q 'SYNTHETIC_PRIVATE_METHOD'; then exit 1; fi
           test "$(docker top api | grep -c 'uvicorn app.main:app')" -eq 1
+      - name: Native inventory, Linux limits and warmed NLP/OCR/PDF memory
+        run: |
+          mkdir -p "$RUNNER_TEMP/native-runtime"
+          docker exec -i api python < scripts/verify_container_runtime.py \
+            > "$RUNNER_TEMP/native-runtime/report.json" \
+            2> "$RUNNER_TEMP/native-runtime/diagnostic.log"
+      - name: Retain native runtime evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: native-runtime
+          path: ${{ runner.temp }}/native-runtime/
+          if-no-files-found: warn
+          retention-days: 14
