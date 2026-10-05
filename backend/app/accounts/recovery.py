@@ -4,7 +4,7 @@ import hashlib
 import secrets
 import smtplib
 import ssl
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
 from typing import Protocol
 from uuid import uuid4
@@ -164,13 +164,17 @@ def complete_recovery(
         raise InvalidRecoveryCode("The recovery code is invalid or expired.") from None
     new_hash = hash_password(new_password)
     with session.begin():
-        token = session.scalar(
-            select(RecoveryToken).where(RecoveryToken.token_hash == digest).with_for_update()
-        )
-        if token is None or token.used_at is not None or token.expires_at <= now:
+        user_id = session.scalar(select(RecoveryToken.user_id).where(RecoveryToken.token_hash == digest))
+        if user_id is None:
             raise InvalidRecoveryCode("The recovery code is invalid or expired.")
-        user = session.scalar(select(User).where(User.id == token.user_id).with_for_update())
+        # Each completion consumes all account codes; lock the account before any token.
+        user = session.scalar(select(User).where(User.id == user_id).with_for_update())
         if user is None or user.disabled_at is not None or user.email not in forms:
+            raise InvalidRecoveryCode("The recovery code is invalid or expired.")
+        token = session.scalar(select(RecoveryToken).where(
+            RecoveryToken.token_hash == digest, RecoveryToken.user_id == user.id,
+        ).with_for_update())
+        if token is None or token.used_at is not None or token.expires_at <= datetime.now(UTC):
             raise InvalidRecoveryCode("The recovery code is invalid or expired.")
         user.password_hash = new_hash
         user.email_verified_at = now
@@ -193,4 +197,7 @@ def complete_recovery(
             .values(revoked_at=now)
         )
         recipient = user.email
+        session.flush()
+        if token.expires_at <= datetime.now(UTC):
+            raise InvalidRecoveryCode("The recovery code is invalid or expired.")
     return recipient
