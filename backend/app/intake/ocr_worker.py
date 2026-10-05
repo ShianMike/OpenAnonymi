@@ -8,7 +8,7 @@ import sys
 import warnings
 from pathlib import Path
 
-from app.intake.process_limits import limit_linux_worker
+from app.intake.process_limits import isolate_linux_worker, limit_linux_worker
 
 MAX_PIXELS = 8_000_000
 MAX_OCR_PAGES = 10
@@ -54,6 +54,8 @@ def main():
     limit_linux_worker()
     try:
         from PIL import Image
+
+        isolate_linux_worker()
         from tesserocr import OEM, PSM, PyTessBaseAPI
 
         Image.MAX_IMAGE_PIXELS = MAX_PIXELS

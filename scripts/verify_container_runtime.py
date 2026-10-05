@@ -60,7 +60,8 @@ def native_inventory():
     models = json.loads((assets / "manifest.json").read_text("utf-8"))["files"]
     for item in models:
         assert hashlib.sha256((assets / item["filename"]).read_bytes()).hexdigest() == item["sha256"]
-    return {"platform": platform.system(), "python": platform.python_version(),
+    return {"platform": platform.system(), "kernel": platform.release(),
+        "machine": platform.machine(), "python": platform.python_version(),
         "packages": {name: importlib.metadata.version(name) for name in ("Pillow", "tesserocr", "pypdfium2")},
         "tesseract_linked_version_report": tesserocr.tesseract_version(),
         "pillow_linked_versions": {name: features.version(name) for name in features.get_supported()},
@@ -75,22 +76,54 @@ if not args.http_only:
     # Exercise the actual installed limiter in an independent child. Never put
     # RLIMIT_AS on the running API or this fixture-generating controller.
     probe = subprocess.run([sys.executable, "-c", """
-import json, os, resource, socket
-from app.intake.process_limits import limit_linux_worker
+import ctypes, errno, json, os, resource, socket, threading
+from pathlib import Path
+from app.intake.process_limits import isolate_linux_worker, limit_linux_worker
 limit_linux_worker()
+abi = isolate_linux_worker()
 limits = {name: resource.getrlimit(getattr(resource, 'RLIMIT_' + name)) for name in ('AS', 'CPU', 'CORE')}
 assert limits == {'AS': (402653184, 402653184), 'CPU': (40, 40), 'CORE': (0, 0)}
 try:
     bytearray(512 * 1024 * 1024)
 except MemoryError:
-    with open('/proc/' + str(os.getppid()) + '/environ', 'rb') as parent:
-        parent_setting_readable = b'PRIVACY_REVIEW_CONTENT_KEYS=' in parent.read()
-    with socket.create_connection(('127.0.0.1', 8080), timeout=1):
-        loopback_connect_allowed = True
+    denied = []
+    def refused(name, operation):
+        try:
+            operation()
+        except PermissionError:
+            denied.append(name)
+        else:
+            raise AssertionError(name + ' was not denied')
+    refused('parent environment', lambda: Path('/proc/' + str(os.getppid()) + '/environ').read_bytes())
+    refused('file outside public runtime/assets', lambda: Path('/app/alembic.ini').read_bytes())
+    refused('filesystem write', lambda: Path('/tmp/ocr-fence-fictional-canary').write_text('fictional'))
+    for family in (socket.AF_INET, socket.AF_INET6, socket.AF_UNIX):
+        refused('socket ' + str(family), lambda family=family: socket.socket(family))
+    refused('socket pair', socket.socketpair)
+    try:
+        child = os.fork()
+    except PermissionError:
+        denied.append('new process')
+    else:
+        if child == 0:
+            os._exit(97)
+        os.waitpid(child, 0)
+        raise AssertionError('worker fork was permitted')
+    refused('execution', lambda: os.execv('/bin/true', ['/bin/true']))
+    libc = ctypes.CDLL(None, use_errno=True)
+    assert libc.ptrace(0, 0, 0, 0) == -1 and ctypes.get_errno() == errno.EACCES
+    denied.append('ptrace')
+    threaded = []
+    thread = threading.Thread(target=lambda: (refused('thread parent environment',
+        lambda: Path('/proc/' + str(os.getppid()) + '/environ').read_bytes()), threaded.append(True)))
+    thread.start()
+    thread.join(timeout=2)
+    assert threaded == [True] and not thread.is_alive()
+    assert json.loads(Path('app/assets/ocr/manifest.json').read_text('utf-8'))['files']
     print(json.dumps({'actual_limits': limits, 'excess_allocation_rejected': True,
-        'parent_service_setting_readable': parent_setting_readable,
-        'loopback_connect_allowed': loopback_connect_allowed,
-        'process_security_isolation_verified': False}))
+        'landlock_abi': abi, 'denied_capabilities': denied,
+        'allowed_public_model_read': True, 'thread_inherits_restrictions': True,
+        'process_security_isolation_verified': True}))
 else:
     raise AssertionError('OCR memory limit did not reject allocation')
 """], capture_output=True, timeout=10, check=True)

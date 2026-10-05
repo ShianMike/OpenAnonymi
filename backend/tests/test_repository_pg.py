@@ -90,8 +90,8 @@ def isolated_rotation_database(monkeypatch):
     if not raw_url:
         pytest.skip("set PRIVACY_REVIEW_TEST_DATABASE_URL for the local database gate")
     url = make_url(raw_url)
-    if url.host not in ("127.0.0.1", "localhost") or url.port != 5434:
-        pytest.skip("isolated key rotation requires the local PostgreSQL server on port 5434")
+    if url.host not in ("127.0.0.1", "localhost") or url.port not in (5433, 5434):
+        pytest.fail("isolated key rotation requires a local database on port 5433 or 5434")
     database_name = f"openanonymi_rotation_{uuid4().hex}"
     admin_engine = create_engine(raw_url, isolation_level="AUTOCOMMIT", hide_parameters=True)
     with admin_engine.connect() as connection:
