@@ -1,7 +1,9 @@
 """Account-locked authenticator changes, shared budgets and durable replay guards."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from hmac import compare_digest
 from uuid import UUID, uuid4
 
 from sqlalchemy import delete, func, select, update
@@ -254,21 +256,39 @@ def activate_locked(
 
 
 def start_enrollment(
-    engine: Engine, settings: Settings, user_id: UUID, session_id: UUID, now: datetime
+    engine: Engine,
+    settings: Settings,
+    user_id: UUID,
+    session_id: UUID,
+    now: datetime,
+    *,
+    reauthorize: Callable[[], object] | None = None,
 ) -> Enrollment:
     keys = KeyRing.from_settings(settings)
     with Session(engine) as session, session.begin():
         user = locked_user(session, user_id, now, session_id)
-        return start_locked_enrollment(session, user, keys, now)
+        refresh_factor_access(session, user_id, session_id, reauthorize)
+        result = start_locked_enrollment(session, user, keys, now)
+        session.flush()
+        refresh_factor_access(session, user_id, session_id, reauthorize)
+        return result
 
 
 def confirm_enrollment(
-    engine: Engine, settings: Settings, user_id: UUID, session_id: UUID, code: str, now: datetime
+    engine: Engine,
+    settings: Settings,
+    user_id: UUID,
+    session_id: UUID,
+    code: str,
+    now: datetime,
+    *,
+    reauthorize: Callable[[], object] | None = None,
 ) -> tuple[list[str], list[SecurityNotice]]:
     keys = KeyRing.from_settings(settings)
     error, codes, notices = None, [], []
     with Session(engine) as session, session.begin():
         user = locked_user(session, user_id, now, session_id)
+        refresh_factor_access(session, user_id, session_id, reauthorize)
         factor = session.get(UserSecondFactor, user.id)
         if (
             factor is None
@@ -292,6 +312,8 @@ def confirm_enrollment(
                 else:
                     codes = activate_locked(session, user, factor, now, session_id)
                     notices.append(SecurityNotice(user.email, "second_factor_enabled", now))
+        session.flush()
+        refresh_factor_access(session, user_id, session_id, reauthorize)
     if error:
         raise error
     return codes, notices
@@ -307,11 +329,13 @@ def change_factor(
     now: datetime,
     *,
     disable: bool,
+    reauthorize: Callable[[], object] | None = None,
 ) -> tuple[list[str], list[SecurityNotice]]:
     keys = KeyRing.from_settings(settings)
     error, codes, notices = None, [], []
     with Session(engine) as session, session.begin():
         user = locked_user(session, user_id, now, session_id)
+        refresh_factor_access(session, user_id, session_id, reauthorize)
         factor = session.get(UserSecondFactor, user.id)
         if factor is None or factor.status != "active":
             error = FactorError(
@@ -355,9 +379,60 @@ def change_factor(
                         event = "backup_codes_regenerated"
                     security_activity(session, user.id, event, now)
                     notices.append(SecurityNotice(user.email, event, now))
+        session.flush()
+        refresh_factor_access(session, user_id, session_id, reauthorize)
     if error:
         raise error
     return codes, notices
+
+
+def refresh_factor_access(session, user_id, session_id, reauthorize):
+    if reauthorize is not None:
+        reauthorize()
+        locked_user(session, user_id, datetime.now(UTC), session_id)
+
+
+def validate_enrollment(engine, user_id, manual_key, expires_at, keys):
+    """Authorize the exact pending secret after private response serialization."""
+    from app.errors import ApiError
+
+    with Session(engine) as session:
+        factor = session.get(UserSecondFactor, user_id)
+        if (
+            factor is None
+            or factor.status != "pending"
+            or factor.created_at + ENROLLMENT_TTL != expires_at
+            or expires_at <= datetime.now(UTC)
+            or not compare_digest(
+                keys.decrypt_text(ProtectedValue(factor.secret_ciphertext, factor.key_id)),
+                manual_key,
+            )
+        ):
+            raise ApiError(
+                409, "enrollment_changed", "Authenticator setup changed or expired. Start again."
+            )
+
+
+def validate_backup_codes(engine, user_id, codes):
+    """Do not release a superseded or consumed backup-code set."""
+    from app.errors import ApiError
+
+    expected = {backup_digest(normalize_code(code)) for code in codes}
+    with Session(engine) as session:
+        factor = session.get(UserSecondFactor, user_id)
+        current = set(
+            session.scalars(
+                select(UserBackupCode.code_digest).where(
+                    UserBackupCode.user_id == user_id,
+                    UserBackupCode.used_at.is_(None),
+                    UserBackupCode.code_digest.in_(expected),
+                )
+            ).all()
+        )
+        if factor is None or factor.status != "active" or current != expected:
+            raise ApiError(
+                409, "backup_codes_changed", "Backup codes changed. Sign in and generate a new set."
+            )
 
 
 def security_status(engine: Engine, user_id: UUID, now: datetime) -> dict:

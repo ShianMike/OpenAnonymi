@@ -27,18 +27,21 @@ from app.accounts.challenges import (
     start_forced_enrollment,
 )
 from app.accounts.devices import list_devices, revoke_device, revoke_others
+from app.accounts.response_boundary import protected_json_response
 from app.accounts.second_factor import (
     FactorError,
     change_factor,
     confirm_enrollment,
     security_status,
     start_enrollment,
+    validate_backup_codes,
+    validate_enrollment,
 )
 from app.accounts.security import SessionIdentity
 from app.accounts.security_notices import deliver_notice
 from app.config import Settings
 from app.contracts import ErrorResponse
-from app.db.crypto import ContentKeyUnavailable, ProtectedContentError
+from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedContentError
 from app.errors import ApiError
 
 
@@ -114,6 +117,29 @@ def create_second_factor_router(engine: Engine, settings: Settings) -> APIRouter
             503, "second_factor_unavailable", "Authenticator setup is unavailable right now."
         ) from None
 
+    def protected(view, request, identity, authorize, background=None):
+        try:
+            response = protected_json_response(view, request, identity, authorize)
+        except ApiError as error:
+            # The authorized change already committed: preserve its fixed
+            # security notice even when the subsequent private body is denied.
+            response = JSONResponse(
+                status_code=error.status_code,
+                content=ErrorResponse(code=error.code, message=error.message).model_dump(),
+                headers={"Cache-Control": "no-store", "Vary": "Cookie, Origin"},
+            )
+        except (ContentKeyUnavailable, ProtectedContentError):
+            response = JSONResponse(
+                status_code=503,
+                content=ErrorResponse(
+                    code="second_factor_unavailable",
+                    message="Authenticator setup is unavailable right now.",
+                ).model_dump(),
+                headers={"Cache-Control": "no-store", "Vary": "Cookie, Origin"},
+            )
+        response.background = background
+        return response
+
     @router.get("/second-factor", response_model=SecondFactorState)
     def state(request: Request, identity: Annotated[SessionIdentity, Depends(current_identity)]):
         return SecondFactorState(
@@ -125,9 +151,26 @@ def create_second_factor_router(engine: Engine, settings: Settings) -> APIRouter
     def start(request: Request, identity: Annotated[SessionIdentity, Depends(mutation_identity)]):
         try:
             result = start_enrollment(
-                engine, settings, identity.user_id, identity.session_id, datetime.now(UTC)
+                engine,
+                settings,
+                identity.user_id,
+                identity.session_id,
+                datetime.now(UTC),
+                reauthorize=lambda: current_identity(request),
             )
-            return EnrollmentView(**result.__dict__)
+            view = EnrollmentView(**result.__dict__)
+            return protected(
+                view,
+                request,
+                identity,
+                lambda current: validate_enrollment(
+                    engine,
+                    current.user_id,
+                    view.manual_key,
+                    view.expires_at,
+                    KeyRing.from_settings(settings),
+                ),
+            )
         except FactorError as error:
             return factor_failure(error, request)
         except (ContentKeyUnavailable, ProtectedContentError):
@@ -148,9 +191,17 @@ def create_second_factor_router(engine: Engine, settings: Settings) -> APIRouter
                 identity.session_id,
                 body.code.get_secret_value(),
                 datetime.now(UTC),
+                reauthorize=lambda: current_identity(request),
             )
             notices(background, request, delivered)
-            return BackupCodesView(backup_codes=codes)
+            view = BackupCodesView(backup_codes=codes)
+            return protected(
+                view,
+                request,
+                identity,
+                lambda current: validate_backup_codes(engine, current.user_id, codes),
+                background,
+            )
         except FactorError as error:
             return factor_failure(error, request)
         except (ContentKeyUnavailable, ProtectedContentError):
@@ -173,6 +224,7 @@ def create_second_factor_router(engine: Engine, settings: Settings) -> APIRouter
                 body.code.get_secret_value(),
                 datetime.now(UTC),
                 disable=True,
+                reauthorize=lambda: current_identity(request),
             )
             notices(background, request, delivered)
             return Response(status_code=204, background=background)
@@ -198,9 +250,17 @@ def create_second_factor_router(engine: Engine, settings: Settings) -> APIRouter
                 body.code.get_secret_value(),
                 datetime.now(UTC),
                 disable=False,
+                reauthorize=lambda: current_identity(request),
             )
             notices(background, request, delivered)
-            return BackupCodesView(backup_codes=codes)
+            view = BackupCodesView(backup_codes=codes)
+            return protected(
+                view,
+                request,
+                identity,
+                lambda current: validate_backup_codes(engine, current.user_id, codes),
+                background,
+            )
         except FactorError as error:
             return factor_failure(error, request)
         except (ContentKeyUnavailable, ProtectedContentError):
