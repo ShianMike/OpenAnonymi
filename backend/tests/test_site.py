@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.edge import SecurityHeadersMiddleware
-from app.site import FrontendFiles
+from app.site import FrontendFiles, FrontendMount
 
 
 @pytest.fixture
@@ -37,7 +37,7 @@ def site(tmp_path):
     def ready():
         return {"ok": True}
 
-    app.mount("/", FrontendFiles(directory=tmp_path, html=True))
+    app.router.routes.append(FrontendMount("/", app=FrontendFiles(directory=tmp_path, html=True)))
     with TestClient(app) as client:
         assert events == ["started"]
         yield client, index
@@ -67,6 +67,17 @@ def test_existing_api_prefix_and_policy_survive_the_frontend_mount(site):
     assert response.status_code == 200 and response.json() == {"ok": True}
     assert response.headers["content-security-policy"].startswith("default-src 'none'")
     assert response.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.parametrize("method", ["POST", "SYNTHETIC_PRIVATE_METHOD"])
+def test_existing_api_preserves_method_denial_and_unknown_api_preserves_404(site, method):
+    client, index = site
+    response = client.request(method, "/api/v1/health/ready")
+    assert response.status_code == 405 and index not in response.text
+    assert "GET" in response.headers["allow"]
+    for path in ["/api/v1/unknown", "/api/hidden.js", "/api/v1/health/ready/", "/docs"]:
+        response = client.request(method, path)
+        assert response.status_code == 404 and index not in response.text
 
 
 @pytest.mark.parametrize("path", [

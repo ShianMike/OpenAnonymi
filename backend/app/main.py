@@ -7,7 +7,7 @@ from pathlib import Path
 
 from app.edge import configure_logging
 from app.factory import create_app
-from app.site import FrontendFiles
+from app.site import FrontendFiles, FrontendMount
 
 configure_logging()
 app = create_app()
@@ -16,4 +16,6 @@ app = create_app()
 # keeps using Vite. Mount last so /api/v1 contracts and lifespan stay unchanged.
 frontend = Path(__file__).resolve().parent.parent / "frontend"
 if frontend.is_dir():
-    app.mount("/", FrontendFiles(directory=frontend, html=True), name="website")
+    app.router.routes.append(FrontendMount(
+        "/", app=FrontendFiles(directory=frontend, html=True), name="website",
+    ))

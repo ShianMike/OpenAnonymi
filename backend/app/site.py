@@ -3,8 +3,20 @@
 from pathlib import PurePosixPath
 
 from starlette.exceptions import HTTPException
+from starlette.routing import Match, Mount
 from starlette.staticfiles import StaticFiles
 from starlette.types import Scope
+
+RESERVED_PATHS = {"api", "docs", "redoc", "openapi.json"}
+
+
+class FrontendMount(Mount):
+    def matches(self, scope: Scope):
+        # A catch-all Mount would claim API requests whose method did not match,
+        # replacing the API's 405 with a static-file 404.
+        if scope["path"].lstrip("/").split("/", 1)[0] in RESERVED_PATHS:
+            return Match.NONE, {}
+        return super().matches(scope)
 
 
 class FrontendFiles(StaticFiles):
@@ -12,7 +24,7 @@ class FrontendFiles(StaticFiles):
         # StaticFiles uses the host's path separator, including backslashes on Windows.
         parts = PurePosixPath(path.replace("\\", "/")).parts
         if any(part.startswith(".") for part in parts) or (
-            parts and parts[0] in {"api", "docs", "redoc", "openapi.json"}
+            parts and parts[0] in RESERVED_PATHS
         ):
             raise HTTPException(404)
         try:
