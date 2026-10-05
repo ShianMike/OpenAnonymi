@@ -2,8 +2,9 @@
 
 import json
 from collections import Counter
+from collections.abc import Callable
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from phonenumbers import SUPPORTED_REGIONS
@@ -125,7 +126,8 @@ def owned_batch(session: Session, batch_id: UUID, actor_id: UUID, *, lock=False)
 
 
 def create_batch(
-    engine: Engine, actor_id: UUID, body: CreateBatchRequest, keys: KeyRing, now: datetime
+    engine: Engine, actor_id: UUID, body: CreateBatchRequest, keys: KeyRing, now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ) -> UUID:
     categories = set(body.categories)
     if not categories.issubset(AUTOMATIC_CATEGORIES):
@@ -136,6 +138,9 @@ def create_batch(
         raise StorageValidationError("Choose a supported phone region.")
     with Session(engine) as session, session.begin():
         workspace = active_workspace(session, body.workspace_id, actor_id)
+        if reauthorize is not None:
+            reauthorize()
+            active_workspace(session, body.workspace_id, actor_id)
         retention = body.retention_days or workspace.content_retention_days
         if retention > workspace.content_retention_days:
             raise StorageValidationError("Expiry must be within the workspace retention period.")
@@ -197,6 +202,13 @@ def create_batch(
             event_code="batch_created",
             now=now,
         )
+        if reauthorize is not None:
+            reauthorize()
+            active_workspace(session, body.workspace_id, actor_id)
+        session.flush()
+        if reauthorize is not None:
+            reauthorize()
+            active_workspace(session, body.workspace_id, actor_id)
         return batch.id
 
 
@@ -208,11 +220,17 @@ def upload_document(
     raw_bytes: int,
     keys: KeyRing,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ):
     with Session(engine) as session, session.begin():
         batch = owned_batch(session, batch_id, actor_id, lock=True)
+        if reauthorize is not None:
+            reauthorize()
+            owned_batch(session, batch_id, actor_id)
         settings = BatchSettings.model_validate(batch.settings)
-        if batch.created_at + timedelta(days=settings.retention_days) <= now:
+        if batch.created_at + timedelta(days=settings.retention_days) <= (
+            datetime.now(UTC) if reauthorize is not None else now
+        ):
             raise ContentUnavailable("This batch no longer accepts uploads.")
         count = session.scalar(select(func.count(Document.id)).where(Document.batch_id == batch.id))
         if count >= MAX_BATCH_FILES:
@@ -263,6 +281,13 @@ def upload_document(
                 updated_at=now,
             )
         )
+        session.flush()
+        if reauthorize is not None:
+            reauthorize()
+            owned_batch(session, batch_id, actor_id)
+            if batch.created_at + timedelta(days=settings.retention_days) <= datetime.now(UTC):
+                raise ContentUnavailable("This batch no longer accepts uploads.")
+            owned_document(session, document.id, actor_id, datetime.now(UTC))
         return saved
 
 
@@ -389,11 +414,16 @@ def list_batches(engine: Engine, workspace_id: UUID, actor_id: UUID, keys: KeyRi
 
 
 def retry_document(
-    engine: Engine, batch_id: UUID, document_id: UUID, actor_id: UUID, now: datetime
+    engine: Engine, batch_id: UUID, document_id: UUID, actor_id: UUID, now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ):
     with Session(engine) as session, session.begin():
         owned_batch(session, batch_id, actor_id, lock=True)
         document = owned_document(session, document_id, actor_id, now, lock=True)
+        if reauthorize is not None:
+            reauthorize()
+            owned_batch(session, batch_id, actor_id)
+            owned_document(session, document_id, actor_id, datetime.now(UTC))
         if document.batch_id != batch_id:
             raise DocumentNotFound("Document not found.")
         job = session.scalar(
@@ -409,11 +439,22 @@ def retry_document(
             raise BatchRejected("scan_not_failed", "Only a failed queued scan can be retried.")
         job.status, job.attempts, job.last_error_code = "queued", 0, None
         job.available_at = job.updated_at = now
+        session.flush()
+        if reauthorize is not None:
+            reauthorize()
+            owned_batch(session, batch_id, actor_id)
+            owned_document(session, document_id, actor_id, datetime.now(UTC))
 
 
-def delete_batch(engine: Engine, batch_id: UUID, actor_id: UUID, now: datetime) -> list[UUID]:
+def delete_batch(
+    engine: Engine, batch_id: UUID, actor_id: UUID, now: datetime,
+    reauthorize: Callable[[], object] | None = None,
+) -> list[UUID]:
     with Session(engine) as session, session.begin():
         batch = owned_batch(session, batch_id, actor_id, lock=True)
+        if reauthorize is not None:
+            reauthorize()
+            owned_batch(session, batch_id, actor_id)
         documents = session.scalars(
             select(Document)
             .where(
@@ -446,4 +487,10 @@ def delete_batch(engine: Engine, batch_id: UUID, actor_id: UUID, now: datetime) 
             event_code="batch_deleted",
             now=now,
         )
+        session.flush()
+        if reauthorize is not None:
+            reauthorize()
+            # The owned row is locked and was just tombstoned by this mutation.
+            # Its membership must still be active before committing that deletion.
+            active_workspace(session, batch.workspace_id, actor_id)
         return [row.id for row in documents]

@@ -22,6 +22,8 @@ def protected_json_response(
     request: Request,
     identity: SessionIdentity,
     authorize: Callable[[SessionIdentity], None],
+    *,
+    status_code: int = 200,
 ) -> Response:
     payload = view.model_dump_json().encode("utf-8")
     authorize(_same_session(request, identity))
@@ -30,6 +32,7 @@ def protected_json_response(
     _same_session(request, identity)
     return Response(
         payload,
+        status_code=status_code,
         media_type="application/json",
         headers={"Cache-Control": "no-store", "Vary": "Cookie, Origin"},
     )

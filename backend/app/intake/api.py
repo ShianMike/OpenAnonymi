@@ -254,7 +254,7 @@ def create_intake_router(engine: Engine) -> APIRouter:
         "",
         response_model=SavedDraftView,
         status_code=201,
-        responses={401: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+        responses={code: {"model": ErrorResponse} for code in (401, 403, 404, 410, 422, 503)},
     )
     def create_pasted_draft_route(
         body: CreateDraftRequest,
@@ -280,20 +280,25 @@ def create_intake_router(engine: Engine) -> APIRouter:
                     if body.retention_days is not None
                     else None,
                     preset_id=body.preset_id,
+                    reauthorize=lambda: current_identity(request),
                 )
         except DocumentNotFound:
             raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
         except PresetNotFound:
             raise ApiError(404, "preset_not_found", "Preset not found.") from None
+        except ContentUnavailable:
+            raise ApiError(410, "content_expired", "Document content is unavailable.") from None
         except (SourceValidationError, StorageValidationError) as exc:
             raise _input_error(exc) from None
+        except (ContentKeyUnavailable, ProtectedContentError):
+            raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
         return _saved_view(saved)
 
     @router.post(
         "/from-file",
         response_model=SavedDraftView,
         status_code=201,
-        responses={401: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+        responses={code: {"model": ErrorResponse} for code in (401, 403, 404, 410, 422, 503)},
     )
     async def create_file_draft_route(
         request: Request,
@@ -387,11 +392,14 @@ def create_intake_router(engine: Engine) -> APIRouter:
                     layout=imported.layout,
                     layout_kind=imported.format,
                     validated_source=imported.source,
+                    reauthorize=lambda: current_identity(request),
                 )
         except DocumentNotFound:
             raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
         except PresetNotFound:
             raise ApiError(404, "preset_not_found", "Preset not found.") from None
+        except ContentUnavailable:
+            raise ApiError(410, "content_expired", "Document content is unavailable.") from None
         except (SourceValidationError, StorageValidationError) as exc:
             raise _input_error(exc) from None
         except (ContentKeyUnavailable, ProtectedContentError):

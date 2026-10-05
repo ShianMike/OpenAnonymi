@@ -82,8 +82,12 @@ def create_batch_router(engine: Engine) -> APIRouter:
     ):
         keys = _keys(request)
         now = datetime.now(UTC)
-        batch_id = _call(create_batch, engine, identity.user_id, body, keys, now)
-        return _call(load_batch, engine, batch_id, identity.user_id, keys, now)
+        batch_id = _call(create_batch, engine, identity.user_id, body, keys, now,
+            reauthorize=lambda: current_identity(request))
+        view = _call(load_batch, engine, batch_id, identity.user_id, keys, datetime.now(UTC))
+        return protected_json_response(view, request, identity, lambda current: _call(
+            validate_batch_view, engine, current.user_id, view, datetime.now(UTC)
+        ), status_code=201)
 
     @router.get("", response_model=BatchList, responses=errors)
     def list_route(
@@ -149,6 +153,7 @@ def create_batch_router(engine: Engine) -> APIRouter:
             len(raw),
             _keys(request),
             datetime.now(UTC),
+            reauthorize=lambda: current_identity(request),
         )
         request.app.state.scan_worker.wake()
         return _saved_view(saved)
@@ -160,7 +165,8 @@ def create_batch_router(engine: Engine) -> APIRouter:
         request: Request,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ):
-        _call(retry_document, engine, batch_id, document_id, identity.user_id, datetime.now(UTC))
+        _call(retry_document, engine, batch_id, document_id, identity.user_id, datetime.now(UTC),
+            reauthorize=lambda: current_identity(request))
         request.app.state.scan_worker.wake()
         return Response(status_code=204)
 
@@ -168,6 +174,7 @@ def create_batch_router(engine: Engine) -> APIRouter:
     def delete_route(
         batch_id: UUID,
         body: DeleteBatchRequest,
+        request: Request,
         background: BackgroundTasks,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ):
@@ -175,7 +182,8 @@ def create_batch_router(engine: Engine) -> APIRouter:
             raise ApiError(
                 422, "confirmation_required", "Confirm deletion of every document in this batch."
             )
-        ids = _call(delete_batch, engine, batch_id, identity.user_id, datetime.now(UTC))
+        ids = _call(delete_batch, engine, batch_id, identity.user_id, datetime.now(UTC),
+            reauthorize=lambda: current_identity(request))
         for document_id in ids:
             background.add_task(purge_deleted_document, engine, document_id)
         return Response(status_code=204)

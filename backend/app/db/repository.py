@@ -111,9 +111,12 @@ def create_document(
     layout: dict | None = None,
     layout_kind: str = "docx",
     validated_source: ValidatedSource | None = None,
+    reauthorize: Callable[[], object] | None = None,
 ) -> SavedDocument:
     with session.begin():
-        return create_document_in_transaction(
+        if reauthorize is not None:
+            reauthorize()
+        saved = create_document_in_transaction(
             session,
             owner_id=owner_id,
             workspace_id=workspace_id,
@@ -130,6 +133,14 @@ def create_document(
             layout_kind=layout_kind,
             validated_source=validated_source,
         )
+        if reauthorize is not None:
+            reauthorize()
+            owned_document(session, saved.version.document_id, owner_id, datetime.now(UTC))
+        session.flush()
+        if reauthorize is not None:
+            reauthorize()
+            owned_document(session, saved.version.document_id, owner_id, datetime.now(UTC))
+        return saved
 
 
 def create_document_in_transaction(

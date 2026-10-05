@@ -145,7 +145,9 @@ def test_empty_active_batch_lives_until_retention_and_deleted_empty_batch_is_rem
         deleted.column_rules_ciphertext = deleted.column_rules_key_id = None
         ids = (current.id, old.id, deleted.id)
     result = purge_unavailable_content(engine, now=now)
-    assert result.expired_rows_removed == 2
+    # This aggregate also counts expired attempts, challenges and sessions from
+    # other workflows. The exact batch outcome is checked by ID below.
+    assert result.expired_rows_removed >= 2
     with Session(engine) as session:
         assert session.get(Batch, ids[0]) is not None
         assert session.get(Batch, ids[1]) is None and session.get(Batch, ids[2]) is None
@@ -186,7 +188,7 @@ def test_empty_batch_uses_shorter_snapshot_or_current_workspace_retention(
                 == []
             )
     result = purge_unavailable_content(engine, now=now)
-    assert result.expired_rows_removed == int(removed)
+    assert result.expired_rows_removed >= int(removed)
     with Session(engine) as session:
         assert (session.get(Batch, batch_id) is None) == removed
 
