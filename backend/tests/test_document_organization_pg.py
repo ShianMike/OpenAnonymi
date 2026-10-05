@@ -78,7 +78,14 @@ def test_document_index_does_not_return_titles_after_late_access_change(
     )
     assert changed
     assert "PRIVATE TITLE CANARY" not in result.text
-    assert result.status_code in (200, 401, 404)
+    if change == "expiry" and endpoint == "index":
+        # The final serialized-response check detects the independently changed
+        # creation/expiry metadata, rather than releasing the earlier index body.
+        assert result.status_code == 409
+        assert result.json()["code"] == "documents_changed"
+    else:
+        assert result.status_code in (200, 401, 404)
+    assert result.headers["cache-control"] == "no-store"
 
 
 def test_global_search_scopes_titles_and_personal_flags_to_real_grants(intake_site):

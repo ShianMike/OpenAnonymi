@@ -7,9 +7,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
 
-from app.accounts.access import DocumentNotFound, WorkspaceAccessDenied
+from app.accounts.access import ContentUnavailable, DocumentNotFound, WorkspaceAccessDenied
 from app.accounts.api import current_identity
+from app.accounts.response_boundary import protected_json_response
 from app.accounts.security import SessionIdentity
 from app.contracts import DocumentStatus, ErrorResponse, FindingCategory
 from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedContentError
@@ -17,6 +19,7 @@ from app.errors import ApiError
 from app.workspace.activity import load_activity
 from app.workspace.documents import list_documents, load_overview
 from app.workspace.history import load_document_history
+from app.workspace.private_titles import validate_title_view
 
 
 class DocumentIndexView(BaseModel):
@@ -143,7 +146,7 @@ def create_workspace_router(engine: Engine) -> APIRouter:
     @router.get(
         "/{workspace_id}/documents",
         response_model=list[DocumentIndexView],
-        responses={404: {"model": ErrorResponse}},
+        responses={status: {"model": ErrorResponse} for status in (404, 409, 410, 503)},
     )
     def documents_route(
         workspace_id: UUID,
@@ -159,12 +162,21 @@ def create_workspace_router(engine: Engine) -> APIRouter:
                 keys=keys,
                 now=datetime.now(UTC),
             )
-            current_identity(request)
-            return [
+            view = [
                 DocumentIndexView.model_validate(record, from_attributes=True) for record in records
             ]
-        except WorkspaceAccessDenied:
+
+            def authorize(current):
+                with Session(engine) as session:
+                    validate_title_view(
+                        session, current.user_id, view, keys, workspace_id=workspace_id, index=True
+                    )
+
+            return protected_json_response(view, request, identity, authorize)
+        except (WorkspaceAccessDenied, DocumentNotFound):
             raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
+        except ContentUnavailable:
+            raise ApiError(410, "content_expired", "Document content is unavailable.") from None
         except (ContentKeyUnavailable, ProtectedContentError):
             raise ApiError(503, "content_unavailable", "Document titles are unavailable.") from None
 

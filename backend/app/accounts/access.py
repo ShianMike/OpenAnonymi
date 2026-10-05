@@ -25,14 +25,35 @@ class WorkspaceAccessDenied(RuntimeError):
 
 
 def refresh_document_access(
-    session: Session, document_id: UUID, actor_id: UUID,
-    reauthorize: Callable[[], object] | None, *, owner: bool = False,
+    session: Session,
+    document_id: UUID,
+    actor_id: UUID,
+    reauthorize: Callable[[], object] | None,
+    *,
+    owner: bool = False,
 ):
     """Refresh HTTP session and current grants/expiry inside an existing transaction."""
     if reauthorize is not None:
         reauthorize()
         access = owned_document if owner else review_document
         return access(session, document_id, actor_id, datetime.now(UTC))
+    return None
+
+
+def refresh_workspace_access(
+    session: Session,
+    workspace_id: UUID,
+    actor_id: UUID,
+    reauthorize: Callable[[], object] | None,
+    *,
+    administrator: bool = False,
+):
+    """Refresh HTTP authorization inside an existing workspace transaction."""
+    if reauthorize is not None:
+        reauthorize()
+        if administrator:
+            return require_administrator(session, workspace_id=workspace_id, actor_id=actor_id)
+        return active_workspace(session, workspace_id, actor_id)
     return None
 
 

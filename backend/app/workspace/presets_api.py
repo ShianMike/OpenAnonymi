@@ -1,5 +1,6 @@
 """Member-readable presets and administrator-only changes."""
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 from uuid import UUID
@@ -11,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.accounts.access import WorkspaceAccessDenied
 from app.accounts.api import current_identity, mutation_identity
+from app.accounts.response_boundary import protected_json_response
 from app.accounts.security import SessionIdentity
 from app.contracts import ErrorResponse, FindingCategory
 from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedContentError
@@ -24,6 +26,7 @@ from app.workspace.presets import (
     PresetVersionConflict,
     list_presets,
     save_preset,
+    validate_preset_view,
 )
 
 
@@ -67,6 +70,7 @@ def _save(
     preset_id: UUID | None,
     expected_version: int | None,
     keys: KeyRing,
+    reauthorize: Callable[[], object] | None = None,
 ) -> PresetView:
     try:
         with Session(engine) as session:
@@ -92,6 +96,7 @@ def _save(
                 if body.column_rules is not None
                 else None,
                 keys=keys,
+                reauthorize=reauthorize,
             )
     except (WorkspaceAccessDenied, PresetNotFound):
         raise ApiError(404, "preset_not_found", "Preset or workspace not found.") from None
@@ -119,6 +124,18 @@ def create_presets_router(engine: Engine) -> APIRouter:
     router = APIRouter(prefix="/api/v1/workspaces", tags=["presets"])
     errors = {404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}}
 
+    def protected(view, request, identity, workspace_id, *, status_code=200):
+        def authorize(current):
+            with Session(engine) as session:
+                validate_preset_view(session, workspace_id, current.user_id, view)
+
+        try:
+            return protected_json_response(
+                view, request, identity, authorize, status_code=status_code
+            )
+        except WorkspaceAccessDenied:
+            raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
+
     @router.get("/{workspace_id}/presets", response_model=list[PresetView], responses=errors)
     def presets_route(
         workspace_id: UUID,
@@ -137,7 +154,7 @@ def create_presets_router(engine: Engine) -> APIRouter:
             raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
         except (ContentKeyUnavailable, ProtectedContentError):
             raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
-        return [_view(record) for record in records]
+        return protected([_view(record) for record in records], request, identity, workspace_id)
 
     @router.post(
         "/{workspace_id}/presets",
@@ -151,7 +168,17 @@ def create_presets_router(engine: Engine) -> APIRouter:
         request: Request,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ) -> PresetView:
-        return _save(engine, workspace_id, identity.user_id, body, None, None, _keys(request))
+        view = _save(
+            engine,
+            workspace_id,
+            identity.user_id,
+            body,
+            None,
+            None,
+            _keys(request),
+            lambda: current_identity(request),
+        )
+        return protected(view, request, identity, workspace_id, status_code=201)
 
     @router.put("/{workspace_id}/presets/{preset_id}", response_model=PresetView, responses=errors)
     def update_preset_route(
@@ -161,7 +188,7 @@ def create_presets_router(engine: Engine) -> APIRouter:
         request: Request,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ) -> PresetView:
-        return _save(
+        view = _save(
             engine,
             workspace_id,
             identity.user_id,
@@ -169,6 +196,8 @@ def create_presets_router(engine: Engine) -> APIRouter:
             preset_id,
             body.expected_version,
             _keys(request),
+            lambda: current_identity(request),
         )
+        return protected(view, request, identity, workspace_id)
 
     return router

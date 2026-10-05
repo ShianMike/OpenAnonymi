@@ -13,8 +13,9 @@ from app.accounts.access import (
     WorkspaceAccessDenied,
     active_workspace,
 )
-from app.accounts.api import current_identity, mutation_identity
+from app.accounts.api import mutation_identity
 from app.accounts.limits import AttemptLimiter
+from app.accounts.response_boundary import protected_json_response
 from app.accounts.security import SessionIdentity
 from app.config import Settings
 from app.contracts import ErrorResponse
@@ -32,6 +33,7 @@ from app.workspace.organize import (
     search_documents,
     update_preference,
 )
+from app.workspace.private_titles import validate_title_view
 
 
 def create_organize_router(engine: Engine, settings: Settings) -> APIRouter:
@@ -55,7 +57,7 @@ def create_organize_router(engine: Engine, settings: Settings) -> APIRouter:
         window_seconds=60,
         network_scope=False,
     )
-    errors = {code: {"model": ErrorResponse} for code in (401, 403, 404, 410, 422, 429, 503)}
+    errors = {code: {"model": ErrorResponse} for code in (401, 403, 404, 409, 410, 422, 429, 503)}
 
     def take(limiter, identity):
         if not limiter.take(str(identity.user_id)):
@@ -69,13 +71,20 @@ def create_organize_router(engine: Engine, settings: Settings) -> APIRouter:
     ):
         take(search_limit, identity)
         try:
-            result = search_documents(
-                engine, actor_id=identity.user_id, body=body, keys=KeyRing.from_settings(settings)
-            )
-            current_identity(request)
-            return result
-        except WorkspaceAccessDenied:
+            keys = KeyRing.from_settings(settings)
+            result = search_documents(engine, actor_id=identity.user_id, body=body, keys=keys)
+
+            def authorize(current):
+                with Session(engine) as session:
+                    validate_title_view(
+                        session, current.user_id, result, keys, workspace_id=body.workspace_id
+                    )
+
+            return protected_json_response(result, request, identity, authorize)
+        except (WorkspaceAccessDenied, DocumentNotFound):
             raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
+        except ContentUnavailable:
+            raise ApiError(410, "content_expired", "Document content is unavailable.") from None
         except (ContentKeyUnavailable, ProtectedContentError):
             raise ApiError(503, "content_unavailable", "Document titles are unavailable.") from None
 

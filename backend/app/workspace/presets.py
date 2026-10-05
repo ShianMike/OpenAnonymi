@@ -1,6 +1,7 @@
 """Versioned workspace presets; reviews keep their own intake snapshot."""
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from uuid import UUID, uuid4
@@ -9,11 +10,12 @@ from phonenumbers import SUPPORTED_REGIONS
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.accounts.access import active_workspace, require_administrator
+from app.accounts.access import active_workspace, refresh_workspace_access, require_administrator
 from app.contracts import AUTOMATIC_CATEGORIES, FindingCategory
 from app.db.column_rules import load_preset_rules
 from app.db.crypto import KeyRing, ProtectedContentError
 from app.db.models import Preset
+from app.errors import ApiError
 from app.workspace.activity import record_event
 
 
@@ -84,6 +86,7 @@ def save_preset(
     category_defaults: dict | None = None,
     column_rules: list[dict] | None = None,
     keys: KeyRing | None = None,
+    reauthorize: Callable[[], object] | None = None,
 ) -> PresetRecord:
     from app.transformations.defaults import validate_defaults
 
@@ -105,6 +108,7 @@ def save_preset(
         raise ValueError("Choose Label or Redact as the preferred action.")
     with session.begin():
         require_administrator(session, workspace_id=workspace_id, actor_id=actor_id, lock=True)
+        refresh_workspace_access(session, workspace_id, actor_id, reauthorize, administrator=True)
         existing_name = session.scalar(
             select(Preset).where(
                 Preset.workspace_id == workspace_id,
@@ -165,4 +169,22 @@ def save_preset(
             now=now,
         )
         result = _record(preset, keys)
+        session.flush()
+        refresh_workspace_access(session, workspace_id, actor_id, reauthorize, administrator=True)
     return result
+
+
+def validate_preset_view(session, workspace_id, actor_id, view):
+    """Default switches also change other presets without increasing their version."""
+    active_workspace(session, workspace_id, actor_id)
+    statement = select(Preset.id, Preset.version, Preset.is_default).where(
+        Preset.workspace_id == workspace_id
+    )
+    items = view if isinstance(view, list) else [view]
+    if not isinstance(view, list):
+        statement = statement.where(Preset.id == view.id)
+    if set(session.execute(statement).all()) != {
+        (item.id, item.version, item.is_default) for item in items
+    }:
+        raise ApiError(409, "presets_changed", "Presets changed. Reload before continuing.")
+    active_workspace(session, workspace_id, actor_id)
