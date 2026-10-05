@@ -30,7 +30,12 @@ export function useBatch(id: string) {
       } catch (cause: unknown) {
         if (disposed || current.signal.aborted) return
         setError(cause instanceof Error ? cause.message : 'The batch could not be loaded.')
-        if (cause instanceof ApiRequestError && [401, 403, 404, 410].includes(cause.status)) setData(null)
+        if (cause instanceof ApiRequestError) {
+          if ([401, 403, 404, 410].includes(cause.status) || cause.code === 'batch_changed') setData(null)
+          // A scan or upload can change the snapshot during authorization.
+          // Clear that snapshot and obtain a current one on the ordinary scan interval.
+          if (cause.code === 'batch_changed') processing = true
+        }
       } finally {
         if (!disposed && !current.signal.aborted && isPageVisible()) {
           timer = window.setTimeout(load, processing ? 5_000 : 60_000)

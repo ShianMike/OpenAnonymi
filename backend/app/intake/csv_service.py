@@ -1,6 +1,7 @@
 """Current CSV syntax and column choices under the document's review lock."""
 
-from datetime import datetime
+from collections.abc import Callable
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -52,9 +53,16 @@ def change_csv_settings(
     rules: list[dict] | None,
     keys: KeyRing,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ):
+    def authorize(session):
+        if reauthorize is not None:
+            reauthorize()
+            owned_document(session, document_id, actor_id, datetime.now(UTC))
+
     with Session(engine) as session, session.begin():
         document = owned_document(session, document_id, actor_id, now, lock=True)
+        authorize(session)
         if document.settings_version != expected_settings_version:
             raise VersionConflict(_version(document))
         if document.csv_delimiter is None:
@@ -79,6 +87,7 @@ def change_csv_settings(
         else:
             selected_rules = old["rules"]
         if not syntax_changed and selected_rules == old["rules"]:
+            authorize(session)
             return {"version": _version(document), **old}
         document.csv_delimiter = selected_delimiter
         document.csv_has_header = selected_header
@@ -100,4 +109,6 @@ def change_csv_settings(
                 except CsvError:
                     finding.removed_at = now
         session.flush()
-        return {"version": _version(document), **csv_info(session, document, source, keys)}
+        result = {"version": _version(document), **csv_info(session, document, source, keys)}
+        authorize(session)
+        return result

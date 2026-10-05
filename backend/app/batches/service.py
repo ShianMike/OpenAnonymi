@@ -16,6 +16,7 @@ from app.accounts.access import (
     DocumentNotFound,
     active_workspace,
     owned_document,
+    require_administrator,
 )
 from app.batches.contracts import (
     BatchDocumentView,
@@ -53,6 +54,49 @@ class BatchRejected(ValueError):
     def __init__(self, code: str, message: str):
         self.code = code
         super().__init__(message)
+
+
+class BatchReadChanged(RuntimeError):
+    pass
+
+
+def validate_batch_view(engine: Engine, actor_id: UUID, view: BatchView, now: datetime):
+    """Refresh scalar access/expiry after serialization without decrypting again."""
+    with Session(engine) as session:
+        batch = owned_batch(session, view.id, actor_id)
+        if batch.workspace_id != view.workspace_id:
+            raise DocumentNotFound("Batch not found.")
+        rows = session.scalars(select(Document).where(Document.batch_id == batch.id)).all()
+        by_id = {row.id: row for row in rows}
+        if set(by_id) != {item.id for item in view.documents}:
+            raise BatchReadChanged("Batch changed while loading.")
+        for item in view.documents:
+            row = by_id[item.id]
+            if row.owner_id != actor_id or row.workspace_id != batch.workspace_id:
+                raise DocumentNotFound("Batch not found.")
+            if (
+                (_version(row) if row.current_revision_id else None) != item.version
+                or row.expires_at != item.expires_at
+                or (item.state not in ("expired", "deleted") and (
+                    row.expires_at <= now or row.deleted_at is not None
+                    or row.status in (DocumentStatus.EXPIRED, DocumentStatus.DELETED)
+                ))
+            ):
+                raise BatchReadChanged("Batch changed while loading.")
+
+
+def validate_batch_list(engine: Engine, workspace_id: UUID, actor_id: UUID, view: BatchList):
+    with Session(engine) as session:
+        active_workspace(session, workspace_id, actor_id)
+        if view.workspace_total is not None:
+            require_administrator(session, workspace_id=workspace_id, actor_id=actor_id)
+        ids = {item.id for item in view.own_batches}
+        available = set(session.scalars(select(Batch.id).where(
+            Batch.id.in_(ids), Batch.workspace_id == workspace_id,
+            Batch.owner_id == actor_id, Batch.deleted_at.is_(None),
+        )))
+        if available != ids:
+            raise DocumentNotFound("Batch not found.")
 
 
 def owned_batch(session: Session, batch_id: UUID, actor_id: UUID, *, lock=False) -> Batch:

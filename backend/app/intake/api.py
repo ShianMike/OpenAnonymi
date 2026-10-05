@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -13,8 +13,14 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
-from app.accounts.access import WorkspaceAccessDenied, active_workspace
+from app.accounts.access import (
+    WorkspaceAccessDenied,
+    active_workspace,
+    owned_document,
+    review_document,
+)
 from app.accounts.api import current_identity, mutation_identity
+from app.accounts.response_boundary import protected_json_response
 from app.accounts.security import SessionIdentity
 from app.contracts import (
     AUTOMATIC_CATEGORIES,
@@ -32,6 +38,7 @@ from app.db.repository import (
     SavedDocument,
     StorageValidationError,
     VersionConflict,
+    _version,
     append_source_revision,
     create_document,
     load_current_source,
@@ -178,6 +185,45 @@ def _load_owned_source(
         raise ApiError(410, "content_expired", "Document content is unavailable.") from None
     except (ContentKeyUnavailable, ProtectedContentError):
         raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
+
+
+def _source_response(engine, request, identity, source: LoadedSource, view: BaseModel) -> Response:
+    def authorize(current):
+        try:
+            with Session(engine) as session:
+                document = review_document(
+                    session, source.version.document_id, current.user_id, datetime.now(UTC)
+                )
+                if (
+                    _version(document) != source.version
+                    or document.status != source.status
+                    or document.expires_at != source.expires_at
+                    or document.workspace_id != source.workspace_id
+                    or (document.owner_id == current.user_id) != source.can_edit
+                ):
+                    raise ApiError(409, "source_changed", "The source changed while loading. Retry.")
+        except DocumentNotFound:
+            raise ApiError(404, "document_not_found", "Document not found.") from None
+        except ContentUnavailable:
+            raise ApiError(410, "content_expired", "Document content is unavailable.") from None
+
+    return protected_json_response(view, request, identity, authorize)
+
+
+def _csv_response(engine, request, identity, view: CsvSettingsView) -> Response:
+    def authorize(current):
+        with Session(engine) as session:
+            document = owned_document(
+                session, view.version.document_id, current.user_id, datetime.now(UTC)
+            )
+            if (
+                _version(document) != view.version
+                or document.csv_delimiter != view.delimiter
+                or document.csv_has_header != view.has_header
+            ):
+                raise ApiError(409, "source_changed", "The source changed while loading. Retry.")
+
+    return protected_json_response(view, request, identity, authorize)
 
 
 def create_intake_router(engine: Engine) -> APIRouter:
@@ -366,8 +412,9 @@ def create_intake_router(engine: Engine) -> APIRouter:
                 else None,
                 keys=_keys(request),
                 now=datetime.now(UTC),
+                reauthorize=lambda: current_identity(request),
             )
-            return CsvSettingsView.model_validate(result)
+            return _csv_response(engine, request, identity, CsvSettingsView.model_validate(result))
         except DocumentNotFound:
             raise ApiError(404, "document_not_found", "Document not found.") from None
         except ContentUnavailable:
@@ -379,8 +426,14 @@ def create_intake_router(engine: Engine) -> APIRouter:
         except (ContentKeyUnavailable, ProtectedContentError):
             raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
 
-    @router.get("/{document_id}/column-rules", response_model=CsvSettingsView)
-    @router.get("/{document_id}/csv-settings", response_model=CsvSettingsView)
+    @router.get(
+        "/{document_id}/column-rules", response_model=CsvSettingsView,
+        responses={code: {"model": ErrorResponse} for code in (401, 404, 409, 410, 503)},
+    )
+    @router.get(
+        "/{document_id}/csv-settings", response_model=CsvSettingsView,
+        responses={code: {"model": ErrorResponse} for code in (401, 404, 409, 410, 503)},
+    )
     def csv_settings_route(
         document_id: UUID,
         request: Request,
@@ -389,7 +442,9 @@ def create_intake_router(engine: Engine) -> APIRouter:
         source = _load_owned_source(engine, request, document_id, identity.user_id)
         if source.csv is None:
             raise ApiError(422, "csv_required", "These settings apply to an imported CSV document.")
-        return CsvSettingsView(version=source.version, **source.csv)
+        return _source_response(
+            engine, request, identity, source, CsvSettingsView(version=source.version, **source.csv)
+        )
 
     @router.put(
         "/{document_id}/csv-settings",
@@ -420,15 +475,15 @@ def create_intake_router(engine: Engine) -> APIRouter:
     @router.get(
         "/{document_id}/source",
         response_model=SourceView,
-        responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+        responses={code: {"model": ErrorResponse} for code in (401, 404, 409, 410, 503)},
     )
     def source_route(
         document_id: UUID,
         request: Request,
         identity: Annotated[SessionIdentity, Depends(current_identity)],
-    ) -> SourceView:
+    ) -> Response:
         source = _load_owned_source(engine, request, document_id, identity.user_id)
-        return _source_view(source)
+        return _source_response(engine, request, identity, source, _source_view(source))
 
     @router.put(
         "/{document_id}/source",
@@ -452,6 +507,7 @@ def create_intake_router(engine: Engine) -> APIRouter:
                     source=body.source,
                     keys=keys,
                     now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
                 )
         except DocumentNotFound:
             raise ApiError(404, "document_not_found", "Document not found.") from None
@@ -471,6 +527,7 @@ def create_intake_router(engine: Engine) -> APIRouter:
         responses={
             401: {"model": ErrorResponse},
             404: {"model": ErrorResponse},
+            409: {"model": ErrorResponse},
             410: {"model": ErrorResponse},
             503: {"model": ErrorResponse},
         },
@@ -480,10 +537,10 @@ def create_intake_router(engine: Engine) -> APIRouter:
         revision_id: UUID,
         request: Request,
         identity: Annotated[SessionIdentity, Depends(current_identity)],
-    ) -> SourceView:
+    ) -> Response:
         source = _load_owned_source(engine, request, document_id, identity.user_id)
         if source.version.source_revision_id != revision_id:
             raise ApiError(404, "revision_not_found", "Revision not found.")
-        return _source_view(source)
+        return _source_response(engine, request, identity, source, _source_view(source))
 
     return router

@@ -1,8 +1,9 @@
 """Protected document storage. Public HTTP handlers will use these guarded operations."""
 
+from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 from phonenumbers import SUPPORTED_REGIONS
@@ -358,10 +359,14 @@ def append_source_revision(
     source: str,
     keys: KeyRing,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ) -> SavedDocument:
     validated = validate_source(source)
     with session.begin():
         document = owned_document(session, document_id, actor_id, now, lock=True)
+        if reauthorize is not None:
+            reauthorize()
+            owned_document(session, document_id, actor_id, datetime.now(UTC))
         current = _version(document)
         if expected != current:
             raise VersionConflict(current)
@@ -460,6 +465,9 @@ def append_source_revision(
             DocumentStatus.DRAFT,
             "kept" if new_layout else "simplified" if old_layout else "none",
         )
+        if reauthorize is not None:
+            reauthorize()
+            owned_document(session, document_id, actor_id, datetime.now(UTC))
     return saved
 
 

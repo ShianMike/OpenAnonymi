@@ -13,6 +13,7 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from app.accounts.access import ContentUnavailable, DocumentNotFound, WorkspaceAccessDenied
 from app.accounts.api import current_identity, mutation_identity
+from app.accounts.response_boundary import protected_json_response
 from app.accounts.security import SessionIdentity
 from app.batches.contracts import (
     BatchEligibility,
@@ -24,6 +25,7 @@ from app.batches.contracts import (
 )
 from app.batches.outputs import BatchOutputRejected, archive_chunks, build_zip, eligibility
 from app.batches.service import (
+    BatchReadChanged,
     BatchRejected,
     create_batch,
     delete_batch,
@@ -32,6 +34,8 @@ from app.batches.service import (
     owned_batch,
     retry_document,
     upload_document,
+    validate_batch_list,
+    validate_batch_view,
 )
 from app.cleanup.background import purge_deleted_document
 from app.contracts import ErrorResponse
@@ -54,6 +58,8 @@ def _call(function, *args, **kwargs):
         raise ApiError(404, "preset_not_found", "Preset not found.") from None
     except ContentUnavailable:
         raise ApiError(410, "content_expired", "Content is unavailable.") from None
+    except BatchReadChanged:
+        raise ApiError(409, "batch_changed", "The batch changed while loading. Retry.") from None
     except (ContentKeyUnavailable, ProtectedContentError):
         raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
     except (BatchRejected, CsvError) as exc:
@@ -66,7 +72,7 @@ def _call(function, *args, **kwargs):
 
 def create_batch_router(engine: Engine) -> APIRouter:
     router = APIRouter(prefix="/api/v1/batches", tags=["batches"])
-    errors = {status: {"model": ErrorResponse} for status in (401, 403, 404, 410, 422, 503)}
+    errors = {status: {"model": ErrorResponse} for status in (401, 403, 404, 409, 410, 422, 503)}
 
     @router.post("", response_model=BatchView, status_code=201, responses=errors)
     def create_route(
@@ -85,7 +91,10 @@ def create_batch_router(engine: Engine) -> APIRouter:
         request: Request,
         identity: Annotated[SessionIdentity, Depends(current_identity)],
     ):
-        return _call(list_batches, engine, workspace_id, identity.user_id, _keys(request))
+        view = _call(list_batches, engine, workspace_id, identity.user_id, _keys(request))
+        return protected_json_response(view, request, identity, lambda current: _call(
+            validate_batch_list, engine, workspace_id, current.user_id, view
+        ))
 
     @router.get("/{batch_id}", response_model=BatchView, responses=errors)
     def status_route(
@@ -93,9 +102,12 @@ def create_batch_router(engine: Engine) -> APIRouter:
         request: Request,
         identity: Annotated[SessionIdentity, Depends(current_identity)],
     ):
-        return _call(
+        view = _call(
             load_batch, engine, batch_id, identity.user_id, _keys(request), datetime.now(UTC)
         )
+        return protected_json_response(view, request, identity, lambda current: _call(
+            validate_batch_view, engine, current.user_id, view, datetime.now(UTC)
+        ))
 
     @router.post(
         "/{batch_id}/documents", response_model=SavedDraftView, status_code=201, responses=errors

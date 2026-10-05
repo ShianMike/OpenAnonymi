@@ -22,6 +22,25 @@ class NotificationPreferenceUnavailable(ValueError):
     pass
 
 
+class NotificationReadChanged(RuntimeError):
+    pass
+
+
+def validate_notification_page(engine: Engine, actor_id: UUID, view: NotificationPage, now: datetime):
+    with Session(engine) as session:
+        ids = {item.id for item in view.items}
+        visible = set(session.scalars(visible_query(actor_id, now)
+            .with_only_columns(Notification.id).where(Notification.id.in_(ids))))
+        if visible != ids:
+            raise NotificationNotFound("Notification not found.")
+        # Unavailable-history rows intentionally retain only opaque event data.
+        for document_id in {item.document_id for item in view.items if item.document_available}:
+            try:
+                review_document(session, document_id, actor_id, now)
+            except (DocumentNotFound, ContentUnavailable):
+                raise NotificationReadChanged("Notification access changed while loading.") from None
+
+
 def notify(
     session: Session,
     document: Document,

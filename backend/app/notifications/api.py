@@ -6,7 +6,9 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from sqlalchemy.engine import Engine
 
 from app.accounts.api import current_identity, mutation_identity
+from app.accounts.response_boundary import protected_json_response
 from app.accounts.security import SessionIdentity
+from app.contracts import ErrorResponse
 from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedContentError
 from app.errors import ApiError
 from app.notifications.contracts import (
@@ -19,12 +21,14 @@ from app.notifications.contracts import (
 from app.notifications.service import (
     NotificationNotFound,
     NotificationPreferenceUnavailable,
+    NotificationReadChanged,
     list_notifications,
     mark_all_read,
     mark_read,
     preferences,
     unread_count,
     update_preferences,
+    validate_notification_page,
 )
 
 
@@ -33,6 +37,8 @@ def guarded(function, *args, **kwargs):
         return function(*args, **kwargs)
     except NotificationNotFound:
         raise ApiError(404, "notification_not_found", "Notification not found.") from None
+    except NotificationReadChanged:
+        raise ApiError(409, "notifications_changed", "Notifications changed while loading. Retry.") from None
     except NotificationPreferenceUnavailable:
         raise ApiError(
             503, "notification_emails_unavailable", "Notification email is not configured."
@@ -44,7 +50,10 @@ def guarded(function, *args, **kwargs):
 def create_notifications_router(engine: Engine):
     router = APIRouter(prefix="/api/v1", tags=["notifications"])
 
-    @router.get("/notifications", response_model=NotificationPage)
+    @router.get(
+        "/notifications", response_model=NotificationPage,
+        responses={code: {"model": ErrorResponse} for code in (401, 404, 409, 503)},
+    )
     def list_route(
         request: Request,
         identity: Annotated[SessionIdentity, Depends(current_identity)],
@@ -61,7 +70,10 @@ def create_notifications_router(engine: Engine):
                 limit,
             )
 
-        return guarded(load)
+        view = guarded(load)
+        return protected_json_response(view, request, identity, lambda current: guarded(
+            validate_notification_page, engine, current.user_id, view, datetime.now(UTC)
+        ))
 
     @router.get("/notifications/unread-count", response_model=UnreadCount)
     def unread_route(identity: Annotated[SessionIdentity, Depends(current_identity)]):

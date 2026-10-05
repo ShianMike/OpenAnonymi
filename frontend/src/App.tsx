@@ -236,6 +236,7 @@ function App() {
     const knownRoute =
       authRoute || pages.some((page) => matchPath(page.path, pathname)) ||
       matchPath('/continue', pathname) ||
+      matchPath('/batches/:batchId', pathname) ||
       matchPath('/documents/:documentId/edit', pathname) ||
       matchPath('/workspaces/:workspaceId/documents/:documentId/history', pathname)
     if (!knownRoute) {

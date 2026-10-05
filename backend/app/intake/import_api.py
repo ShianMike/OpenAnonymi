@@ -10,6 +10,7 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from app.accounts.access import WorkspaceAccessDenied, active_workspace
 from app.accounts.api import mutation_identity
+from app.accounts.response_boundary import protected_json_response
 from app.accounts.security import SessionIdentity
 from app.contracts import ErrorResponse
 from app.errors import ApiError
@@ -36,7 +37,7 @@ def create_import_router(engine: Engine):
     @router.post(
         "/import-preview",
         response_model=ImportPreview,
-        responses={404: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+        responses={code: {"model": ErrorResponse} for code in (401, 404, 422)},
     )
     async def preview_route(
         request: Request,
@@ -69,7 +70,7 @@ def create_import_router(engine: Engine):
         except SourceValidationError as exc:
             raise ApiError(422, "invalid_file", str(exc)) from None
         require_current_intake_access(engine, request, workspace_id)
-        return ImportPreview(
+        view = ImportPreview(
             text=result.source.text,
             format=result.format,
             pages=result.pages,
@@ -91,6 +92,10 @@ def create_import_router(engine: Engine):
             )
             if result.format == "csv"
             else None,
+        )
+        return await run_in_threadpool(
+            protected_json_response, view, request, identity,
+            lambda current: require_current_intake_access(engine, request, workspace_id),
         )
 
     return router
