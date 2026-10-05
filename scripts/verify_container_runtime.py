@@ -75,7 +75,7 @@ if not args.http_only:
     # Exercise the actual installed limiter in an independent child. Never put
     # RLIMIT_AS on the running API or this fixture-generating controller.
     probe = subprocess.run([sys.executable, "-c", """
-import json, resource
+import json, os, resource, socket
 from app.intake.process_limits import limit_linux_worker
 limit_linux_worker()
 limits = {name: resource.getrlimit(getattr(resource, 'RLIMIT_' + name)) for name in ('AS', 'CPU', 'CORE')}
@@ -83,7 +83,14 @@ assert limits == {'AS': (402653184, 402653184), 'CPU': (40, 40), 'CORE': (0, 0)}
 try:
     bytearray(512 * 1024 * 1024)
 except MemoryError:
-    print(json.dumps({'actual_limits': limits, 'excess_allocation_rejected': True}))
+    with open('/proc/' + str(os.getppid()) + '/environ', 'rb') as parent:
+        parent_setting_readable = b'PRIVACY_REVIEW_CONTENT_KEYS=' in parent.read()
+    with socket.create_connection(('127.0.0.1', 8080), timeout=1):
+        loopback_connect_allowed = True
+    print(json.dumps({'actual_limits': limits, 'excess_allocation_rejected': True,
+        'parent_service_setting_readable': parent_setting_readable,
+        'loopback_connect_allowed': loopback_connect_allowed,
+        'process_security_isolation_verified': False}))
 else:
     raise AssertionError('OCR memory limit did not reject allocation')
 """], capture_output=True, timeout=10, check=True)

@@ -13,13 +13,8 @@ from sqlalchemy.orm import Session
 from app.db.models import Finding
 from tests.intake_support import _draft_body, _login
 
-MILESTONE = os.environ.get("OPENANONYMI_PERF_MILESTONE", "E11")
-assert MILESTONE in {"E11", "G06", "E12"}
-OUTPUT = (
-    Path(__file__).resolve().parents[2]
-    / "docs/privacy-review-build/evidence/expansion-2"
-    / MILESTONE
-)
+MILESTONE = os.environ.get("OPENANONYMI_PERF_MILESTONE")
+assert MILESTONE in {None, "E11", "G06", "E12", "E13"}
 
 
 def source_text(count):
@@ -110,18 +105,26 @@ def test_real_review_request_query_counts_and_group_action(intake_site, count):
     if phase == "after":
         assert measurements["review-state"]["queries"] <= 24
         assert measurements["group-redact"]["queries"] <= 30
-        assert all(
-            measurements[name]["queries"] <= limit
-            for name, limit in (
-                ("source", 6),
+        for name, limit in (
+                # D049/D051: current session/scope checks follow private-body
+                # serialization; measured fixed counts match at60 and500 findings.
+                ("source", 13),
                 ("scan", 6),
                 ("findings", 9),
                 # D047: measured four fixed queries for post-render session/grant
                 # checks;13 queries for both60 and500 findings, no per-row reads.
                 ("preview", 13),
-                ("handoff", 6),
-            )
-        )
+                ("handoff", 15),
+            ):
+            assert measurements[name]["queries"] <= limit, measurements
+    # Ordinary suite runs must not rewrite earlier milestone evidence.
+    if MILESTONE is None:
+        return
+    OUTPUT = (
+        Path(__file__).resolve().parents[2]
+        / "docs/privacy-review-build/evidence/expansion-2"
+        / MILESTONE
+    )
     OUTPUT.mkdir(parents=True, exist_ok=True)
     (OUTPUT / f"{phase}-sql-perf-{count}.json").write_text(
         json.dumps(

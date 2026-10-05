@@ -1,10 +1,24 @@
 """Every app and migration table denies inherited public API grants."""
 
+import io
+import logging
 from importlib import import_module
 
+from alembic import command
+from alembic.config import Config
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from sqlalchemy import text
+
+
+def test_in_process_migration_keeps_security_notice_logging(monkeypatch):
+    monkeypatch.setenv("PRIVACY_REVIEW_DATABASE_URL", "postgresql+psycopg://schema:schema@localhost/schema")
+    monkeypatch.setenv("PRIVACY_REVIEW_ALLOWED_ORIGINS", '["http://localhost:5173"]')
+    monkeypatch.setenv("PRIVACY_REVIEW_ENVIRONMENT", "test")
+    logger = logging.getLogger("app.accounts")
+    monkeypatch.setattr(logger, "disabled", False)
+    command.upgrade(Config("alembic.ini", output_buffer=io.StringIO()), "head", sql=True)
+    assert not logger.disabled
 
 
 def test_all_public_tables_have_rls_and_public_grants_are_repaired(intake_site):
