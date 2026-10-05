@@ -129,10 +129,11 @@ jobs:
             -v "$GITHUB_WORKSPACE/backend/tests:/app/tests:ro" \
             -e PORT=8080 \
             -e PRIVACY_REVIEW_DATABASE_URL="$PRIVACY_REVIEW_TEST_DATABASE_URL" \
-            -e PRIVACY_REVIEW_ALLOWED_ORIGINS='["https://app.example.invalid"]' \
+            -e PRIVACY_REVIEW_ALLOWED_ORIGINS='["https://app.example.invalid","https://127.0.0.1:8080"]' \
             -e PRIVACY_REVIEW_ACTIVE_KEY_ID=ci \
             -e PRIVACY_REVIEW_CONTENT_KEYS="{\"ci\":\"$key\"}" \
             -e PRIVACY_REVIEW_TRUSTED_PROXY_HOPS=1 \
+            -e PRIVACY_REVIEW_HTTPS_REDIRECT_ENABLED=true \
             -e PRIVACY_REVIEW_EMAIL_CHECK_DELIVERABILITY=false \
             openanonymi-api:ci
       - name: Wait for the Docker health check
@@ -148,8 +149,14 @@ jobs:
       - name: Health, headers, CORS, cookie, logs and worker count
         run: |
           set -eu
+          # Mirror Heroku's overwritten protocol header for loopback container requests.
+          curl() { command curl -H 'X-Forwarded-Proto: https' "$@"; }
           base=http://127.0.0.1:8080/api/v1
           origin=https://app.example.invalid
+          redirect_headers="$(command curl -sS -D - -o /dev/null -X POST "$base/auth/sign-in" \
+            -H 'X-Forwarded-Proto: http' --data 'synthetic-not-json')"
+          printf '%s' "$redirect_headers" | grep -q '307 Temporary Redirect'
+          printf '%s' "$redirect_headers" | grep -qi 'location: https://127.0.0.1:8080/api/v1/auth/sign-in'
           curl -fsS http://127.0.0.1:8080/ | grep -q 'Content-Security-Policy'
           curl -fsS http://127.0.0.1:8080/documents | grep -q 'id="root"'
           site_headers="$(curl -fsS -D - -o /dev/null http://127.0.0.1:8080/documents)"

@@ -32,7 +32,8 @@ from tests.ocr_fixtures import TEXT, image_sample, scanned_pdf
 def call(path, body=None, headers=None):
     data = json.dumps(body).encode("utf-8") if isinstance(body, dict) else body
     request = Request(args.api + path, data=data, headers={
-        "Origin": args.origin, "Content-Type": "application/json", **(headers or {})})
+        "Origin": args.origin, "Content-Type": "application/json",
+        "X-Forwarded-Proto": "https", **(headers or {})})
     with urlopen(request, timeout=60) as response:
         return response.status, response.headers, response.read()
 

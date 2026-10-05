@@ -29,6 +29,7 @@ from app.detection.api import create_detection_router
 from app.edge import (
     AccessLogMiddleware,
     ContentFreeErrorsMiddleware,
+    HttpsRedirectMiddleware,
     RequestBodyLimitMiddleware,
     RequestTooLarge,
     SecurityHeadersMiddleware,
@@ -150,6 +151,8 @@ def create_app(
         expose_headers=["X-CSV-Prefixed-Cells", "ETag"],
         max_age=600,
     )
+    if production and settings.https_redirect_enabled:
+        app.add_middleware(HttpsRedirectMiddleware, allowed_origins=settings.allowed_origins)
     app.add_middleware(SecurityHeadersMiddleware, strict_transport=production)
     app.add_middleware(AccessLogMiddleware, trusted_proxy_hops=settings.trusted_proxy_hops)
     app.add_exception_handler(ApiError, api_error_handler)

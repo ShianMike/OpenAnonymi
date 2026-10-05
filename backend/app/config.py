@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     dev_mail_outbox: Path | None = Field(default=None, repr=False)
     # Proxies in front of the app that append to X-Forwarded-For. Zero trusts no header.
     trusted_proxy_hops: int = Field(default=0, ge=0, le=5)
+    # Enable only behind a proxy that overwrites X-Forwarded-Proto (Heroku does).
+    https_redirect_enabled: bool = False
     # libpq connect timeout in seconds; managed databases that suspend may need longer.
     database_connect_timeout: int = Field(default=2, ge=2, le=60)
     maintenance_token_sha256: SecretStr | None = Field(default=None, repr=False)
@@ -112,6 +114,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def require_production_security(self) -> "Settings":
+        if self.https_redirect_enabled and self.trusted_proxy_hops == 0:
+            raise ValueError("HTTPS redirects require a configured trusted host proxy")
         smtp_fields = (
             self.smtp_host,
             self.smtp_username,

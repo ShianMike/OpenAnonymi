@@ -16,5 +16,5 @@ exec uvicorn app.main:app \
     --no-access-log \
     --no-proxy-headers \
     --no-server-header \
-    --timeout-keep-alive 65 \
+    --timeout-keep-alive 90 \
     --timeout-graceful-shutdown 25

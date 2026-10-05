@@ -1,7 +1,8 @@
-"""Proxy-facing HTTP behavior: client address, body limit, response headers and access logs.
+"""Proxy-facing HTTPS redirects, client addresses, body limits, headers and access logs.
 
-Nothing in this module reads or logs request bodies, query strings, cookies, or any header
-other than X-Forwarded-For and Content-Length.
+Host and the proxy protocol select an allowed HTTPS redirect; paths and queries are
+preserved in that response. Access logs contain route templates, never request bodies,
+query strings, credentials or cookies. The body limiter counts bytes without logging them.
 """
 
 import ipaddress
@@ -9,11 +10,12 @@ import json
 import logging
 import time
 from collections.abc import Iterable
+from urllib.parse import quote, urlsplit
 
-from starlette.datastructures import MutableHeaders
+from starlette.datastructures import URL, MutableHeaders
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import RedirectResponse, Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.contracts import ErrorResponse
@@ -187,6 +189,52 @@ async def request_too_large_handler(_request: Request, _exc: Exception) -> Respo
         media_type="application/json",
         headers={"Connection": "close"},
     )
+
+
+class HttpsRedirectMiddleware:
+    """Redirect HTTP before any body or credentials are read behind the host proxy.
+
+    The configured proxy must overwrite X-Forwarded-Proto. Host destinations come
+    only from configured HTTPS origins, never Forwarded or X-Forwarded-Host.
+    """
+
+    def __init__(self, app: ASGIApp, *, allowed_origins: list[str]) -> None:
+        self.app = app
+        self.hosts = {
+            urlsplit(origin).netloc.lower(): urlsplit(origin).netloc
+            for origin in allowed_origins if urlsplit(origin).scheme == "https"
+        }
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope.get("scheme") == "https":
+            await self.app(scope, receive, send)
+            return
+        protocols = [value.strip().lower() for name, value in scope.get("headers", ())
+                     if name == b"x-forwarded-proto"]
+        if protocols == [b"https"]:
+            await self.app(scope, receive, send)
+            return
+        # Docker's liveness check is local and has no router header. No other
+        # route, method or network peer receives this exception.
+        client = scope.get("client")
+        if (not protocols and scope.get("method") in ("GET", "HEAD")
+                and scope.get("path") == "/api/v1/health/live" and client
+                and client[0] in ("127.0.0.1", "::1")):
+            await self.app(scope, receive, send)
+            return
+        hosts = [value.decode("latin-1").lower() for name, value in scope.get("headers", ())
+                 if name == b"host"]
+        host = hosts[0].removesuffix(":80") if len(hosts) == 1 else ""
+        destination = self.hosts.get(host)
+        if destination is None:
+            response = Response(status_code=400, headers={"Cache-Control": "no-store"})
+        else:
+            raw_path = scope.get("raw_path")
+            path = raw_path.decode("ascii") if raw_path is not None else quote(scope["path"], safe="/")
+            target = URL(scope=scope).replace(scheme="https", netloc=destination, path=path)
+            response = RedirectResponse(str(target), status_code=307,
+                                        headers={"Cache-Control": "no-store"})
+        await response(scope, receive, send)
 
 
 class SecurityHeadersMiddleware:
