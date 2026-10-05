@@ -13,6 +13,7 @@ from app.intake.process_limits import limit_linux_worker
 MAX_PIXELS = 8_000_000
 MAX_OCR_PAGES = 10
 MAX_FILE_BYTES = 8 * 1024 * 1024
+IMAGE_FORMATS = ("PNG", "JPEG", "TIFF", "WEBP")
 DATA = Path(__file__).resolve().parents[1] / "assets/ocr"
 
 
@@ -104,8 +105,8 @@ def main():
                 result = {"pages": pieces}
                 text = "\n\n".join(pieces.values())
             elif sys.argv[1] == "image":
-                with Image.open(io.BytesIO(content)) as image:
-                    if image.format not in {"PNG", "JPEG", "TIFF", "WEBP"}:
+                with Image.open(io.BytesIO(content), formats=IMAGE_FORMATS) as image:
+                    if image.format not in IMAGE_FORMATS:
                         raise OcrRejected("format")
                     count = getattr(image, "n_frames", 1)
                     if count > MAX_OCR_PAGES:
