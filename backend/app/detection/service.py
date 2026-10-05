@@ -1,5 +1,6 @@
 """Version-bound scan orchestration and persisted unresolved suggestions."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Literal
@@ -11,8 +12,8 @@ from sqlalchemy.orm import Session
 
 from app.accounts.access import (
     ContentUnavailable,
-    DocumentNotFound,
     owned_document,
+    refresh_document_access,
     review_document,
 )
 from app.contracts import (
@@ -186,6 +187,7 @@ def change_scan_settings(
     phone_region: str,
     now: datetime,
     language: str | None = None,
+    reauthorize: Callable[[], object] | None = None,
 ) -> VersionRef:
     if not categories.issubset(AUTOMATIC_CATEGORIES):
         raise ValueError("Choose supported automatic suggestion categories.")
@@ -202,6 +204,7 @@ def change_scan_settings(
     encoded_categories = ",".join(sorted(category.value for category in categories))
     with Session(engine) as session, session.begin():
         document = owned_document(session, document_id, actor_id, now, lock=True)
+        refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
         current = _version(document)
         if expected != current:
             raise VersionConflict(current)
@@ -211,12 +214,16 @@ def change_scan_settings(
             and document.phone_region == region
             and document.language == selected_language
         ):
+            refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
             return current
         document.category_settings = encoded_categories
         document.phone_region = region
         document.language = selected_language
         invalidate_scan_settings(session, document, actor_id, now)
-        return _version(document)
+        result = _version(document)
+        session.flush()
+        refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
+        return result
 
 
 def _finish_failed(
@@ -227,11 +234,15 @@ def _finish_failed(
     actor_id: UUID,
     attempt_count: int,
     code: str,
+    reauthorize: Callable[[], object] | None = None,
 ) -> VersionRef | None:
     now = datetime.now(UTC)
     try:
         with Session(engine) as session, session.begin():
+            if reauthorize is not None:
+                reauthorize()
             document = owned_document(session, expected.document_id, actor_id, now, lock=True)
+            refresh_document_access(session, expected.document_id, actor_id, reauthorize, owner=True)
             run = session.get(ScanRun, run_id)
             if run is None or run.status != "scanning" or run.attempt_count != attempt_count:
                 return None
@@ -253,7 +264,9 @@ def _finish_failed(
                 now=now,
                 outcome="failed",
             )
-    except (DocumentNotFound, ContentUnavailable):
+            session.flush()
+            refresh_document_access(session, expected.document_id, actor_id, reauthorize, owner=True)
+    except BaseException:
         _supersede_run(engine, run_id, attempt_count)
         raise
     return None
@@ -276,10 +289,12 @@ def scan_document(
     expected: VersionRef,
     keys: KeyRing,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ) -> ScanSnapshot:
     """Claim a run, detect outside the lock, then commit only for the same version."""
     with Session(engine) as session, session.begin():
         document = owned_document(session, document_id, actor_id, now, lock=True)
+        refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
         current = _version(document)
         if (
             expected.document_id != document_id
@@ -289,9 +304,13 @@ def scan_document(
             raise VersionConflict(current)
         run = _run_for_current(session, current, lock=True)
         if run is not None and run.status == "completed":
-            return _snapshot(session, current, run)
+            result = _snapshot(session, current, run)
+            refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
+            return result
         if run is not None and run.status == "scanning" and now - run.started_at < SCAN_LEASE:
-            return _snapshot(session, current, run)
+            result = _snapshot(session, current, run)
+            refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
+            return result
         if expected != current:
             raise VersionConflict(current)
         revision = session.get(SourceRevision, current.source_revision_id)
@@ -353,6 +372,7 @@ def scan_document(
         document.status = DocumentStatus.SCANNING
         document.updated_at = now
         session.flush()
+        refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
         run_id = run.id
         attempt_count = run.attempt_count
 
@@ -399,6 +419,7 @@ def scan_document(
             actor_id=actor_id,
             attempt_count=attempt_count,
             code=exc.code,
+            reauthorize=reauthorize,
         )
         if stale is not None:
             raise VersionConflict(stale) from None
@@ -411,6 +432,7 @@ def scan_document(
             actor_id=actor_id,
             attempt_count=attempt_count,
             code="detector_error",
+            reauthorize=reauthorize,
         )
         if stale is not None:
             raise VersionConflict(stale) from None
@@ -418,7 +440,10 @@ def scan_document(
 
     try:
         with Session(engine) as session, session.begin():
+            if reauthorize is not None:
+                reauthorize()
             document = owned_document(session, document_id, actor_id, datetime.now(UTC), lock=True)
+            refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
             run = session.get(ScanRun, run_id)
             current = _version(document)
             if run is None:
@@ -426,7 +451,9 @@ def scan_document(
             if run.attempt_count != attempt_count:
                 if current != expected:
                     raise VersionConflict(current)
-                return _snapshot(session, current, run)
+                result = _snapshot(session, current, run)
+                refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
+                return result
             if run.status != "scanning":
                 raise VersionConflict(current)
             if current != expected:
@@ -474,8 +501,11 @@ def scan_document(
                     event_code="scan_completed",
                     now=datetime.now(UTC),
                 )
-                return _snapshot(session, _version(document), run)
-    except (DocumentNotFound, ContentUnavailable):
+                result = _snapshot(session, _version(document), run)
+                session.flush()
+                refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
+                return result
+    except BaseException:
         _supersede_run(engine, run_id, attempt_count)
         raise
     raise conflict

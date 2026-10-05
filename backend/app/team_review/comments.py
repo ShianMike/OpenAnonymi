@@ -1,4 +1,5 @@
-from datetime import datetime
+from collections.abc import Callable
+from datetime import UTC, datetime
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -6,13 +7,14 @@ from sqlalchemy import func, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from app.accounts.access import DocumentNotFound, review_document
+from app.accounts.access import DocumentNotFound, refresh_document_access, review_document
 from app.contracts import VersionRef
 from app.db.crypto import KeyRing, ProtectedValue
 from app.db.models import Finding, User
 from app.db.repository import VersionConflict, _version
 from app.db.team_review import FindingComment
 from app.reviews.service import CompletionRejected
+from app.team_review.service import TeamReadChanged
 from app.workspace.activity import record_event
 
 
@@ -23,6 +25,18 @@ class CommentView(BaseModel):
     is_mine: bool
     text: str
     created_at: datetime
+
+
+def validate_comment_views(engine, document_id, finding_id, actor_id, views):
+    with Session(engine) as session:
+        document = review_document(session, document_id, actor_id, datetime.now(UTC))
+        _finding(session, document, finding_id)
+        rows = session.execute(select(FindingComment.id, User.email).join(
+            User, User.id == FindingComment.author_id,
+        ).where(FindingComment.document_id == document_id, FindingComment.finding_id == finding_id,
+            FindingComment.id.in_({item.id for item in views}))).all()
+        if set(rows) != {(item.id, item.author_email) for item in views}:
+            raise TeamReadChanged("Finding discussion changed while loading.")
 
 
 def _finding(session, document, finding_id):
@@ -81,9 +95,11 @@ def add_comment(
     text: str,
     keys: KeyRing,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ):
     with Session(engine) as session, session.begin():
         document = review_document(session, document_id, actor_id, now, lock=True)
+        refresh_document_access(session, document_id, actor_id, reauthorize)
         if _version(document) != expected:
             raise VersionConflict(_version(document))
         _finding(session, document, finding_id)
@@ -98,7 +114,9 @@ def add_comment(
                 raise CompletionRejected(
                     "comment_conflict", "This comment attempt belongs to another operation."
                 )
-            return _view(session, existing, actor_id, keys)
+            view = _view(session, existing, actor_id, keys)
+            refresh_document_access(session, document_id, actor_id, reauthorize)
+            return view
         counts = session.execute(
             select(
                 func.count(), func.count().filter(FindingComment.finding_id == finding_id)
@@ -140,14 +158,18 @@ def add_comment(
         for recipient in recipients:
             notify(session, document, recipient, actor_id, "comment_added", now)
         session.flush()
-        return _view(session, row, actor_id, keys)
+        view = _view(session, row, actor_id, keys)
+        refresh_document_access(session, document_id, actor_id, reauthorize)
+        return view
 
 
 def delete_comment(
-    engine: Engine, *, document_id: UUID, comment_id: UUID, actor_id: UUID, now: datetime
+    engine: Engine, *, document_id: UUID, comment_id: UUID, actor_id: UUID, now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ):
     with Session(engine) as session, session.begin():
         document = review_document(session, document_id, actor_id, now, lock=True)
+        refresh_document_access(session, document_id, actor_id, reauthorize)
         row = session.get(FindingComment, comment_id)
         if (
             not row
@@ -156,6 +178,8 @@ def delete_comment(
         ):
             raise DocumentNotFound("Comment not found.")
         session.delete(row)
+        session.flush()
+        refresh_document_access(session, document_id, actor_id, reauthorize)
 
 
 def revoke_member_handoffs(

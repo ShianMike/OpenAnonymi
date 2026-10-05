@@ -1,6 +1,7 @@
 """Explicit, version-bound confirmation of one saved reviewed output."""
 
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID, uuid4
@@ -9,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from app.accounts.access import owned_document, review_document
+from app.accounts.access import owned_document, refresh_document_access, review_document
 from app.contracts import DocumentStatus, VersionRef
 from app.db.crypto import KeyRing
 from app.db.models import Document, ExportEvent, ReviewCompletion, ScanRun
@@ -74,6 +75,7 @@ def confirm_review(
     confirmed_preview: bool,
     keys: KeyRing,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ) -> CompletionSnapshot:
     if not confirmed_preview:
         raise CompletionRejected(
@@ -81,11 +83,13 @@ def confirm_review(
         )
     with Session(engine) as session, session.begin():
         document = owned_document(session, document_id, actor_id, now, lock=True)
+        refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
         version = _version(document)
         if version != expected:
             raise VersionConflict(version)
         if document.status in (DocumentStatus.READY, DocumentStatus.EXPORTED):
             completion = current_completion(session, document)
+            refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
             return CompletionSnapshot(version, completion.id, completion.confirmed_at)
         scan = session.scalar(
             select(ScanRun.id).where(
@@ -145,6 +149,7 @@ def confirm_review(
         ):
             notify(session, document, handoff.reviewer_id, actor_id, "approval_requested", now)
         session.flush()
+        refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
         return CompletionSnapshot(version, completion.id, completion.confirmed_at)
 
 

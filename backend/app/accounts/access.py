@@ -1,6 +1,7 @@
 """Single place for content ownership and workspace administrator checks."""
 
-from datetime import datetime
+from collections.abc import Callable
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import and_, or_, select
@@ -21,6 +22,18 @@ class ContentUnavailable(RuntimeError):
 
 class WorkspaceAccessDenied(RuntimeError):
     pass
+
+
+def refresh_document_access(
+    session: Session, document_id: UUID, actor_id: UUID,
+    reauthorize: Callable[[], object] | None, *, owner: bool = False,
+):
+    """Refresh HTTP session and current grants/expiry inside an existing transaction."""
+    if reauthorize is not None:
+        reauthorize()
+        access = owned_document if owner else review_document
+        return access(session, document_id, actor_id, datetime.now(UTC))
+    return None
 
 
 def owned_document_record(

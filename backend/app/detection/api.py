@@ -142,6 +142,7 @@ def create_detection_router(engine: Engine) -> APIRouter:
                 expected=body.expected,
                 keys=keys,
                 now=datetime.now(UTC),
+                reauthorize=lambda: current_identity(request),
             )
             return _view(snapshot)
         except DocumentNotFound:
@@ -177,6 +178,7 @@ def create_detection_router(engine: Engine) -> APIRouter:
     def scan_settings_route(
         document_id: UUID,
         body: ScanSettingsRequest,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ) -> ScanSettingsView | JSONResponse:
         try:
@@ -189,6 +191,7 @@ def create_detection_router(engine: Engine) -> APIRouter:
                 phone_region=body.phone_region,
                 language=body.language,
                 now=datetime.now(UTC),
+                reauthorize=lambda: current_identity(request),
             )
             return ScanSettingsView(version=version)
         except DocumentNotFound:

@@ -67,6 +67,7 @@ def create_reviews_router(engine: Engine) -> APIRouter:
                 confirmed_preview=body.confirmed_preview,
                 keys=keys,
                 now=datetime.now(UTC),
+                reauthorize=lambda: current_identity(request),
             )
             return CompletionView(
                 version=result.version,

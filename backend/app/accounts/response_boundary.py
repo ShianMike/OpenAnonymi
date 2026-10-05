@@ -18,14 +18,17 @@ def _same_session(request: Request, expected: SessionIdentity) -> SessionIdentit
 
 
 def protected_json_response(
-    view: BaseModel,
+    view: BaseModel | list[BaseModel],
     request: Request,
     identity: SessionIdentity,
     authorize: Callable[[SessionIdentity], None],
     *,
     status_code: int = 200,
 ) -> Response:
-    payload = view.model_dump_json().encode("utf-8")
+    payload = (
+        b"[" + b",".join(item.model_dump_json().encode("utf-8") for item in view) + b"]"
+        if isinstance(view, list) else view.model_dump_json().encode("utf-8")
+    )
     authorize(_same_session(request, identity))
     # Resource checks can involve several current rows. A session that ends
     # during those checks must not release the already serialized private body.

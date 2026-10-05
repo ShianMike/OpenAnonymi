@@ -253,7 +253,12 @@ def test_membership_revocation_during_scan_discards_result(intake_site, monkeypa
         json={"expected": version},
         headers=headers,
     )
-    assert response.status_code == 404
+    # Losing the only membership ends the session; the fresh session check
+    # precedes the content ownership lookup at scan completion.
+    assert response.status_code == 401
+    assert response.headers["cache-control"] == "no-store"
+    assert "alice@example.com" not in response.text
+    assert owner.get("/api/v1/auth/session").status_code == 401
     with Session(engine) as session:
         run = session.scalar(
             select(ScanRun).where(ScanRun.source_revision_id == version["source_revision_id"])
