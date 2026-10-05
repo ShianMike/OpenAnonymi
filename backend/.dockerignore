@@ -3,6 +3,7 @@
 *
 !pyproject.toml
 !uv.lock
+!native-runtime.json
 !.python-version
 !alembic.ini
 !app/

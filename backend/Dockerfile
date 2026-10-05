@@ -8,6 +8,21 @@
 
 FROM python:3.11-slim AS build
 COPY --from=ghcr.io/astral-sh/uv:0.10.6 /uv /uvx /bin/
+# Build the locked Pillow source against current TIFF fixes, rather than the
+# wheel's older bundled libtiff. Other codec libraries receive Debian updates.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential curl ca-certificates libjpeg62-turbo-dev zlib1g-dev \
+    libwebp-dev libfreetype6-dev liblcms2-dev liblzma-dev libzstd-dev \
+    libdeflate-dev libjbig-dev liblerc-dev \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /tmp/native
+RUN curl --fail --location --proto '=https' --tlsv1.2 \
+    https://download.osgeo.org/libtiff/tiff-4.7.2.tar.gz -o tiff.tar.gz \
+    && echo '672bd7d10aee4606171afb864f3570b83340f6a33e2c186dc0512f7145ffdf6a  tiff.tar.gz' | sha256sum --check \
+    && tar -xzf tiff.tar.gz \
+    && cd tiff-4.7.2 \
+    && ./configure --prefix=/usr --disable-static --disable-tools --disable-tests --disable-contrib --disable-docs \
+    && make -j2 && make install && ldconfig
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=never \
@@ -15,7 +30,12 @@ ENV UV_COMPILE_BYTECODE=1 \
 WORKDIR /app
 COPY pyproject.toml uv.lock .python-version ./
 # Locked runtime dependencies only, including spaCy 3.8 and the en_core_web_sm 3.8.0 model.
-RUN uv sync --locked --no-dev --no-install-project --no-cache
+RUN uv sync --locked --no-dev --no-install-project --no-cache --no-binary-package pillow \
+    --config-settings-package pillow:tiff=enable \
+    --config-settings-package pillow:webp=enable \
+    --config-settings-package pillow:freetype=enable
+RUN /app/.venv/bin/python -c "from PIL import features; assert features.version('libtiff') == '4.7.2'; assert all(features.check(f) for f in ('jpg', 'zlib', 'webp', 'freetype2'))"
+COPY native-runtime.json ./
 COPY alembic.ini ./
 COPY migrations ./migrations
 COPY app ./app
@@ -28,7 +48,14 @@ ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1 \
     PORT=8000 \
     PRIVACY_REVIEW_ENVIRONMENT=production
-RUN groupadd --system app && useradd --system --gid app --home-dir /app --no-create-home app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libjpeg62-turbo zlib1g libwebp7 libwebpdemux2 libwebpmux3 libfreetype6 \
+    liblcms2-2 liblzma5 libzstd1 libdeflate0 libjbig0 liblerc4 \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system app && useradd --system --gid app --home-dir /app --no-create-home app
+COPY --from=build /usr/lib/libtiff.so* /usr/lib/
+COPY --from=build /tmp/native/tiff-4.7.2/LICENSE.md /usr/share/doc/openanonymi-libtiff/LICENSE.md
+RUN ldconfig
 WORKDIR /app
 COPY --from=build /app /app
 COPY docker-entrypoint.sh /usr/local/bin/openanonymi-start

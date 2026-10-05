@@ -42,7 +42,7 @@ def native_inventory():
     import tesserocr
     from PIL import features
 
-    binaries, sboms = [], []
+    binaries, sboms, linked = [], [], {}
     for name in ("Pillow", "tesserocr", "pypdfium2"):
         distribution = importlib.metadata.distribution(name)
         for relative in distribution.files or ():
@@ -56,6 +56,23 @@ def native_inventory():
                 if path.is_file():
                     binaries.append({"package": name, "file": str(relative),
                         "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
+                    if sys.platform == "linux" and ".so" in path.name:
+                        # Only installed, trusted build artifacts, never uploads.
+                        result = subprocess.run(["ldd", str(path)], capture_output=True,
+                            text=True, timeout=10, check=True)
+                        for line in result.stdout.splitlines():
+                            fields = line.split()
+                            candidate = fields[2] if "=>" in fields else fields[0] if fields else ""
+                            if candidate.startswith("/") and Path(candidate).is_file():
+                                dependency = Path(candidate).resolve()
+                                linked[str(dependency)] = hashlib.sha256(dependency.read_bytes()).hexdigest()
+    provenance, packages = None, None
+    if sys.platform == "linux":
+        provenance = json.loads(Path("native-runtime.json").read_text("utf-8"))
+        assert features.version("libtiff") == provenance["libtiff"]["version"] == "4.7.2"
+        assert features.version("freetype2") and features.version("webp")
+        packages = subprocess.run(["dpkg-query", "-W", "-f=${Package} ${Version}\\n"],
+            capture_output=True, text=True, timeout=10, check=True).stdout.splitlines()
     assets = Path("app/assets/ocr")
     models = json.loads((assets / "manifest.json").read_text("utf-8"))["files"]
     for item in models:
@@ -66,6 +83,8 @@ def native_inventory():
         "tesseract_linked_version_report": tesserocr.tesseract_version(),
         "pillow_linked_versions": {name: features.version(name) for name in features.get_supported()},
         "pdfium_version": str(pypdfium2.PDFIUM_INFO), "binary_hashes": binaries, "sboms": sboms,
+        "linked_library_hashes": linked, "native_build_provenance": provenance,
+        "debian_packages": packages,
         "packaged_models": models, "native_patch_status_certified": False}
 
 
