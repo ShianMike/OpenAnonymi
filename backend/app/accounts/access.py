@@ -167,20 +167,26 @@ def review_document(
 def require_administrator(
     session: Session, *, workspace_id: UUID, actor_id: UUID, lock: bool = False
 ) -> Workspace:
-    statement = select(Workspace).where(Workspace.id == workspace_id)
     if lock:
-        statement = statement.with_for_update(key_share=True)
+        # Acquire the existing workspace lock before reading current scope;
+        # a joined locking query can retain membership state from before a wait.
+        session.scalar(
+            select(Workspace.id).where(Workspace.id == workspace_id).with_for_update(key_share=True)
+        )
+    statement = (
+        select(Workspace)
+        .join(Membership, Membership.workspace_id == Workspace.id)
+        .join(User, User.id == Membership.user_id)
+        .where(
+            Workspace.id == workspace_id,
+            Membership.user_id == actor_id,
+            Membership.role == WorkspaceRole.ADMINISTRATOR,
+            Membership.revoked_at.is_(None),
+            User.disabled_at.is_(None),
+        )
+    )
     workspace = session.scalar(statement.execution_options(populate_existing=True))
-    membership = session.get(Membership, (workspace_id, actor_id), populate_existing=True)
-    user = session.get(User, actor_id, populate_existing=True)
-    if (
-        workspace is None
-        or membership is None
-        or membership.role != WorkspaceRole.ADMINISTRATOR
-        or membership.revoked_at is not None
-        or user is None
-        or user.disabled_at is not None
-    ):
+    if workspace is None:
         raise WorkspaceAccessDenied("Workspace not found.")
     return workspace
 
