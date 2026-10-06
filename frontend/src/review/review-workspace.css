@@ -135,7 +135,7 @@
   border-radius: 20px;
   background: var(--tone-paper, #1c2520);
 }
-.review-suggestions .scan-heading { min-width: 0; align-items: start; }
+.review-suggestions .scan-heading { min-width: 0; flex-basis: 200px; align-items: start; }
 .review-suggestions .scan-heading p { text-wrap: pretty; }
 .review-suggestions .scan-actions { align-self: start; }
 .review-suggestions .scan-explanations,
