@@ -73,6 +73,9 @@ def test_configured_smtp_sends_one_time_code_with_certificate_validation(monkeyp
     assert isinstance(observed["context"], ssl.SSLContext)
     assert observed["context"].verify_mode == ssl.CERT_REQUIRED
     assert observed["message"]["To"] == "member@example.invalid"
+    assert observed["message"]["Date"].datetime.utcoffset().total_seconds() == 0
+    assert observed["message"]["Message-ID"].endswith("@example.invalid>")
+    assert not observed["message"]["Message-ID"].defects
     assert "synthetic-recovery-code" in observed["message"].get_content()
     assert observed["events"] == (["tls"] if port == 587 else []) + ["login", "send"]
 

@@ -6,6 +6,7 @@ import smtplib
 import ssl
 from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
+from email.utils import format_datetime, make_msgid
 from typing import Protocol
 from uuid import uuid4
 
@@ -113,6 +114,8 @@ class SmtpRecoveryMailer:
         message["From"] = self.sender
         message["To"] = recipient
         message["Subject"] = subject
+        message["Date"] = format_datetime(datetime.now(UTC))
+        message["Message-ID"] = make_msgid(domain=message["From"].addresses[0].domain)
         message.set_content(body)
         try:
             context = ssl.create_default_context()
