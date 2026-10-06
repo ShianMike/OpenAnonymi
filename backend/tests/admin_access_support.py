@@ -29,7 +29,6 @@ def admin_case(site, operation):
     case = {"client": client, "other": other, "engine": engine, "workspace": workspace,
         "actor": actor, "target": target, "current_session": current, "headers": headers,
         "operation": operation, "method": "POST"}
-    client.app.state.recovery_mailer = case["mailer"] = Mailbox()
     base = f"/api/v1/workspaces/{workspace}"
     members = base + "/members"
     if operation == "members-read":
@@ -73,6 +72,7 @@ def admin_case(site, operation):
         case.update(method="GET", path="/api/v1/auth/session")
     else:
         case.update(method="GET", path="/api/v1/auth/second-factor")
+    client.app.state.recovery_mailer = case["mailer"] = Mailbox()
     return case
 
 def perform(case):

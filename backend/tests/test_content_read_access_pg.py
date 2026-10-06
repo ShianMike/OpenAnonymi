@@ -245,11 +245,15 @@ def test_document_change_after_serialization_never_returns_stale_content(
 @pytest.mark.parametrize("route", ("source", "batch", "notifications"))
 def test_real_time_expiry_during_serialization_denies_private_body(intake_site, monkeypatch, route):
     case = read_case(intake_site, route)
+    expires_at = datetime.now(UTC) + timedelta(seconds=3)
     with Session(case["engine"]) as session, session.begin():
-        session.get(Document, case["document_id"]).expires_at = datetime.now(UTC) + timedelta(
-            seconds=0.5
-        )
-    fired = after_read(monkeypatch, route, case, "serialized", lambda: time.sleep(0.55))
+        session.get(Document, case["document_id"]).expires_at = expires_at
+
+    def expire():
+        assert datetime.now(UTC) < expires_at, "Content must still be live at serialization"
+        time.sleep(max(0, (expires_at - datetime.now(UTC)).total_seconds()) + 0.05)
+
+    fired = after_read(monkeypatch, route, case, "serialized", expire)
     assert_neutral(case["client"].get(case["path"]), 410 if route == "source" else 409)
     assert fired
 

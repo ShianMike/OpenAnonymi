@@ -241,6 +241,7 @@ def test_encrypted_revision_persists_and_admin_cannot_read_owner_content(local_d
     with Session(engine) as session:
         revisions = session.scalars(
             select(SourceRevision).where(SourceRevision.document_id == saved.version.document_id)
+            .order_by(SourceRevision.revision_number)
         ).all()
         assert len(revisions) == 2
         assert [revision.revision_number for revision in revisions] == [1, 2]
