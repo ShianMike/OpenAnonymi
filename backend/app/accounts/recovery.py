@@ -115,9 +115,14 @@ class SmtpRecoveryMailer:
         message["Subject"] = subject
         message.set_content(body)
         try:
-            with smtplib.SMTP_SSL(
-                self.host, self.port, timeout=10, context=ssl.create_default_context()
-            ) as connection:
+            context = ssl.create_default_context()
+            connection = (
+                smtplib.SMTP(self.host, self.port, timeout=10) if self.port == 587
+                else smtplib.SMTP_SSL(self.host, self.port, timeout=10, context=context)
+            )
+            with connection:
+                if self.port == 587:
+                    connection.starttls(context=context)
                 connection.login(self.username, self.password.get_secret_value())
                 connection.send_message(message)
         except (OSError, smtplib.SMTPException) as exc:

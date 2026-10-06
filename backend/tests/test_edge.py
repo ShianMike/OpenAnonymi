@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 
 from app.accounts.api import clear_session_cookie, set_session_cookie
 from app.config import Settings
-from app.edge import MAX_REQUEST_BYTES, attempt_key, client_address
+from app.edge import MAX_REQUEST_BYTES, attempt_key, client_address, scope_client_address
 from app.factory import create_app
 
 ORIGIN = "https://review.example.invalid"
@@ -62,6 +62,27 @@ def test_attempt_key_groups_ipv6_subscriber_prefixes():
     assert attempt_key("testclient") == "testclient"
 
 
+def test_cloudflare_visitor_address_requires_a_verified_proxy_peer():
+    def address(forwarded, connecting, hops=1, peer="10.0.0.5"):
+        return scope_client_address({"client": (peer, 443), "headers":
+            [(b"x-forwarded-for", forwarded.encode())]
+            + [(b"cf-connecting-ip", value.encode()) for value in connecting]}, hops)
+
+    assert address("203.0.113.9, 172.64.10.1", ["198.51.100.7"]) == "198.51.100.7"
+    assert address("172.64.10.1", ["198.51.100.7"]) == "198.51.100.7"
+    assert address("2606:4700::1", ["2001:db8::7"]) == "2001:db8::7"
+    assert address("::ffff:172.64.10.1", ["::ffff:198.51.100.7"]) == "198.51.100.7"
+    # Direct-origin requests cannot trust a forged Cloudflare header or leftmost IP.
+    assert address("172.64.10.1, 198.51.100.9", ["203.0.113.7"]) == "198.51.100.9"
+    assert address("198.51.100.9", ["203.0.113.7"]) == "198.51.100.9"
+    assert address("172.64.10.1", ["198.51.100.7"], hops=0) == "10.0.0.5"
+    assert address("172.64.10.1", ["198.51.100.7"], hops=2) == "10.0.0.5"
+    assert address("172.64.10.1", [], peer="testclient") == "172.64.10.1"
+    assert address("172.64.10.1", ["bad-address"]) == "172.64.10.1"
+    assert address("172.64.10.1", ["198.51.100.7, 203.0.113.7"]) == "172.64.10.1"
+    assert address("172.64.10.1", ["198.51.100.7", "203.0.113.7"]) == "172.64.10.1"
+
+
 def test_production_session_cookie_is_cross_site_and_cleared_with_the_same_attributes():
     settings = _production()
     issuing, clearing = Response(), Response()
@@ -108,6 +129,23 @@ def test_attempt_limits_use_the_trusted_forwarded_address(intake_site):
     assert [attempt(untrusted, f"198.51.100.{n}") for n in range(8)] == [401] * 8
     # Without trusted hops a forged header is ignored entirely.
     assert attempt(untrusted, "198.51.100.99") == 429
+
+
+def test_cloudflare_attempt_limits_follow_visitors_across_edge_addresses(intake_site):
+    owner, _, engine, _, _ = intake_site
+    values = owner.app.state.settings.model_dump()
+    values.update(allowed_origins=[ORIGIN], trusted_proxy_hops=1)
+    client = TestClient(create_app(Settings(**values, _env_file=None), engine=engine))
+
+    def attempt(visitor, edge):
+        return client.post("/api/v1/auth/sign-in", json={
+            "email": "member@example.invalid", "password": "synthetic-password",
+        }, headers={"Origin": ORIGIN, "X-Forwarded-For": f"203.0.113.1, {visitor}, {edge}",
+                    "CF-Connecting-IP": visitor}).status_code
+
+    assert [attempt("198.51.100.70", "172.64.10.1") for _ in range(8)] == [401] * 8
+    assert attempt("198.51.100.70", "104.16.10.1") == 429
+    assert attempt("198.51.100.71", "172.64.10.1") == 401
 
 
 def test_security_headers_cors_and_cache_policy():

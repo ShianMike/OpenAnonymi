@@ -30,6 +30,16 @@ _HTTP_METHODS = frozenset(
     ("GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH")
 )
 _DOCS_PATHS = ("/docs", "/docs/oauth2-redirect", "/redoc")
+# Published Cloudflare origin proxy networks, verified October 6, 2026:
+# https://www.cloudflare.com/ips-v4 and https://www.cloudflare.com/ips-v6
+_CLOUDFLARE_NETWORKS = tuple(ipaddress.ip_network(value) for value in (
+    "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
+    "141.101.64.0/18", "108.162.192.0/18", "190.93.240.0/20", "188.114.96.0/20",
+    "197.234.240.0/22", "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13",
+    "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22", "2400:cb00::/32",
+    "2606:4700::/32", "2803:f800::/32", "2405:b500::/32", "2405:8100::/32",
+    "2a06:98c0::/29", "2c0f:f248::/32",
+))
 
 
 def _parse_address(value: str) -> str | None:
@@ -82,7 +92,21 @@ def scope_client_address(scope: Scope, trusted_hops: int) -> str:
         if name == b"x-forwarded-for"
     ]
     client = scope.get("client")
-    return client_address(forwarded, client[0] if client else None, trusted_hops)
+    address = client_address(forwarded, client[0] if client else None, trusted_hops)
+    parsed = _parse_address(address)
+    # Heroku appends its actual incoming peer to X-Forwarded-For. Only that
+    # calibrated trusted hop may establish that Cloudflare supplied this header;
+    # a direct-origin visitor cannot confer trust with forged forwarded entries.
+    if trusted_hops > 0 and parsed and any(
+        ipaddress.ip_address(parsed) in network for network in _CLOUDFLARE_NETWORKS
+    ):
+        connecting = [value.decode("latin-1") for name, value in scope.get("headers", ())
+                      if name == b"cf-connecting-ip"]
+        if len(connecting) == 1:
+            visitor = _parse_address(connecting[0])
+            if visitor:
+                return visitor
+    return address
 
 
 def loggable_path(scope: Scope) -> str:

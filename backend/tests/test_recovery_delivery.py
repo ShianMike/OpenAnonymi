@@ -1,11 +1,12 @@
 """Configured recovery delivery uses a validated TLS connection."""
 
+import smtplib
 import ssl
 
 import pytest
 from pydantic import ValidationError
 
-from app.accounts.recovery import SmtpRecoveryMailer
+from app.accounts.recovery import RecoveryDeliveryError, SmtpRecoveryMailer
 from app.config import Settings
 
 
@@ -24,12 +25,15 @@ def test_partial_recovery_configuration_is_rejected():
         _settings(smtp_host="smtp.example.invalid")
 
 
-def test_configured_smtp_sends_one_time_code_with_certificate_validation(monkeypatch):
-    observed = {}
+@pytest.mark.parametrize("port", [465, 587])
+def test_configured_smtp_sends_one_time_code_with_certificate_validation(monkeypatch, port):
+    observed = {"events": []}
 
     class FakeSmtp:
-        def __init__(self, host, port, *, timeout, context):
+        def __init__(self, host, port, *, timeout, context=None):
             observed.update(host=host, port=port, timeout=timeout, context=context)
+            if port == 587:
+                assert context is None
 
         def __enter__(self):
             return self
@@ -37,16 +41,25 @@ def test_configured_smtp_sends_one_time_code_with_certificate_validation(monkeyp
         def __exit__(self, *_args):
             return False
 
+        def starttls(self, *, context):
+            observed["context"] = context
+            observed["events"].append("tls")
+
         def login(self, username, password):
+            assert observed["context"].verify_mode == ssl.CERT_REQUIRED
+            assert observed["context"].check_hostname
+            observed["events"].append("login")
             observed["login"] = (username, password)
 
         def send_message(self, message):
+            observed["events"].append("send")
             observed["message"] = message
 
     monkeypatch.setattr("app.accounts.recovery.smtplib.SMTP_SSL", FakeSmtp)
+    monkeypatch.setattr("app.accounts.recovery.smtplib.SMTP", FakeSmtp)
     settings = _settings(
         smtp_host="smtp.example.invalid",
-        smtp_port=465,
+        smtp_port=port,
         smtp_username="test-account",
         smtp_password="synthetic-mail-secret",
         smtp_from="review@example.invalid",
@@ -55,9 +68,41 @@ def test_configured_smtp_sends_one_time_code_with_certificate_validation(monkeyp
         "member@example.invalid", "synthetic-recovery-code"
     )
     assert observed["host"] == "smtp.example.invalid"
-    assert observed["port"] == 465
+    assert observed["port"] == port
     assert observed["timeout"] == 10
     assert isinstance(observed["context"], ssl.SSLContext)
     assert observed["context"].verify_mode == ssl.CERT_REQUIRED
     assert observed["message"]["To"] == "member@example.invalid"
     assert "synthetic-recovery-code" in observed["message"].get_content()
+    assert observed["events"] == (["tls"] if port == 587 else []) + ["login", "send"]
+
+
+@pytest.mark.parametrize("error", [ssl.SSLCertVerificationError, smtplib.SMTPNotSupportedError])
+def test_starttls_failure_never_sends_credentials_or_code(monkeypatch, error):
+    class RefusedTls:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def starttls(self, *, context):
+            assert context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname
+            raise error("synthetic TLS refusal")
+
+        def login(self, *_args):
+            pytest.fail("Credentials must not be sent before validated TLS")
+
+        def send_message(self, *_args):
+            pytest.fail("Codes must not be sent before validated TLS")
+
+    monkeypatch.setattr("app.accounts.recovery.smtplib.SMTP", RefusedTls)
+    mailer = SmtpRecoveryMailer(_settings(
+        smtp_host="smtp.example.invalid", smtp_port=587, smtp_username="test-account",
+        smtp_password="synthetic-mail-secret", smtp_from="review@example.invalid",
+    ))
+    with pytest.raises(RecoveryDeliveryError, match="Account recovery delivery failed"):
+        mailer.send_recovery_code("member@example.invalid", "synthetic-recovery-code")
