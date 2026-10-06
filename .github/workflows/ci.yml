@@ -17,9 +17,13 @@ env:
   PRIVACY_REVIEW_TEST_DATABASE_URL: postgresql+psycopg://postgres:ci-only-password@127.0.0.1:5434/review_test
 
 jobs:
-  backend:
-    name: Backend (PostgreSQL 17)
+  backend_shards:
+    name: Backend shard ${{ matrix.shard }} (PostgreSQL 17)
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
     services:
       postgres:
         image: postgres:17
@@ -49,7 +53,7 @@ jobs:
       - name: Install locked dependencies
         run: uv sync --locked
       - name: Ruff
-        run: uv run --locked ruff check app tests migrations
+        run: uv run --locked ruff check app tests migrations ../scripts/run_backend_shard.py
       - name: Migrations render as offline SQL
         env:
           PRIVACY_REVIEW_DATABASE_URL: postgresql+psycopg://schema:schema@localhost/schema
@@ -63,11 +67,22 @@ jobs:
           PRIVACY_REVIEW_ENVIRONMENT: test
         run: uv run --locked alembic upgrade head
       - name: Tests
-        run: uv run --locked pytest -q
+        run: uv run --locked python ../scripts/run_backend_shard.py ${{ matrix.shard }}
       - name: OpenAPI schema matches frontend/openapi.json
         run: |
           uv run --locked python -m app.export_openapi ../frontend/openapi.json
           git diff --exit-code -- ../frontend/openapi.json
+
+  backend:
+    name: Backend (PostgreSQL 17)
+    needs: backend_shards
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: All backend shards passed
+        env:
+          SHARD_RESULT: ${{ needs.backend_shards.result }}
+        run: test "$SHARD_RESULT" = success
 
   frontend:
     name: Frontend
