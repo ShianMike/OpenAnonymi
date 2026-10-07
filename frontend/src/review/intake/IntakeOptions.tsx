@@ -80,7 +80,7 @@ export function IntakeOptions({ intake }: { intake: IntakeController }) {
                 intake.setPhoneEnabled(categories.includes('phone'))
                 intake.setExtraCategories(extras(categories))
               }} />
-            <p className="field-note">Suggestions need your review. Check the full text for details that were missed.</p>
+            <p className="field-note">Review suggestions and check for missed details.</p>
             <details className="intake-detection-help">
               <summary>Detection coverage</summary>
               <p className="field-note">Name and place suggestions support English. National IDs cover hyphenated US SSNs, UK NI numbers, Singapore NRIC/FIN and hyphenated Malaysian MyKad. Singapore M-prefix IDs use format only.</p>

@@ -1,6 +1,6 @@
 import { LoadingState } from '../../loading/LoadingState'
 import { useRef, useState } from 'react'
-import { AlignLeft, FileText, LockKeyhole, Upload, X } from 'lucide-react'
+import { AlignLeft, ChevronDown, FileText, Files, Image, Info, LockKeyhole, Upload, X } from 'lucide-react'
 import type { IntakeController } from './useIntake'
 import { InlineNotice } from '../../ui/WorkspaceControls'
 import { GlassTextarea } from '../../ui/GlassTextarea'
@@ -101,7 +101,7 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
           >
             <Upload size={27} strokeWidth={1.3} aria-hidden="true" />
             <strong>{intake.file ? intake.file.name : 'Drop your document here'}</strong>
-            <span>TXT / MD / CSV · 1 MiB · PDF / DOCX / Images · 8 MiB</span>
+            <span>One document or scan at a time</span>
             <label className="intake-file-picker">
               <input
                 ref={inputRef}
@@ -161,9 +161,18 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
           )}
           {intake.hasFilePreview && <p id="file-preview-help" className="field-note">The edited text becomes your saved source. Word edits may simplify layout; CSV edits must keep the same column count. Changing CSV reading settings resets the preview.</p>}
           {intake.fileEdited && <p className="field-note" role="status">Your text corrections will be saved. CSV structure is checked again when saving.</p>}
+          <ul className="intake-file-formats" aria-label="Supported files and size limits">
+            <li><FileText size={17} aria-hidden="true" /><strong>Text</strong><span>TXT · MD · CSV</span><small>Up to 1 MiB</small></li>
+            <li><Files size={17} aria-hidden="true" /><strong>Documents</strong><span>PDF · DOCX</span><small>Up to 8 MiB</small></li>
+            <li><Image size={17} aria-hidden="true" /><strong>Images</strong><span>PNG · JPG · TIFF · WebP</span><small>Up to 8 MiB</small></li>
+          </ul>
           <details className="intake-file-help">
-            <summary>Supported files and import limits</summary>
-            <p className="field-note">TXT, Markdown and CSV: up to 1 MiB. PDF, DOCX and images: up to 8 MiB. OCR reads English printed text locally, up to 10 scanned pages and 8 million pixels per page. Check for missing or misread details. Filenames are not saved as titles.</p>
+            <summary><Info size={15} aria-hidden="true" /><span>Before you import</span><ChevronDown size={15} aria-hidden="true" /></summary>
+            <dl>
+              <div><dt>Scanned pages</dt><dd>English printed text, read locally. Up to 10 pages and 8 million pixels per page.</dd></div>
+              <div><dt>Check the preview</dt><dd>Correct any missing or misread details before saving.</dd></div>
+              <div><dt>Your review title</dt><dd>Set it above if you need one. Filenames are not saved as titles.</dd></div>
+            </dl>
           </details>
         </div>
       )}

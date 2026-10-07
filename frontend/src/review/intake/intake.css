@@ -235,7 +235,10 @@
 .intake-detection-options > summary > span { flex: 1; min-width: 0; }
 .intake-detection-options > summary strong { display: block; font-size: .82rem; font-weight: 550; }
 .intake-detection-options > summary small {
-  display: block;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
   margin-top: 6px;
   color: var(--muted);
   font-size: .76rem;
@@ -244,16 +247,32 @@
 }
 .intake-detection-options[open] > summary > svg:last-child { transform: rotate(180deg); }
 .intake-category-count { margin-left: 6px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.intake-detection-options .choice-switch {
-  padding-block: 12px;
+.intake-detection-options .choice-switch:has(input[type='checkbox']) {
+  padding: 8px 4px;
   min-height: 44px;
+  border-bottom: 1px solid var(--tone-hairline, var(--line));
 }
-.intake-detection-options .detection-controls { padding-top: 6px; }
-.intake-file-help,
-.intake-detection-help { margin-top: 14px; font-size: .76rem; color: var(--muted); }
-.intake-file-help > summary,
+.intake-detection-options .choice-switch strong { font-size: .78rem; font-weight: 500; }
+.intake-detection-options .choice-switch small { margin-top: 3px; font-size: .7rem; line-height: 1.35; }
+.intake-detection-options .detection-controls { max-height: 192px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-right: 8px; }
+.intake-detection-help { margin-top: 4px; padding: 0; border: 0; border-radius: 0; background: transparent; font-size: .76rem; color: var(--muted); }
 .intake-detection-help > summary { cursor: pointer; padding-block: 12px; min-height: 44px; }
-.intake-detection-options > .field-note { margin-bottom: 14px; }
+.intake-detection-options > .field-note { margin: 10px 0 0; font-size: .72rem; }
+.intake-file-formats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; list-style: none; margin: 16px 0 0; padding: 0; }
+.intake-file-formats li { display: grid; gap: 6px; padding: 14px 12px; border: 1px solid var(--line); border-radius: 10px; font-size: .76rem; }
+.intake-file-formats svg { color: var(--blue); margin-bottom: 3px; }
+.intake-file-formats strong { font-weight: 550; }
+.intake-file-formats span { color: var(--muted); font-size: .7rem; line-height: 1.4; overflow-wrap: anywhere; }
+.intake-file-formats small { color: var(--text); font-size: .7rem; font-variant-numeric: tabular-nums; }
+.intake-file-help { margin-top: 12px; border-top: 1px solid var(--line); font-size: .76rem; color: var(--muted); }
+.intake-file-help > summary { display: flex; align-items: center; gap: 8px; min-height: 44px; padding-block: 10px; cursor: pointer; list-style: none; }
+.intake-file-help > summary::-webkit-details-marker { display: none; }
+.intake-file-help > summary > span { flex: 1; }
+.intake-file-help[open] > summary > svg:last-child { transform: rotate(180deg); }
+.intake-file-help dl { display: grid; gap: 12px; margin: 0; padding: 4px 0 10px; line-height: 1.6; }
+.intake-file-help dl > div { display: grid; grid-template-columns: 120px 1fr; gap: 12px; }
+.intake-file-help dt { color: var(--text); font-weight: 500; }
+.intake-file-help dd { margin: 0; text-wrap: pretty; }
 .intake-retention {
   border-top: 1px solid var(--tone-hairline, #ffffff08);
   padding-top: 17px;
@@ -301,7 +320,7 @@
   justify-content: center;
   gap: 12px;
   padding: 40px 28px;
-  min-height: 310px;
+  min-height: 240px;
   border-radius: 15px;
   border: 1px dashed var(--tone-line, #9ab6a342);
   background: var(--tone-inset-glass, #111b1550);
@@ -393,6 +412,12 @@
   }
   .intake-steps li > span { width: 20px; height: 20px; }
   .intake-content-column { padding: 20px 16px; }
+  .intake-file-formats { grid-template-columns: 1fr; gap: 6px; }
+  .intake-file-formats li { grid-template-columns: 20px 1fr auto; align-items: center; gap: 4px 9px; padding: 10px; }
+  .intake-file-formats svg { grid-row: 1 / 3; margin: 0; }
+  .intake-file-formats span { grid-column: 2; }
+  .intake-file-formats small { grid-column: 3; grid-row: 1 / 3; }
+  .intake-file-help dl > div { grid-template-columns: 1fr; gap: 3px; }
   .intake-editor-heading .subtle-badge {
     display: none;
   }

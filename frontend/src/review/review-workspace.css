@@ -42,8 +42,9 @@
   padding: 0;
   font-size: 0.76rem;
 }
-.review-status-row:has(.autosave-error, .autosave-copies) > .autosave-status {
+.review-status-row:has(.autosave-error) > .autosave-status {
   flex-basis: 100%;
+  padding: 14px 16px;
 }
 .review-summary-strip > span + span:not(.status-badge) {
   border-left: 1px solid var(--tone-hairline, #ffffff13);
