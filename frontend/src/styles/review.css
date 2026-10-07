@@ -1,2 +1,6 @@
-.unsaved-navigation { margin: 0.8rem 0 1rem; border-left: 3px solid var(--danger); }
-.unsaved-navigation p { margin: 0.35rem 0 0.7rem; }
+.unsaved-navigation.workspace-dialog { background: var(--tone-paper, var(--surface)); border: 1px solid var(--line); }
+.unsaved-navigation > .panel-heading-icon { margin-bottom: 20px; }
+.unsaved-navigation-actions { display: grid; gap: 10px; }
+.unsaved-navigation-actions button { min-height: 44px; margin: 0; justify-content: center; }
+.unsaved-navigation-actions .unsaved-navigation-discard { color: var(--danger); background: transparent; border-color: transparent; }
+.unsaved-navigation .unsaved-navigation-error { color: var(--danger); }

@@ -1,7 +1,6 @@
-import { ArrowRight, Check, FileText, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Files, ShieldCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { SessionView } from '../api/client'
-import { PageHeader } from '../ui/PageHeader'
 import { GlassSelect } from '../ui/GlassSelect'
 import { InlineNotice } from '../ui/WorkspaceControls'
 import { UnsavedNavigationPrompt } from '../ui/UnsavedNavigationPrompt'
@@ -22,15 +21,16 @@ export function NewReviewPage({
   const intake = useIntake(session)
   return (
     <section className="new-review-page" aria-labelledby="new-review-title">
-      <PageHeader
-        title="New review"
-        titleId="new-review-title"
-        description="A little care before you share. Start with the text you want to review."
-        action={<Link to="/batches">Review a batch</Link>}
-      />
+      <header className="intake-heading">
+        <div>
+          <h1 id="new-review-title">New review</h1>
+          <p>Add your content, choose what to look for, then review at your own pace.</p>
+        </div>
+        <Link className="intake-batch-link" to={`/batches?workspace=${encodeURIComponent(intake.workspaceId)}`}><Files size={17} aria-hidden="true" /> Review a batch</Link>
+      </header>
       <ol className="intake-steps" aria-label="Review workflow">
         <li aria-current="step">
-          <span>01</span> Add your content
+          <span>01</span> Add content
         </li>
         <li>
           <ArrowRight size={14} aria-hidden="true" />
@@ -38,7 +38,7 @@ export function NewReviewPage({
         </li>
         <li>
           <ArrowRight size={14} aria-hidden="true" />
-          <span>03</span> Share with care
+          <span>03</span> Share output
         </li>
       </ol>
       <UnsavedNavigationPrompt
@@ -70,27 +70,29 @@ export function NewReviewPage({
         </div>
       )}
       <form className="review-intake-layout" onSubmit={intake.save}>
-        <IntakeSource intake={intake} />
+        <div className="intake-content-column workspace-panel">
+          <IntakeSource intake={intake} />
+        </div>
         <aside className="review-intake-sidebar" aria-label="Review setup">
           <IntakeOptions intake={intake} />
-          <div className="intake-submit-panel">
+          <p className="intake-reassurance"><ShieldCheck size={17} aria-hidden="true" /> Your original stays intact. You decide what changes before sharing.</p>
+        </aside>
+        <div className="intake-submit-panel">
+          <div className="intake-submit-row">
             {intake.error && <InlineNotice error>{intake.error}</InlineNotice>}
-            <button className="intake-save" type="submit" disabled={!intake.readyToSave}>
+            <div className="intake-submit-copy">
+              <strong>Ready for a closer look?</strong>
+              <p id="intake-save-help">{intake.fileLoading ? 'Reading your file. You can check the extracted text next.'
+                : intake.characters === 0 ? 'Add text or a file to save your draft and open the review.'
+                : 'Save your draft to open the review and find suggestions.'}</p>
+            </div>
+            <button className="intake-save" type="submit" disabled={!intake.readyToSave} aria-describedby="intake-save-help">
               {intake.submitting ? <><LoadingMark small /> Saving draft…</> : intake.pending ? 'Preparing review…' : <>Save draft <ArrowRight size={17} aria-hidden="true" /></>}
             </button>
-            <p>
-              <ShieldCheck size={14} aria-hidden="true" /> You control who can review your document.
-            </p>
           </div>
-        </aside>
+          <AutosaveStatus recovery={intake.recovery} dirty={intake.intakeDirty} />
+        </div>
       </form>
-      <AutosaveStatus recovery={intake.recovery} dirty={intake.intakeDirty} />
-      <div className="intake-reassurance">
-        <FileText size={16} aria-hidden="true" />
-        <span>Your original stays intact.</span>
-        <Check size={14} aria-hidden="true" />
-        <span>You decide what changes.</span>
-      </div>
     </section>
   )
 }

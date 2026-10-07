@@ -1,17 +1,22 @@
 import { phoneRegions } from '../../ui/phoneRegions'
-import { Clock3, SlidersHorizontal } from 'lucide-react'
+import { ChevronDown, Clock3, ScanLine, SlidersHorizontal } from 'lucide-react'
 import { GlassSelect } from '../../ui/GlassSelect'
 import { InlineNotice, PanelHeading } from '../../ui/WorkspaceControls'
 import type { IntakeController } from './useIntake'
-import { extras } from '../../detection/categories'
+import { detectionChoices, extras } from '../../detection/categories'
 import { DetectionControls } from '../../detection/DetectionControls'
 import { LoadingState } from '../../loading/LoadingState'
 
 export function IntakeOptions({ intake }: { intake: IntakeController }) {
   const { defaults, pending } = intake
+  const categories = [
+    ...(intake.emailEnabled ? ['email' as const] : []),
+    ...(intake.phoneEnabled ? ['phone' as const] : []), ...intake.extraCategories,
+  ]
+  const selected = detectionChoices.filter((choice) => categories.includes(choice.category))
   return (
     <div className="intake-setup-panel workspace-panel">
-      <PanelHeading icon={SlidersHorizontal} title="Review setup" description="Your rules. Your decisions." />
+      <PanelHeading icon={SlidersHorizontal} title="Review setup" description="Make this review your own." />
       {defaults.kind === 'loading' && <LoadingState label="Loading workspace settings…" shape="form" />}
       {defaults.kind === 'error' && (
         <>
@@ -60,20 +65,27 @@ export function IntakeOptions({ intake }: { intake: IntakeController }) {
               ))}
             </GlassSelect>
           </div>
-          <div className="intake-detection-options">
-            <p className="intake-mini-heading">LOOK FOR</p>
-            <DetectionControls prefix="intake" categories={[
-              ...(intake.emailEnabled ? ['email' as const] : []),
-              ...(intake.phoneEnabled ? ['phone' as const] : []), ...intake.extraCategories,
-            ]} disabled={!!intake.presetId || pending}
+          <details className="intake-detection-options">
+            <summary>
+              <ScanLine size={18} aria-hidden="true" />
+              <span><strong>Suggestions <span className="intake-category-count">{selected.length}</span></strong>
+                <small>{selected.map((choice) => choice.label).join(', ') || 'Off · You can mark details manually'}</small>
+              </span>
+              <ChevronDown size={16} aria-hidden="true" />
+            </summary>
+            <DetectionControls prefix="intake" categories={categories} disabled={!!intake.presetId || pending}
               disabledReason={pending ? 'Wait for this review to finish saving.' : intake.presetId ? 'From your preset. Choose Custom settings to change these.' : undefined}
               onChange={(categories) => {
                 intake.setEmailEnabled(categories.includes('email'))
                 intake.setPhoneEnabled(categories.includes('phone'))
                 intake.setExtraCategories(extras(categories))
               }} />
-            <p className="field-note">Name and place suggestions support English. All suggestions need review; inspect the full text for misses. National IDs cover hyphenated US SSNs, UK NI numbers, Singapore NRIC/FIN and hyphenated Malaysian MyKad. Singapore M-prefix IDs use format only.</p>
-          </div>
+            <p className="field-note">Suggestions need your review. Check the full text for details that were missed.</p>
+            <details className="intake-detection-help">
+              <summary>Detection coverage</summary>
+              <p className="field-note">Name and place suggestions support English. National IDs cover hyphenated US SSNs, UK NI numbers, Singapore NRIC/FIN and hyphenated Malaysian MyKad. Singapore M-prefix IDs use format only.</p>
+            </details>
+          </details>
           <div>
             <label className="field-label" htmlFor="phone-region">
               {intake.extraCategories.includes('date') ? 'Phone and date region' : 'Phone region'}

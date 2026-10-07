@@ -1,6 +1,6 @@
 import { LoadingState } from '../../loading/LoadingState'
 import { useRef, useState } from 'react'
-import { AlignLeft, FileText, Upload, X } from 'lucide-react'
+import { AlignLeft, FileText, LockKeyhole, Upload, X } from 'lucide-react'
 import type { IntakeController } from './useIntake'
 import { InlineNotice } from '../../ui/WorkspaceControls'
 import { GlassTextarea } from '../../ui/GlassTextarea'
@@ -11,16 +11,16 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
   const [dragging, setDragging] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   return (
-    <div className="intake-editor-panel workspace-panel">
+    <div className="intake-editor-panel">
       <div className="intake-editor-heading">
         <span className="panel-heading-icon">
           <FileText size={20} strokeWidth={1.5} aria-hidden="true" />
         </span>
         <div>
           <h2>Your content</h2>
-          <p>A note, a transcript, a document. Start here.</p>
+          <p>Paste a note or bring in a document.</p>
         </div>
-        <span className="subtle-badge">Private draft</span>
+        <span className="subtle-badge"><LockKeyhole size={12} aria-hidden="true" /> Private draft</span>
       </div>
       <div className="intake-title-field">
         <label className="field-label" htmlFor="draft-title">
@@ -72,7 +72,7 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
             id="source-text"
             value={intake.source}
             placeholder={
-              'Paste your text here…\n\nWe’ll help you spot email addresses and phone numbers. You can mark other details during your review.'
+              'Paste the text you want to review…\n\nYour original stays intact. You choose which details to change.'
             }
             onChange={(event) => intake.setSource(event.target.value)}
             required
@@ -159,9 +159,12 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
                 spellCheck={false} aria-describedby="file-preview-help" />
             </>
           )}
-          <p id="file-preview-help" className="field-note">The edited text becomes your saved source. Word edits may simplify layout; CSV edits must keep the same column count. Changing CSV reading settings resets the preview.</p>
+          {intake.hasFilePreview && <p id="file-preview-help" className="field-note">The edited text becomes your saved source. Word edits may simplify layout; CSV edits must keep the same column count. Changing CSV reading settings resets the preview.</p>}
           {intake.fileEdited && <p className="field-note" role="status">Your text corrections will be saved. CSV structure is checked again when saving.</p>}
-          <p className="field-note">OCR reads English printed text locally, up to 10 scanned pages and 8 million pixels per page. Check for missing or misread details. Filenames are not saved as titles.</p>
+          <details className="intake-file-help">
+            <summary>Supported files and import limits</summary>
+            <p className="field-note">TXT, Markdown and CSV: up to 1 MiB. PDF, DOCX and images: up to 8 MiB. OCR reads English printed text locally, up to 10 scanned pages and 8 million pixels per page. Check for missing or misread details. Filenames are not saved as titles.</p>
+          </details>
         </div>
       )}
       <div
