@@ -3,14 +3,20 @@ import type { ReviewController } from './useReviewController'
 import { ReviewSetup } from './ReviewSetup'
 import { LoadingState } from '../loading/LoadingState'
 import { CsvReview } from './CsvReview'
+import { DisabledReason } from '../ui/DisabledReason'
+import { cn } from '../ui/cn'
 
 export function ReviewSuggestions({ review }: { review: ReviewController }) {
   if (review.state.kind !== 'ready') return null
   const { scan } = review
   const complete = scan?.status === 'completed'
   const blocked = review.dirty || review.settingsDirty || review.actionPending || review.conflict
+  const blockedReason = review.conflict ? 'Load the latest saved review first.'
+    : review.dirty ? 'Save your text changes first.'
+    : review.settingsDirty ? 'Save your suggestion settings first.'
+    : 'Wait for your changes to finish saving.'
   return (
-    <section className="review-suggestions" aria-labelledby="suggestions-heading">
+    <section id="review-suggestions" className={cn('review-suggestions', complete && 'is-complete')} aria-labelledby="suggestions-heading">
       <div className="scan-heading">
         <span className="scan-icon">
           {complete ? (
@@ -21,18 +27,18 @@ export function ReviewSuggestions({ review }: { review: ReviewController }) {
         </span>
         <div>
           <h2 id="suggestions-heading">
-            {complete ? 'Suggestions checked' : review.canEdit ? 'Find sensitive details' : 'Suggestion status'}
+            {complete ? review.dirty || review.settingsDirty ? 'Changes to save' : 'Suggestions ready' : review.canEdit ? 'Check for private details' : 'Suggestion status'}
           </h2>
           <p>
             {complete
-              ? `${scan.match_count || 0} possible details found. You choose what to share.`
-              : 'Check the categories chosen for this review.'}
+              ? `${scan.match_count || 0} possible ${scan.match_count === 1 ? 'detail' : 'details'} found. You choose what to share.`
+              : 'Start with suggestions. You choose what to change.'}
           </p>
         </div>
       </div>
       <div className="scan-actions">
         {!complete && review.canEdit && (
-          <button
+          <DisabledReason disabled={blocked || scan?.status === 'scanning'} reason={scan?.status === 'scanning' ? 'The check is running. Refresh to see its progress.' : blockedReason}><button
             className="button-primary"
             type="button"
             disabled={blocked || scan?.status === 'scanning'}
@@ -43,7 +49,7 @@ export function ReviewSuggestions({ review }: { review: ReviewController }) {
               : scan?.status === 'failed'
                 ? 'Retry scan'
                 : 'Find suggestions'}
-          </button>
+          </button></DisabledReason>
         )}
         <button
           className="quiet-icon"
@@ -55,6 +61,7 @@ export function ReviewSuggestions({ review }: { review: ReviewController }) {
           <RotateCw size={16} aria-hidden="true" />
         </button>
       </div>
+      {blocked && <p className="scan-blocked-note" role="status">{blockedReason}</p>}
       {scan?.status === 'scanning' && (
         <div><LoadingState label="Checking for sensitive details…" compact
           slowMessage="Suggestions are still being checked. Refresh to check their status." />

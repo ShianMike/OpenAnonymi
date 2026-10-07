@@ -1,6 +1,15 @@
-.unsaved-navigation.workspace-dialog { background: var(--tone-paper, var(--surface)); border: 1px solid var(--line); }
-.unsaved-navigation > .panel-heading-icon { margin-bottom: 20px; }
+.unsaved-navigation.workspace-dialog { width: 480px; padding: 28px; background: var(--tone-paper, var(--surface)); border: 1px solid var(--line); border-radius: 20px; }
+.unsaved-navigation-heading { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.unsaved-navigation-heading > .panel-heading-icon { flex: 0 0 44px; width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 13px; }
+.unsaved-navigation-heading > div { min-width: 0; }
+.unsaved-navigation-heading > div > span { color: var(--muted); font-size: .68rem; }
+.unsaved-navigation-heading h2 { margin: 5px 0 0; font-size: 1.4rem; font-weight: 550; text-wrap: balance; }
 .unsaved-navigation-actions { display: grid; gap: 10px; }
-.unsaved-navigation-actions button { min-height: 44px; margin: 0; justify-content: center; }
-.unsaved-navigation-actions .unsaved-navigation-discard { color: var(--danger); background: transparent; border-color: transparent; }
+.unsaved-navigation-actions button { min-height: 48px; margin: 0; gap: 10px; justify-content: center; font-size: .86rem; }
+.unsaved-navigation-actions .unsaved-navigation-stay { background: transparent; border: 1px solid var(--line-strong); }
+.unsaved-navigation-danger { display: grid; gap: 6px; margin-top: 10px; padding-top: 16px; border-top: 1px solid var(--line); text-align: center; }
+.unsaved-navigation-danger > span { color: var(--muted); font-size: .75rem; }
+.unsaved-navigation-actions .unsaved-navigation-discard { color: var(--danger); background: transparent; border: 1px solid var(--line); }
+.unsaved-navigation-actions .unsaved-navigation-discard:hover:not(:disabled) { background: var(--tone-danger-wash); border-color: var(--danger); }
 .unsaved-navigation .unsaved-navigation-error { color: var(--danger); }
+@media (max-width: 600px) { .unsaved-navigation.workspace-dialog { padding: 22px 18px; } }

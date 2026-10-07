@@ -5,6 +5,7 @@ import type { IntakeController } from './useIntake'
 import { InlineNotice } from '../../ui/WorkspaceControls'
 import { GlassTextarea } from '../../ui/GlassTextarea'
 import { GlassSelect } from '../../ui/GlassSelect'
+import { cn } from '../../ui/cn'
 import type { CsvDelimiter } from '../../api/client'
 
 export function IntakeSource({ intake }: { intake: IntakeController }) {
@@ -17,8 +18,8 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
           <FileText size={20} strokeWidth={1.5} aria-hidden="true" />
         </span>
         <div>
-          <h2>Your content</h2>
-          <p>Paste a note or bring in a document.</p>
+          <h2>Your text or file</h2>
+          <p>A note, an interview, a document — start here.</p>
         </div>
         <span className="subtle-badge"><LockKeyhole size={12} aria-hidden="true" /> Private draft</span>
       </div>
@@ -37,7 +38,7 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
         />
       </div>
       <fieldset className="intake-mode">
-        <legend className="sr-only">Source format</legend>
+        <legend className="sr-only">How would you like to add your text?</legend>
         <label>
           <input
             type="radio"
@@ -84,7 +85,7 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
       ) : (
         <div className="intake-file-area">
           <div
-            className={`intake-dropzone${dragging ? ' is-dragging' : ''}${intake.file ? ' has-file' : ''}`}
+            className={cn('intake-dropzone', dragging && 'is-dragging', intake.file && 'has-file')}
             onDragOver={(event) => {
               event.preventDefault()
               if (!intake.pending) setDragging(true)
@@ -101,7 +102,7 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
           >
             <Upload size={27} strokeWidth={1.3} aria-hidden="true" />
             <strong>{intake.file ? intake.file.name : 'Drop your document here'}</strong>
-            <span>One document or scan at a time</span>
+            <span>Choose one file. We’ll turn it into text you can check.</span>
             <label className="intake-file-picker">
               <input
                 ref={inputRef}
@@ -135,7 +136,7 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
           )}
           {intake.fileError && <InlineNotice error>{intake.fileError}</InlineNotice>}
           {intake.file && /\.csv$/i.test(intake.file.name) && <div className="csv-intake-format">
-            <label className="field-label" htmlFor="csv-delimiter">CSV delimiter</label>
+            <label className="field-label" htmlFor="csv-delimiter">How are columns separated?</label>
             <GlassSelect id="csv-delimiter" value={intake.csvDelimiter} disabled={intake.pending}
               onValueChange={(value) => intake.changeCsvFormat(value as CsvDelimiter | 'auto', intake.csvHeader)}>
               <option value="auto">Detect automatically</option><option value=",">Comma</option><option value=";">Semicolon</option><option value={'\t'}>Tab</option><option value="|">Pipe</option>
@@ -152,42 +153,49 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
           {intake.hasFilePreview && (
             <>
               <label className="field-label" htmlFor="file-preview">
-                Edit extracted text before saving
+                Check and edit the text before saving
               </label>
               <GlassTextarea id="file-preview" value={intake.fileText}
                 onChange={(event) => intake.setFileText(event.target.value)} disabled={intake.pending || intake.fileLoading}
                 spellCheck={false} aria-describedby="file-preview-help" />
             </>
           )}
-          {intake.hasFilePreview && <p id="file-preview-help" className="field-note">The edited text becomes your saved source. Word edits may simplify layout; CSV edits must keep the same column count. Changing CSV reading settings resets the preview.</p>}
-          {intake.fileEdited && <p className="field-note" role="status">Your text corrections will be saved. CSV structure is checked again when saving.</p>}
+          {intake.hasFilePreview && <p id="file-preview-help" className="field-note">We’ll save this text with your corrections. {intake.file && /\.csv$/i.test(intake.file.name) ? 'Keep the same number of columns. Changing how columns are read resets this text.' : intake.file && /\.docx$/i.test(intake.file.name) ? 'Editing Word text may simplify its layout.' : 'Check for anything missing or misread.'}</p>}
+          {intake.fileEdited && <p className="field-note" role="status">Your corrections will be saved.</p>}
           <ul className="intake-file-formats" aria-label="Supported files and size limits">
-            <li><FileText size={17} aria-hidden="true" /><strong>Text</strong><span>TXT · MD · CSV</span><small>Up to 1 MiB</small></li>
-            <li><Files size={17} aria-hidden="true" /><strong>Documents</strong><span>PDF · DOCX</span><small>Up to 8 MiB</small></li>
-            <li><Image size={17} aria-hidden="true" /><strong>Images</strong><span>PNG · JPG · TIFF · WebP</span><small>Up to 8 MiB</small></li>
+            <li><FileText size={17} aria-hidden="true" /><strong>Text</strong><span>TXT · Markdown · CSV</span><small>About 1 MB max</small></li>
+            <li><Files size={17} aria-hidden="true" /><strong>Documents</strong><span>PDF · Word (DOCX)</span><small>About 8 MB max</small></li>
+            <li><Image size={17} aria-hidden="true" /><strong>Images</strong><span>PNG · JPG · TIFF · WebP</span><small>About 8 MB max</small></li>
           </ul>
-          <details className="intake-file-help">
-            <summary><Info size={15} aria-hidden="true" /><span>Before you import</span><ChevronDown size={15} aria-hidden="true" /></summary>
-            <dl>
-              <div><dt>Scanned pages</dt><dd>English printed text, read locally. Up to 10 pages and 8 million pixels per page.</dd></div>
-              <div><dt>Check the preview</dt><dd>Correct any missing or misread details before saving.</dd></div>
-              <div><dt>Your review title</dt><dd>Set it above if you need one. Filenames are not saved as titles.</dd></div>
-            </dl>
+          <details className="intake-file-help intake-help">
+            <summary><Info size={17} aria-hidden="true" /><span>Tips for uploading</span><ChevronDown size={16} aria-hidden="true" /></summary>
+            <ul className="intake-help-list">
+              <li><Image size={18} aria-hidden="true" /><div><strong>Use a clear scan</strong><p>Printed text in English works best. Scans are read on this device.</p></div></li>
+              <li><FileText size={18} aria-hidden="true" /><div><strong>Check the text first</strong><p>Fix anything missing or misread before you save.</p></div></li>
+            </ul>
+            <details className="intake-technical-help">
+              <summary>File and scan limits <ChevronDown size={14} aria-hidden="true" /></summary>
+              <dl>
+                <div><dt>Text files</dt><dd>1 MiB (1,048,576 bytes).</dd></div>
+                <div><dt>Documents & images</dt><dd>8 MiB (8,388,608 bytes).</dd></div>
+                <div><dt>Scanned pages</dt><dd>English printed text only. Up to 10 pages, each up to 8 million pixels.</dd></div>
+                <div><dt>Review title</dt><dd>Optional. Add one above to find this review later. We don’t use the filename as the title.</dd></div>
+              </dl>
+            </details>
           </details>
         </div>
       )}
       <div
-        className={`intake-editor-footer${intake.overLimit ? ' is-over-limit' : ''}`}
+        className={cn('intake-editor-footer', intake.overLimit && 'is-over-limit')}
         id="intake-source-limits"
       >
         <span>
           <strong>{intake.characters.toLocaleString()}</strong> / 100,000 characters
         </span>
-        <span>{intake.bytes.toLocaleString()} bytes · 1 MiB max</span>
       </div>
       {intake.overLimit && (
         <InlineNotice error>
-          Shorten the text to 100,000 characters and 1 MiB or less before saving.
+          Shorten your text to 100,000 characters or fewer before saving (maximum 1 MiB).
         </InlineNotice>
       )}
     </div>

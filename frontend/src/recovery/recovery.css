@@ -3,13 +3,19 @@
 .autosave-message > span { display: flex; align-items: center; gap: 8px; }
 .autosave-message svg { flex-shrink: 0; }
 .autosave-restored { display: block; margin: 5px 0 0 24px; font-size: .73rem; }
-.autosave-status.is-error { margin-top: 14px; padding: 14px 16px; background: var(--tone-paper, var(--surface)); border: 1px solid var(--line); border-radius: 12px; }
-.autosave-status.is-error [role='status'] { color: var(--text); font-weight: 550; }
-.autosave-status.is-error [role='status'] svg { color: var(--danger); }
-.autosave-error { margin: 7px 0 0 24px; line-height: 1.6; text-wrap: pretty; overflow-wrap: anywhere; }
+.autosave-status.is-error { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; margin-top: 14px; padding: 18px; background: var(--tone-paper, var(--surface)); border: 1px solid var(--line); border-radius: 14px; }
+.autosave-status.is-error .autosave-message { min-width: 0; }
+.autosave-status.is-error [role='status'] { gap: 10px; color: var(--text); font-size: .85rem; font-weight: 550; }
+.autosave-status.is-error [role='status'] svg { width: 34px; height: 34px; padding: 8px; border-radius: 10px; color: var(--danger); background: var(--blue-tint); }
+.autosave-status.is-full [role='status'] svg { color: var(--blue); }
+.autosave-status .autosave-error { margin: 4px 0 0 44px; color: var(--muted); font-size: .78rem; line-height: 1.65; text-wrap: pretty; overflow-wrap: anywhere; }
+.autosave-error-details { margin: 6px 0 0 44px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: .75rem; }
+.autosave-error-details > summary { min-height: 44px; padding-block: 12px; cursor: pointer; }
+.autosave-status .autosave-error-details p { margin: 0 0 8px; color: var(--muted); line-height: 1.6; text-wrap: pretty; overflow-wrap: anywhere; }
 .autosave-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .autosave-actions button, .autosave-copy-list button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; margin: 0; font-size: .76rem; }
 .autosave-copy-count { padding: 2px 6px; border-radius: 5px; background: var(--blue-tint); font-variant-numeric: tabular-nums; }
+.autosave-actions .autosave-manage { background: var(--blue-tint); color: var(--text); border-color: var(--line); }
 .workspace-dialog:has(> .autosave-copy-manager) { background: var(--tone-paper, var(--surface)); border: 1px solid var(--line); }
 .workspace-dialog:has(> .autosave-copy-manager) .dialog-close { width: 44px; min-height: 44px; }
 .autosave-copy-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; font-size: .79rem; }
@@ -24,6 +30,7 @@
 .autosave-copy-list button { flex-shrink: 0; }
 .autosave-copy-list .quiet-icon { width: 44px; }
 .autosave-manager-error { margin: 0 0 14px; padding: 10px 12px; border-left: 2px solid var(--danger); color: var(--muted); font-size: .8rem; line-height: 1.6; text-wrap: pretty; }
+.autosave-manager-error.is-full { border-left-color: var(--blue); }
 .autosave-empty { margin: 0 0 20px; color: var(--muted); font-size: .85rem; line-height: 1.6; text-wrap: pretty; }
 .autosave-copy-manager .dialog-actions { margin-top: 16px; }
 .autosave-copy-manager .dialog-actions [role='status'] { margin-right: auto; align-self: center; color: var(--muted); font-size: .75rem; line-height: 1.5; text-wrap: pretty; }
@@ -31,6 +38,7 @@
   .autosave-copy-list li { gap: 8px; }
   .autosave-copy-list li > svg { display: none; }
   .autosave-copy-list button { padding-inline: 9px; }
-  .autosave-status.is-error { padding: 12px; }
+  .autosave-status.is-error { grid-template-columns: 1fr; padding: 14px; }
   .autosave-actions { width: 100%; }
+  .autosave-actions .autosave-manage { width: 100%; }
 }

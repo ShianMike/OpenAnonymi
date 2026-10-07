@@ -57,9 +57,10 @@ export function ReviewSource({ review }: { review: ReviewController }) {
             variant="original"
           />
           <div className="document-legend" aria-label="Highlight legend">
-            <span><CircleHelp size={13} aria-hidden="true" /> Needs decision</span>
-            <span><Tag size={13} aria-hidden="true" /> Label / redact</span>
-            <span><Eye size={13} aria-hidden="true" /> Kept</span>
+            <strong>Highlights</strong>
+            <span data-action="pending"><CircleHelp size={15} aria-hidden="true" /> Needs a choice</span>
+            <span data-action="changed"><Tag size={15} aria-hidden="true" /> Hidden or replaced</span>
+            <span data-action="keep"><Eye size={15} aria-hidden="true" /> Kept as written</span>
           </div>
         </>
       )}

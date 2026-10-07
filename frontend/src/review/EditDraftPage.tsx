@@ -43,7 +43,6 @@ export function EditDraftPage({
     dirty,
     settingsDirty,
     reloadSaved,
-    activeFindings,
     pendingFindings,
   } = review
   return (
@@ -94,22 +93,23 @@ export function EditDraftPage({
           <div className="review-status-row">
             <div className="review-summary-strip" aria-label="Current review status">
               <StatusBadge status={state.saved.status} />
-              {scan?.status === 'completed' || activeFindings.length > 0 ? (
+              {scan?.status === 'completed' ? (
                 <span>
                   {pendingFindings.length > 0
-                    ? `${pendingFindings.length} ${pendingFindings.length === 1 ? 'finding' : 'findings'} still need a decision`
+                    ? `${pendingFindings.length} ${pendingFindings.length === 1 ? 'detail needs' : 'details need'} your choice`
                     : state.saved.status === 'ready' || state.saved.status === 'exported'
                       ? 'Review confirmed'
-                      : activeFindings.length === 0
-                        ? 'No matches; review full text'
-                        : 'All findings decided · Ready for a final check'}
+                      : review.activeFindings.length === 0
+                        ? 'No suggestions found · Read the full text'
+                        : 'Choices made · Check the reviewed output'}
                 </span>
               ) : (
                 <span>
-                  {scan?.status === 'scanning' ? 'Checking suggestions' : 'Suggestion scan not run'}
+                  {scan?.status === 'scanning' ? 'Looking for private details…' : scan?.status === 'failed' ? 'The check couldn’t finish · Retry suggestions' : 'Next: find suggestions, then choose what to change'}
                 </span>
               )}
-              {dirty && <span>Unsaved source edits</span>}
+              {dirty && <span>Text changes not saved yet</span>}
+              {settingsDirty && <span>Options not saved yet</span>}
               {review.decisionPending && <span role="status">Saving decisions · Output is updating</span>}
             </div>
             {review.canEdit && <AutosaveStatus recovery={review.recovery} dirty={dirty || settingsDirty} />}
@@ -136,8 +136,8 @@ export function EditDraftPage({
               <ReviewCompletion review={review} />
             </div>
             <div className="review-side-column">
-              <ReviewFindings review={review} />
               <ReviewSuggestions review={review} />
+              <ReviewFindings review={review} />
               <HandoffPanel key={`${state.saved.version.source_revision_id}.${state.saved.version.decision_version}.${state.saved.status}`} review={review} session={session} />
               <FindingDiscussion key={state.saved.version.source_revision_id} review={review} session={session} />
               {review.canEdit && <ReviewSettings review={review} csrf={session.csrf_token} />}

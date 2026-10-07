@@ -10,21 +10,22 @@ import { phoneRegions } from '../ui/phoneRegions'
 export function ReviewSettings({ review, csrf }: { review: ReviewController; csrf: string }) {
   if (review.state.kind !== 'ready') return null
   const disabled = review.actionPending
+  const categories = [...(review.emailEnabled ? ['email' as const] : []), ...(review.phoneEnabled ? ['phone' as const] : []), ...review.extraCategories]
   return (
     <details className="review-settings" id="review-suggestion-settings">
       <summary>
         <span>
           <SlidersHorizontal size={18} strokeWidth={1.6} aria-hidden="true" />
-          <strong>Suggestion settings</strong>
+          <strong>What to look for</strong><small className="review-settings-count">{categories.length}</small>
         </span>
         <ChevronDown size={16} aria-hidden="true" />
       </summary>
       <div className="review-settings-body">
-        <p>Choose the details to look for. Saving changes starts a fresh review.</p>
+        <p>Change these only if you need to. Saving resets suggestions and confirmation; check the text again afterward.</p>
         <div className="review-setting-choices">
           <DetectionControls prefix="review" variant="checkbox" disabled={disabled}
             disabledReason="Wait for the current review changes to finish saving."
-            categories={[...(review.emailEnabled ? ['email' as const] : []), ...(review.phoneEnabled ? ['phone' as const] : []), ...review.extraCategories]}
+            categories={categories}
             onChange={(categories) => {
               review.setEmailEnabled(categories.includes('email'))
               review.setPhoneEnabled(categories.includes('phone'))
@@ -53,13 +54,14 @@ export function ReviewSettings({ review, csrf }: { review: ReviewController; csr
           </div>
           <button
             type="button"
+            className="button-primary"
             onClick={() => void review.saveSettings()}
             disabled={!review.settingsDirty || review.dirty || disabled || review.conflict}
           >
             {review.settingsPending ? 'Saving settings…' : 'Save suggestion settings'}
           </button>
         </div>
-        <ReviewRules review={review} csrf={csrf} />
+        <details className="review-advanced-rules"><summary>Advanced workspace rules <ChevronDown size={14} aria-hidden="true" /></summary><ReviewRules review={review} csrf={csrf} /></details>
       </div>
     </details>
   )

@@ -1,4 +1,4 @@
-import { ShieldCheck, ArrowRight, Copy, Download, CheckCircle2 } from 'lucide-react'
+import { ShieldCheck, ArrowRight, Copy, Download, CheckCircle2, Eye, LockKeyhole } from 'lucide-react'
 import type { ReviewController } from './useReviewController'
 import { sameVersion } from './reviewState'
 import { GlassCheckbox } from '../ui/GlassCheckbox'
@@ -8,6 +8,7 @@ import { useState } from 'react'
 import { GlassSelect } from '../ui/GlassSelect'
 import type { CsvVariant, ReviewedFormat } from '../api/client'
 import { DisabledReason } from '../ui/DisabledReason'
+import { readReviewedOutput } from '../team/reviewerNavigation'
 
 const styleCountLabels: Record<string, string> = { stand_in: 'Fictional stand-ins', date_shift: 'Shifted dates', partial_mask: 'Partial masks', generalize: 'Generalized dates' }
 
@@ -25,8 +26,12 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
     !review.conflict
   const confirmationReason = review.conflict ? 'Load the latest saved review before confirming.'
     : review.actionPending ? 'Wait for the current changes and reviewed output to finish saving.'
-    : review.dirty || review.settingsDirty ? 'Save your changes before confirming.'
-    : !canConfirm ? 'Finish the scan and decide every finding without overlaps.'
+    : review.dirty ? 'Save your text changes before confirming.'
+    : review.settingsDirty ? 'Save your suggestion settings before confirming.'
+    : review.scan?.status !== 'completed' ? 'Find suggestions first, then choose what to change in each highlighted detail.'
+    : review.pendingFindings.length ? `${review.pendingFindings.length} ${review.pendingFindings.length === 1 ? 'detail needs' : 'details need'} your choice before confirming.`
+    : review.findings?.overlaps.length ? 'Some highlights overlap. Adjust them so each detail has one choice.'
+    : !canConfirm ? 'Wait for the reviewed output to finish updating.'
     : 'Read the full output and check the confirmation box first.'
   const exportReason = review.actionPending ? 'Wait for the current changes and reviewed output to finish saving.'
     : confirmed && !review.handoff.exportApproved ? 'The assigned reviewer must approve this exact version.'
@@ -38,18 +43,23 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
           <ShieldCheck size={21} strokeWidth={1.4} aria-hidden="true" />
         </span>
         <div>
-          <span className="review-eyebrow">SHARE WITH CARE</span>
+          <span className="review-eyebrow">YOUR FINAL CHECK</span>
           <h2 id="completion-heading">
-            {confirmed ? 'Your reviewed version is ready' : 'A final look before sharing'}
+            {confirmed ? canExport ? 'Your reviewed version is ready' : 'Review confirmed' : 'Check, confirm, and share'}
           </h2>
         </div>
         {confirmed && <CheckCircle2 size={20} aria-hidden="true" />}
       </div>
-      <p>
-        Read the full reviewed output, including unmarked passages. Context can still identify
-        someone.
-      </p>
+      <div className="completion-next-step">
+        <div><strong>{confirmed ? 'Your choices are saved for this version' : '1. Read the reviewed text'}</strong>
+          <p role="status">{!confirmed && !canConfirm ? confirmationReason : 'Read every line, including text without highlights. Context can still identify someone.'}</p>
+        </div>
+        {(canConfirm || confirmed) && <button type="button" className="completion-read" disabled={review.actionPending}
+          onClick={() => readReviewedOutput(review)}><Eye size={17} aria-hidden="true" /> Read reviewed output</button>}
+      </div>
       {!confirmed && review.canEdit && (
+        <>
+        <h3 className="completion-step-heading">2. Confirm this version</h3>
         <div className="completion-confirmation">
           <GlassCheckbox
             id="confirm-output"
@@ -57,6 +67,7 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
             description={review.handoff.value?.require_approval ? 'Copying and downloading also require the assigned reviewer’s approval.' : 'Confirming unlocks copying and downloading.'}
             checked={review.confirmedPreview}
             disabled={!canConfirm}
+            disabledReason={confirmationReason}
             onCheckedChange={review.setConfirmedPreview}
           />
           <DisabledReason disabled={!canConfirm || !review.confirmedPreview} reason={confirmationReason}><button
@@ -69,19 +80,7 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
             {review.completionPending ? <LoadingMark small /> : <ArrowRight size={16} aria-hidden="true" />}
           </button></DisabledReason>
         </div>
-      )}
-      {!confirmed && !canConfirm && review.canEdit && (
-        <p role="status" className="completion-status">
-          {review.conflict
-            ? 'Load the latest saved review before confirming.'
-            : review.decisionPending
-              ? 'Saving your decisions and updating the reviewed output before confirmation.'
-            : review.dirty || review.settingsDirty
-              ? 'Save your changes before confirming.'
-            : review.pendingFindings.length
-              ? `${review.pendingFindings.length} ${review.pendingFindings.length === 1 ? 'detail needs' : 'details need'} a decision before you can confirm.`
-              : 'Finish the scan and resolve any overlapping findings before confirming.'}
-        </p>
+        </>
       )}
       {confirmed && (
         <p role="status" className="completion-status">
@@ -97,6 +96,9 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
             : 'Waiting for the assigned reviewer to approve this exact version before export.'}
           {!review.handoff.value.reviewer_active && <> <a href="#review-handoff">Manage reviewer</a></>}
         </p>}
+      <div className="completion-share-heading"><h3 className="completion-step-heading">{confirmed ? 'Copy or download' : '3. Copy or download'}</h3>
+        {!canExport && <span><LockKeyhole size={14} aria-hidden="true" />{confirmed ? review.handoff.exportApproved ? 'Updating output' : 'Waiting for approval' : 'Confirm to unlock'}</span>}
+      </div>
       <div className="completion-export">
         <DisabledReason disabled={!canExport} reason={exportReason}><button
           type="button"
@@ -124,6 +126,7 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
           {review.exportPending ? 'Preparing output…' : { txt: 'Generate reviewed TXT', docx: 'Generate reviewed Word', pdf: 'Generate reviewed PDF', report: 'Generate redaction report', csv: 'Generate reviewed CSV' }[format]}
         </button></DisabledReason>
       </div>
+      {canExport && !preparedDownload && <p className="field-note">Generate a file, then use its Save link to download it.</p>}
       {format === 'pdf' && <p className="field-note">PDF uses plain paragraphs with page wrapping and expanded tabs. TXT preserves exact whitespace.</p>}
       {format === 'report' && <p className="field-note">The report lists categories, actions, styles and positions in this confirmed review.</p>}
       {format === 'csv' && <div className="csv-export-options">
@@ -137,7 +140,7 @@ export function ReviewCompletion({ review }: { review: ReviewController }) {
       {preparedDownload &&
         canExport &&
         sameVersion(preparedDownload.version, state.saved.version) && (
-          <p>
+          <p className="completion-download-ready" role="status">
             <a href={preparedDownload.url} download={preparedDownload.filename}>
               {preparedDownload.format === 'csv' ? `Save reviewed CSV (${preparedDownload.variant === 'unmodified' ? 'unmodified' : 'spreadsheet-safe'})` : { txt: 'Save reviewed TXT', docx: 'Save reviewed Word', pdf: 'Save reviewed PDF', report: 'Save redaction report' }[preparedDownload.format]}
             </a>

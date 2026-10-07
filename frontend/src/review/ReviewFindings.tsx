@@ -24,7 +24,7 @@ export function ReviewFindings({ review }: { review: ReviewController }) {
       <div className="findings-heading">
         <div>
           <span className="review-eyebrow">YOUR DECISIONS</span>
-          <h2 id="findings-heading">Current findings</h2>
+          <h2 id="findings-heading">Details to check</h2>
         </div>
         <span className="findings-total">{total}</span>
       </div>
@@ -55,7 +55,7 @@ export function ReviewFindings({ review }: { review: ReviewController }) {
           onClick={review.nextUnresolved}
           disabled={!review.pendingFindings.length || review.decisionBlocked || review.dirty || review.settingsDirty || review.conflict}
         >
-          Next unresolved <ArrowRight size={15} aria-hidden="true" />
+          Next detail <ArrowRight size={15} aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -118,7 +118,7 @@ export function ReviewFindings({ review }: { review: ReviewController }) {
           <p>
             {review.scan?.status === 'completed'
               ? 'No findings. Read the full text and mark any details worth a closer look.'
-              : 'Run a scan to find possible sensitive details.'}
+              : 'Use Find suggestions to get started, or mark a detail yourself.'}
           </p>
         </div>
       )}
@@ -184,7 +184,7 @@ export function ReviewFindings({ review }: { review: ReviewController }) {
         <Plus size={16} aria-hidden="true" /> Mark a detail yourself
       </button>
       <p className="findings-tip">
-        Click any highlighted text or finding to label, redact, or keep it.
+        Select a highlight or a detail above to choose what to hide, replace, or keep.
       </p>
       {Array.from(review.groupMembers.values()).some((members) => members.length > 1) && (
         <details className="linked-summary">

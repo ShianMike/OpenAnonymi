@@ -201,6 +201,8 @@
   position: absolute;
   top: 17px;
   right: 16px;
+  width: 44px;
+  min-height: 44px;
 }
 .workspace-dialog form {
   display: grid;

@@ -24,21 +24,21 @@ export function NewReviewPage({
       <header className="intake-heading">
         <div>
           <h1 id="new-review-title">New review</h1>
-          <p>Add your content, choose what to look for, then review at your own pace.</p>
+          <p>Paste text or upload a file. We’ll help you spot details you may want to keep private.</p>
         </div>
         <Link className="intake-batch-link" to={`/batches?workspace=${encodeURIComponent(intake.workspaceId)}`}><Files size={17} aria-hidden="true" /> Review a batch</Link>
       </header>
       <ol className="intake-steps" aria-label="Review workflow">
         <li aria-current="step">
-          <span>01</span> Add content
+          <span>01</span> Add text
         </li>
         <li>
           <ArrowRight size={14} aria-hidden="true" />
-          <span>02</span> Review findings
+          <span>02</span> Check details
         </li>
         <li>
           <ArrowRight size={14} aria-hidden="true" />
-          <span>03</span> Share output
+          <span>03</span> Share when ready
         </li>
       </ol>
       <UnsavedNavigationPrompt
@@ -73,7 +73,7 @@ export function NewReviewPage({
         <div className="intake-content-column workspace-panel">
           <IntakeSource intake={intake} />
         </div>
-        <aside className="review-intake-sidebar" aria-label="Review setup">
+        <aside className="review-intake-sidebar" aria-label="Review options">
           <IntakeOptions intake={intake} />
           <p className="intake-reassurance"><ShieldCheck size={17} aria-hidden="true" /> Your original stays intact. You decide what changes before sharing.</p>
         </aside>
@@ -81,10 +81,10 @@ export function NewReviewPage({
           <div className="intake-submit-row">
             {intake.error && <InlineNotice error>{intake.error}</InlineNotice>}
             <div className="intake-submit-copy">
-              <strong>Ready for a closer look?</strong>
-              <p id="intake-save-help">{intake.fileLoading ? 'Reading your file. You can check the extracted text next.'
-                : intake.characters === 0 ? 'Add text or a file to save your draft and open the review.'
-                : 'Save your draft to open the review and find suggestions.'}</p>
+              <strong>Next: check for private details</strong>
+              <p id="intake-save-help">{intake.fileLoading ? 'Reading your file. You can check the text next.'
+                : intake.characters === 0 ? 'Add some text or choose a file to get started.'
+                : 'Save your text, then choose which details to change.'}</p>
             </div>
             <button className="intake-save" type="submit" disabled={!intake.readyToSave} aria-describedby="intake-save-help">
               {intake.submitting ? <><LoadingMark small /> Saving draft…</> : intake.pending ? 'Preparing review…' : <>Save draft <ArrowRight size={17} aria-hidden="true" /></>}

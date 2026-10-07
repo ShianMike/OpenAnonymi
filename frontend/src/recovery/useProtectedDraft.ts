@@ -35,7 +35,7 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
   const key = scope ? `openanonymi.working-id.${scope.userId}.${scope.workspaceId}.${scope.documentId ?? 'intake'}` : ''
   const [attempt, setAttempt] = useState(0)
   const [phase, setPhase] = useState<'loading' | 'idle' | 'saving' | 'saved' | 'error'>('loading')
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | Error | null>(null)
   const [savedHash, setSavedHash] = useState('')
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [recoveredAt, setRecoveredAt] = useState<string | null>(null)
@@ -86,7 +86,7 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
         setPhase(chosen?.id === run.id ? 'saved' : 'idle')
       } catch (cause) {
         if (controller.signal.aborted) return
-        setError(cause instanceof Error ? cause.message : 'Working draft recovery is unavailable.')
+        setError(cause instanceof Error ? cause : 'Working draft recovery is unavailable.')
         setPhase('error')
       }
     }
@@ -130,7 +130,7 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
         if (run.disposed) return
         run.forkOnRetry = cause instanceof ApiRequestError && cause.code === 'recovery_conflict'
         setPhase('error')
-        setError(cause instanceof Error ? cause.message : 'Autosave could not be confirmed. Your edits remain here.')
+        setError(cause instanceof Error ? cause : 'Autosave could not be confirmed. Your edits remain here.')
       } finally { run.operation = null }
     })()
     run.operation = operation
@@ -175,6 +175,7 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
       setSavedAt(null)
       setRecoveredAt(null)
       setCopies((rows) => rows.filter((item) => item.id !== old))
+      setError(null)
       setPhase('idle')
     } finally { run.clearing = false }
   }
@@ -190,7 +191,7 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
       await saveNow()
       if (current.dirty && current.payload && run.confirmedHash !== JSON.stringify(current.payload)) {
         setPhase('error')
-        setError('Back up your current edits before recovering another copy.')
+        setError((cause) => cause ?? 'Back up your current edits before recovering another copy.')
         return
       }
       const view = await getRecovery(current.scope.workspaceId, id)
@@ -204,7 +205,7 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
       setPhase('idle')
     } catch (cause) {
       setPhase('error')
-      setError(cause instanceof Error ? cause.message : 'This working copy could not be recovered.')
+      setError(cause instanceof Error ? cause : 'This working copy could not be recovered.')
     }
   }
 
@@ -221,7 +222,7 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
       await deleteRecovery(current.scope.workspaceId, id, copy.version, current.csrf)
       setCopies((rows) => rows.filter((item) => item.id !== id))
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'This working copy could not be discarded.')
+      setError(cause instanceof Error ? cause : 'This working copy could not be discarded.')
     }
   }
 
@@ -238,7 +239,8 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
       run.confirmedHash === JSON.stringify(latest.current.payload))
   }
 
-  return { phase, error, savedAt, recoveredAt,
+  return { phase, error: error instanceof Error ? error.message : error,
+    errorCode: error instanceof ApiRequestError ? error.code : null, savedAt, recoveredAt,
     copies: copies.filter((item) => item.id !== runtime.current?.id),
     retry, clear, restore, saveNow, flush, discardCopy,
     loading: Boolean(key) && phase === 'loading',

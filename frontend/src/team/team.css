@@ -19,3 +19,10 @@
 .team-comment-list time { font-size: .7rem; color: var(--muted); }
 .team-comment-list p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .9rem; }
 .team-comment-list button { font-size: .75rem; color: var(--muted); }
+#review-handoff { margin: 0; padding: 20px; border: 1px solid var(--line); border-radius: 18px; }
+#review-handoff .team-heading { display: flex; align-items: flex-start; gap: 8px; }
+#review-handoff .panel-heading { flex: 1; min-width: 0; margin: 0; }
+#review-handoff .team-policy { flex: none; padding: 4px 7px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font-size: .68rem; }
+#review-handoff .team-assignee { margin: 14px 0 8px; padding: 10px 12px; border-radius: 10px; background: var(--surface-subtle); font-size: .85rem; }
+#review-handoff > .field-note { margin: 14px 0; line-height: 1.6; }
+#review-handoff > button { width: 100%; border: 1px solid var(--line); background: transparent; font-size: .81rem; }

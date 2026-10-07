@@ -49,10 +49,10 @@ export function createReviewScanActions({ documentId, state, dirty, settingsDirt
         setNotice(
           result.match_count === 0
             ? null
-            : 'Suggestions are unresolved. Review every occurrence before export.',
+            : 'Suggestions are ready. Choose what to change in each highlighted detail.',
         )
       } else {
-        setNotice('A scan is in progress. Refresh its status shortly.')
+        setNotice('The check is running. Refresh to see its progress.')
       }
       try {
         setFindings(await getFindings(documentId))
@@ -116,7 +116,7 @@ export function createReviewScanActions({ documentId, state, dirty, settingsDirt
       }
       await refreshPreview(documentId, updated.version)
       await recovery.clear().catch(() => undefined)
-      setNotice('Suggestion settings saved. Run a fresh scan before review.')
+      setNotice('Your options are saved. Find suggestions again before confirming.')
     } catch (cause: unknown) {
       if (cause instanceof ApiConflictError) setConflict(true)
       setError(messageFrom(cause))

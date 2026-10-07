@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useBlocker } from 'react-router-dom'
 import * as AlertDialog from '@radix-ui/react-alert-dialog'
-import { ShieldCheck } from 'lucide-react'
+import { ShieldCheck, ArrowLeft, ArrowRight, Trash2 } from 'lucide-react'
 import './workspace-controls.css'
 
 export function UnsavedNavigationPrompt({
@@ -91,18 +91,20 @@ export function UnsavedNavigationPrompt({
               requestAnimationFrame(() => document.getElementById(focusBackId)?.focus())
             }
           }}>
-          <span className="panel-heading-icon"><ShieldCheck size={22} aria-hidden="true" /></span>
-          <AlertDialog.Title>{saving ? 'Decisions are saving' : 'Unsaved changes'}</AlertDialog.Title>
-          <AlertDialog.Description>{saving ? 'Wait for your decisions and reviewed output to finish saving before leaving.' : onSaveAndLeave ? 'Back up your current edits before leaving, or discard this working copy.'
-            : 'Leaving this page will discard your unsaved text and settings.'}</AlertDialog.Description>
+          <div className="unsaved-navigation-heading">
+            <span className="panel-heading-icon"><ShieldCheck size={22} aria-hidden="true" /></span>
+            <div><span>BEFORE YOU LEAVE</span><AlertDialog.Title>{saving ? 'Your choices are saving' : 'Unsaved changes'}</AlertDialog.Title></div>
+          </div>
+          <AlertDialog.Description>{saving ? 'Your choices and reviewed text are still being saved. You can stay, or leave once saving finishes.' : onSaveAndLeave ? 'Keep a backup so you can return to these edits later. Choose how to leave.'
+            : 'These changes haven’t been saved. Staying keeps them here; leaving will lose them.'}</AlertDialog.Description>
           {error && <p className="unsaved-navigation-error" role="alert">{error}</p>}
           <div className="unsaved-navigation-actions">
-            <AlertDialog.Cancel asChild><button type="button" disabled={pending}>Stay and keep editing</button></AlertDialog.Cancel>
+            <AlertDialog.Cancel asChild><button type="button" className="unsaved-navigation-stay" disabled={pending}><ArrowLeft size={17} aria-hidden="true" /> Stay and keep editing</button></AlertDialog.Cancel>
             {saving && <button type="button" className="button-primary" disabled={pending}
-              onClick={() => void waitAndLeave()}>{pending ? 'Waiting for saves…' : 'Wait for saves and leave'}</button>}
+              onClick={() => void waitAndLeave()}>{pending ? 'Waiting for saves…' : 'Wait for saves and leave'}<ArrowRight size={17} aria-hidden="true" /></button>}
             {!saving && onSaveAndLeave && <button type="button" className="button-primary" disabled={pending}
-              onClick={() => void leave(true)}>{pending ? 'Backing up…' : 'Back up and leave'}</button>}
-            {!saving && <button type="button" className="unsaved-navigation-discard" disabled={pending} onClick={() => void leave(false)}>Discard edits and leave</button>}
+              onClick={() => void leave(true)}>{pending ? 'Backing up…' : 'Back up and leave'}<ArrowRight size={17} aria-hidden="true" /></button>}
+            {!saving && <div className="unsaved-navigation-danger"><span>Leave without keeping these edits</span><button type="button" className="unsaved-navigation-discard" disabled={pending} onClick={() => void leave(false)}><Trash2 size={16} aria-hidden="true" /> Discard edits and leave</button></div>}
           </div>
         </AlertDialog.Content>
       </AlertDialog.Portal>
