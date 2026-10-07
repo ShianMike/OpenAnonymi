@@ -19,8 +19,8 @@ export function GlobalSearch({ session }: { session: SessionView }) {
     return () => window.removeEventListener('keydown', shortcut)
   }, [])
   return <Dialog.Root open={open} onOpenChange={setOpen}>
-    <Dialog.Trigger className="global-search-trigger" aria-label="Search documents and pages" title="Search documents and pages (Ctrl or Cmd + K)">
-      <Search size={17} aria-hidden="true" /><span>Search</span><kbd>Ctrl / ⌘ K</kbd>
+    <Dialog.Trigger className="global-search-trigger" aria-label="Search documents and pages" aria-keyshortcuts="Control+K Meta+K" title="Search documents and pages (Ctrl or Cmd + K)">
+      <Search size={18} aria-hidden="true" /><span>Search reviews or pages</span><kbd>Ctrl / ⌘ K</kbd>
     </Dialog.Trigger>
     {open && <SearchDialog session={session} onClose={() => setOpen(false)} />}
   </Dialog.Root>
@@ -97,7 +97,8 @@ function SearchDialog({ session, onClose }: { session: SessionView; onClose: () 
   const navigation = pages.filter((page) => page.name.toLowerCase().includes(query.trim().toLowerCase()))
   return <Dialog.Portal>
     <Dialog.Overlay className="global-search-overlay" />
-    <Dialog.Content className="global-search-dialog" ref={contentRef} onKeyDown={arrows}>
+    <Dialog.Content className="global-search-dialog" ref={contentRef} onKeyDown={arrows}
+      onOpenAutoFocus={(event) => { event.preventDefault(); contentRef.current?.querySelector<HTMLInputElement>('#global-document-search')?.focus() }}>
       <div className="global-search-heading"><Dialog.Title>Find your way</Dialog.Title>
         <Dialog.Close aria-label="Close search"><X size={18} aria-hidden="true" /></Dialog.Close>
       </div>

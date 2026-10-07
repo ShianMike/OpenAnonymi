@@ -1,9 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, matchPath, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronRight, CircleAlert, LogOut, Menu, X } from 'lucide-react'
 import { SignOutDialog } from './accounts/SignOutDialog'
 import { ApiRequestError, getSession, signOut, type SessionView } from './api/client'
 import { Sidebar } from './shell/Sidebar'
+import { Topbar } from './shell/Topbar'
 import { pages } from './shell/navigation'
 import { useAppearance } from './appearance/useAppearance'
 import { useDisplayPreferences } from './appearance/useDisplayPreferences'
@@ -12,7 +12,6 @@ import { LoadingScreen } from './loading/LoadingScreen'
 import { RouteLoading } from './loading/RouteLoading'
 import { PageLoadBoundary } from './loading/PageLoadBoundary'
 import { LoadingFailure } from './loading/LoadingFailure'
-import { NotificationLink } from './notifications/NotificationLink'
 import { SESSION_ENDED_EVENT, matchesSessionScope, reportEndedScope, setSessionScope } from './api/sessionEvents'
 import { protectReviewCacheLifecycle } from './api/reviewCache'
 import './App.css'
@@ -33,7 +32,6 @@ const NotificationsPage = lazy(() => import('./notifications/NotificationsPage')
 const DocumentsPage = lazy(() =>
   import('./workspace/DocumentsPage').then((module) => ({ default: module.DocumentsPage })),
 )
-const GlobalSearch = lazy(() => import('./search/GlobalSearch').then((module) => ({ default: module.GlobalSearch })))
 const ContinueReviewPage = lazy(() =>
   import('./resume/ContinueReviewPage').then((module) => ({ default: module.ContinueReviewPage })),
 )
@@ -69,6 +67,7 @@ function App() {
   const [signInNotice, setSignInNotice] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const accountButtonRef = useRef<HTMLButtonElement>(null)
   const navRef = useRef<HTMLElement>(null)
   const mainRef = useRef<HTMLElement>(null)
   const previousPathRef = useRef(pathname)
@@ -123,7 +122,6 @@ function App() {
 
   const handleUnsavedChange = useCallback((dirty: boolean) => {
     setUnsavedPage(dirty)
-    if (!dirty) setSignOutConfirm(false)
   }, [])
 
   useEffect(() => {
@@ -170,26 +168,25 @@ function App() {
     return () => { controller.abort(); document.removeEventListener('visibilitychange', refreshSession); window.removeEventListener('focus', refreshSession) }
   }, [pathname, signedIn, authenticationScope])
 
-  async function handleSignOut() {
-    if (authentication.kind !== 'signed-in') return
-    if (unsavedPage) {
-      setSignOutConfirm(true)
-      return
-    }
-    await performSignOut()
+  function handleSignOut() {
+    if (authentication.kind !== 'signed-in' || signOutPending) return
+    setSignOutError(null)
+    setSignOutConfirm(true)
   }
 
   async function performSignOut() {
-    if (authentication.kind !== 'signed-in') return
-    setSignOutConfirm(false)
+    if (authentication.kind !== 'signed-in' || signOutPending) return
     setSignOutPending(true)
     setSignOutError(null)
     try {
       await signOut(authentication.session.csrf_token)
+      setSignOutConfirm(false)
+      setUnsavedPage(false)
       setSessionScope('')
       setAuthentication({ kind: 'signed-out' })
     } catch (error: unknown) {
-      setSignOutError(error instanceof Error ? error.message : 'Sign-out failed. Try again.')
+      setSignOutError(error instanceof ApiRequestError && error.status < 500 ? error.message
+        : 'We couldn’t confirm sign-out. Check your connection and try again.')
     } finally {
       setSignOutPending(false)
     }
@@ -260,10 +257,6 @@ function App() {
       /></Suspense></PageLoadBoundary>
     )
   }
-  const currentWorkspace =
-    authentication.session.memberships.length === 1 ? authentication.session.memberships[0] : null
-  const workspaceLabel =
-    currentWorkspace?.workspace_name ?? `${authentication.session.memberships.length} workspaces`
   return (
     <div className="app app-shell">
       <a className="skip-link" href="#main-content">
@@ -290,49 +283,16 @@ function App() {
         />
       )}
       <div className="app-workarea">
-        <header className="app-topbar">
-          <button
-            className="menu-toggle icon-button"
-            type="button"
-            ref={menuButtonRef}
-            aria-label={menuOpen ? 'Close navigation' : 'Open navigation'}
-            aria-controls="app-sidebar"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((value) => !value)}
-          >
-            {menuOpen ? <X size={19} aria-hidden="true" /> : <Menu size={19} aria-hidden="true" />}
-          </button>
-          <div className="breadcrumbs" aria-label="Current page">
-            <span>{workspaceLabel}</span>
-            <ChevronRight size={15} aria-hidden="true" />
-            <strong>{pageTitle}</strong>
-          </div>
-          <div className="topbar-account">
-            <Suspense fallback={null}><GlobalSearch key={authentication.session.user_id} session={authentication.session} /></Suspense>
-            <NotificationLink key={authentication.session.user_id} userId={authentication.session.user_id} />
-            <span title={authentication.session.email}>{authentication.session.email}</span>
-            <button
-              className="text-button"
-              type="button"
-              aria-label="Sign out"
-              onClick={handleSignOut}
-              disabled={signOutPending}
-            >
-              <LogOut size={16} aria-hidden="true" />
-              {signOutPending ? 'Signing out…' : 'Sign out'}
-            </button>
-          </div>
-        </header>
-        {signOutError && (
-          <p role="alert" className="topbar-alert">
-            <CircleAlert size={16} aria-hidden="true" />
-            <span>{signOutError}</span>
-          </p>
-        )}
+        <Topbar session={authentication.session} title={pageTitle} menuOpen={menuOpen}
+          menuButtonRef={menuButtonRef} accountButtonRef={accountButtonRef}
+          onMenuToggle={() => setMenuOpen((value) => !value)} onSignOut={handleSignOut} signOutPending={signOutPending} />
         <SignOutDialog
           open={signOutConfirm}
           pending={signOutPending}
-          onStay={() => setSignOutConfirm(false)}
+          unsaved={unsavedPage}
+          error={signOutError}
+          onStay={() => { setSignOutConfirm(false); setSignOutError(null) }}
+          restoreFocus={() => accountButtonRef.current?.focus()}
           onConfirm={() => void performSignOut()}
         />
         <main id="main-content" ref={mainRef} tabIndex={-1}>

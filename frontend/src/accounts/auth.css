@@ -861,6 +861,8 @@ html[data-theme='light'] .auth-shell .password-toggle:disabled {
   background: var(--auth-danger-solid-hover);
   color: var(--auth-on-danger);
 }
+.signout-error { display: flex; align-items: flex-start; gap: 9px; margin-top: 18px; padding: 12px; border: 1px solid var(--auth-danger-line); border-radius: 12px; background: var(--auth-danger-bg); color: var(--auth-danger-text); font-size: .86rem; }
+.signout-error svg { flex: none; margin-top: 2px; }
 
 /* --- Breakpoints -------------------------------------------------------- */
 @media (min-width: 1024px) {

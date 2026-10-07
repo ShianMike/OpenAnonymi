@@ -1,6 +1,6 @@
 .notification-link { position: relative; display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; color: var(--muted); border-radius: 12px; flex: none; }
 .notification-link:hover { color: var(--text); background: var(--tone-wash); }
-.notification-count { position: absolute; top: 0; right: -3px; padding: 1px 5px; border-radius: 9px; background: var(--blue-strong); color: var(--bg); font-size: .64rem; font-weight: 700; line-height: 1.5; }
+.notification-count { position: absolute; top: 0; right: -3px; padding: 1px 5px; border-radius: 9px; background: var(--blue); color: var(--on-accent); font-size: .64rem; font-weight: 700; line-height: 1.5; }
 .notifications-page { display: grid; gap: 1rem; container-type: inline-size; }
 .notification-list { padding: 0; margin: 0; list-style: none; }
 .notification { display: flex; gap: .9rem; align-items: flex-start; padding: 1.1rem 0; border-bottom: 1px solid var(--border); }

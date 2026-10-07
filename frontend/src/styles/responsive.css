@@ -5,9 +5,6 @@
   select {
     min-height: 44px;
   }
-  .app-topbar {
-    padding: 0 0.8rem;
-  }
   main {
     padding: 1rem;
   }
@@ -16,27 +13,9 @@
   .surface-panel {
     padding: 0.85rem;
   }
-  .breadcrumbs span {
-    display: none;
-  }
-  .breadcrumbs svg {
-    display: none;
-  }
-  .topbar-account .text-button {
-    font-size: 0;
-    gap: 0;
-    padding: 0.4rem;
-  }
-  .topbar-account .text-button svg {
-    width: 18px;
-    height: 18px;
-  }
   .page-heading {
     align-items: start;
     flex-direction: column;
-  }
-  .overview-metrics {
-    grid-template-columns: 1fr;
   }
   .metric-card {
     min-height: 0;
