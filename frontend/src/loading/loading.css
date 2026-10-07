@@ -43,7 +43,7 @@ button .loading-mark-page path:first-child { fill: none; stroke: currentColor; s
 .loading-state-compact .loading-wait-note { visibility: hidden; font-size: .7rem; }
 .loading-state-compact[data-slow='true'] .loading-wait-note { visibility: visible; }
 .loading-state-compact[data-offline='true'] .loading-wait-note { visibility: visible; }
-.loading-state[data-motion='false'] *, .loading-state[data-motion='false'] *::after, .loading-mark[data-motion='false'] * { animation-play-state: paused; }
+.loading-state[data-motion='false'] *, .loading-state[data-motion='false'] *::before, .loading-state[data-motion='false'] *::after, .loading-mark[data-motion='false'] * { animation-play-state: paused !important; }
 .loading-screen { min-height: 100dvh; display: flex; flex-direction: column; justify-content: center; padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)); max-width: 900px; margin-inline: auto; }
 .loading-screen-brand { margin: 0 0 20px 4px; }
 .loading-home-link { align-self: center; font-size: .8rem; margin-top: 10px; }

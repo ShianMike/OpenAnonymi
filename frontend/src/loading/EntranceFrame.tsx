@@ -8,7 +8,7 @@ export function EntranceFrame({ children, eyebrow = 'A moment of care' }: { chil
     <div className="loading-screen-center">
       <span className="loading-screen-eyebrow">{eyebrow}</span>
       {children}
-      <p className="loading-screen-footnote">Your review. Your call.</p>
     </div>
+    <p className="loading-screen-footnote">Your review. Your call.</p>
   </main>
 }

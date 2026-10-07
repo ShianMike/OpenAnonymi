@@ -6,24 +6,24 @@ export type DemoExample = { id: string; name: string; title: string; parts: Demo
 
 export const examples: DemoExample[] = [
   {
-    id: 'interview', name: 'Interview', title: 'A little feedback, worth sharing.',
+    id: 'interview', name: 'Interview', title: 'Interview note',
     parts: [
-      '“The invitation could be clearer,” said ',
+      '“The invite felt confusing,” said ',
       { id: 'person', text: 'Maya Chen', category: 'Person', label: 'PERSON_001' },
-      '.\n\nShe liked the new onboarding flow and offered to try the next version.\n\nFollow up: ',
+      '.\n\nFollow up: ',
       { id: 'email', text: 'maya@example.com', category: 'Email', label: 'EMAIL_001' },
       '\nCall: ',
       { id: 'phone', text: '+1 202-555-0142', category: 'Phone', label: 'PHONE_001' },
     ],
   },
   {
-    id: 'support', name: 'Support note', title: 'Keep the useful part of the conversation.',
+    id: 'support', name: 'Support note', title: 'Support note',
     parts: [
       '🙂 ',
       { id: 'person', text: 'Leon Rivera', category: 'Person', label: 'PERSON_001' },
-      ' found a confusing step in the account setup.\n\nThe fix: add a clearer invitation link. That insight belongs in the team recap.\n\nReply to ',
+      ' flagged a broken invite.\n\nReply to ',
       { id: 'email', text: 'leon@example.com', category: 'Email', label: 'EMAIL_001' },
-      ' or call ',
+      '\nCall: ',
       { id: 'phone', text: '+1 202-555-0186', category: 'Phone', label: 'PHONE_001' },
       '.',
     ],

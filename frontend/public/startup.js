@@ -17,8 +17,7 @@
     }
   }
   const visibility = () => {
-    const orbit = screen.querySelector('.startup-orbit')
-    if (screen.isConnected && orbit) orbit.style.animationPlayState = document.hidden ? 'paused' : 'running'
+    if (screen.isConnected) screen.dataset.motion = String(!document.hidden)
   }
   window.addEventListener('offline', update)
   window.addEventListener('online', online)

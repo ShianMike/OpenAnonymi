@@ -270,8 +270,7 @@
   color: var(--muted);
   font-size: 0.75rem;
 }
-.topbar-alert,
-.signout-confirm {
+.topbar-alert {
   margin: 0.8rem 2rem;
 }
 .menu-toggle {

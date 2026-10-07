@@ -6,7 +6,7 @@ describe('fictional reviewed output', () => {
     const original = demoOutput(examples[1].parts, {})
     expect(original).toContain('🙂 Leon Rivera')
     expect(original).toContain('leon@example.com')
-    expect(original).toContain('That insight belongs in the team recap.')
+    expect(original).toContain('flagged a broken invite.')
   })
   it('applies each chosen action without changing the narrative', () => {
     const output = demoOutput(examples[0].parts, { person: 'label', email: 'redact', phone: 'keep' })
@@ -15,6 +15,6 @@ describe('fictional reviewed output', () => {
     expect(output).not.toContain('Maya Chen')
     expect(output).not.toContain('maya@example.com')
     expect(output).toContain('Call: +1 202-555-0142')
-    expect(output).toContain('She liked the new onboarding flow and offered to try the next version.')
+    expect(output).toContain('“The invite felt confusing,”')
   })
 })

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, matchPath, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronRight, LogOut, Menu, X } from 'lucide-react'
+import { ChevronRight, CircleAlert, LogOut, Menu, X } from 'lucide-react'
+import { SignOutDialog } from './accounts/SignOutDialog'
 import { ApiRequestError, getSession, signOut, type SessionView } from './api/client'
 import { Sidebar } from './shell/Sidebar'
 import { pages } from './shell/navigation'
@@ -68,7 +69,6 @@ function App() {
   const [signInNotice, setSignInNotice] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
-  const signOutStayRef = useRef<HTMLButtonElement>(null)
   const navRef = useRef<HTMLElement>(null)
   const mainRef = useRef<HTMLElement>(null)
   const previousPathRef = useRef(pathname)
@@ -120,10 +120,6 @@ function App() {
   useEffect(() => {
     if (menuOpen) navRef.current?.querySelector('a')?.focus()
   }, [menuOpen])
-
-  useEffect(() => {
-    if (signOutConfirm) signOutStayRef.current?.focus()
-  }, [signOutConfirm])
 
   const handleUnsavedChange = useCallback((dirty: boolean) => {
     setUnsavedPage(dirty)
@@ -220,7 +216,7 @@ function App() {
   }
   if (authentication.kind === 'checking') {
     return (
-      <LoadingScreen label="Checking your session…" description="Checking access before opening your workspace." shape="cards" />
+      <LoadingScreen label="Checking your session…" description="Checking access before opening your workspace." />
     )
   }
   if (authentication.kind === 'error') {
@@ -243,7 +239,7 @@ function App() {
       return (
         <PageLoadBoundary key={pathname} fullScreen><Suspense
           fallback={
-            <LoadingScreen label="Opening the page…" description="Preparing your next step." shape="cards" />
+            <LoadingScreen label="Opening the page…" description="Preparing your next step." />
           }
         >
           <NotFoundPage signedOut />
@@ -329,30 +325,16 @@ function App() {
         </header>
         {signOutError && (
           <p role="alert" className="topbar-alert">
-            {signOutError}
+            <CircleAlert size={16} aria-hidden="true" />
+            <span>{signOutError}</span>
           </p>
         )}
-        {signOutConfirm && (
-          <div className="signout-confirm surface-panel" role="alert">
-            <strong>Unsaved changes</strong>
-            <p>Signing out will discard your unsaved text and settings.</p>
-            <button
-              ref={signOutStayRef}
-              type="button"
-              onClick={() => {
-                setSignOutConfirm(false)
-                requestAnimationFrame(() =>
-                  document.querySelector<HTMLElement>('#source-text, #source-file, #saved-source')?.focus(),
-                )
-              }}
-            >
-              Stay and keep editing
-            </button>{' '}
-            <button type="button" disabled={signOutPending} onClick={() => void performSignOut()}>
-              Discard edits and sign out
-            </button>
-          </div>
-        )}
+        <SignOutDialog
+          open={signOutConfirm}
+          pending={signOutPending}
+          onStay={() => setSignOutConfirm(false)}
+          onConfirm={() => void performSignOut()}
+        />
         <main id="main-content" ref={mainRef} tabIndex={-1}>
           {authentication.session.second_factor_setup_required && <div className="security-requirement" role="status">
             A workspace requires two-step verification. <Link to="/settings?section=security">Set up your authenticator</Link>
