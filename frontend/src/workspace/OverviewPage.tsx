@@ -56,34 +56,37 @@ export function OverviewPage({ session }: { session: SessionView }) {
   return <section className="overview-page" aria-labelledby="overview-title">
     <header className="overview-heading">
       <div>
-        <div className="overview-workspace-label"><Building2 size={15} aria-hidden="true" />
-          <span>{workspace?.workspace_name ?? 'Your workspace'}</span>
-          {workspace && <span className="overview-role">{workspace.role === 'administrator' ? 'Admin' : 'Member'}</span>}
-        </div>
         <h1 id="overview-title">Overview</h1>
         <p>A clear place to start, continue, and finish your reviews.</p>
       </div>
       <div className="overview-heading-tools">
-        {value && <time className="overview-updated" dateTime={value.as_of} title={new Date(value.as_of).toLocaleString()}>
-          {refreshing ? 'Updating…' : `Updated ${new Date(value.as_of).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}
-        </time>}
-        <button type="button" className="overview-refresh" onClick={refresh} disabled={!workspaceId || refreshing || data.kind === 'loading'}
-          aria-label="Refresh overview"><RefreshCw size={16} aria-hidden="true" />{refreshing ? 'Refreshing…' : 'Refresh'}</button>
+        {session.memberships.length > 1 ? <div className="workspace-picker">
+          <div className="overview-picker-label"><label htmlFor="overview-workspace">Workspace</label>
+            {workspace && <span className="overview-role">{workspace.role === 'administrator' ? 'Admin' : 'Member'}</span>}
+          </div>
+          <GlassSelect id="overview-workspace" value={workspaceId} onValueChange={(id) => {
+            if (id === workspaceId) return
+            setData({ kind: 'loading' })
+            setRefreshError(null)
+            setParams((current) => { const next = new URLSearchParams(current); next.set('workspace', id); return next }, { replace: true })
+          }}>
+            {session.memberships.map((item, index) => <option key={item.workspace_id} value={item.workspace_id}>
+              {item.workspace_name || `Workspace ${index + 1}`}
+            </option>)}
+          </GlassSelect>
+        </div> : <div className="overview-workspace-label"><Building2 size={15} aria-hidden="true" />
+          <span>{workspace?.workspace_name ?? 'Your workspace'}</span>
+          {workspace && <span className="overview-role">{workspace.role === 'administrator' ? 'Admin' : 'Member'}</span>}
+        </div>}
+        <div className="overview-refresh-tools">
+          {value && <time className="overview-updated" dateTime={value.as_of} title={new Date(value.as_of).toLocaleString()}>
+            {refreshing ? 'Updating…' : `Updated ${new Date(value.as_of).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}
+          </time>}
+          <button type="button" className="overview-refresh" onClick={refresh} disabled={!workspaceId || refreshing || data.kind === 'loading'}
+            aria-label="Refresh overview"><RefreshCw size={16} aria-hidden="true" />{refreshing ? 'Refreshing…' : 'Refresh'}</button>
+        </div>
       </div>
     </header>
-    {session.memberships.length > 1 && <div className="workspace-picker">
-      <label htmlFor="overview-workspace">Workspace</label>
-      <GlassSelect id="overview-workspace" value={workspaceId} onValueChange={(id) => {
-        if (id === workspaceId) return
-        setData({ kind: 'loading' })
-        setRefreshError(null)
-        setParams((current) => { const next = new URLSearchParams(current); next.set('workspace', id); return next }, { replace: true })
-      }}>
-        {session.memberships.map((item, index) => <option key={item.workspace_id} value={item.workspace_id}>
-          {item.workspace_name || `Workspace ${index + 1}`}
-        </option>)}
-      </GlassSelect>
-    </div>}
     {!workspaceId && <div className="overview-error" role="alert"><CircleAlert size={19} aria-hidden="true" />
       <p>You don’t have access to a workspace. Contact your workspace administrator.</p>
     </div>}

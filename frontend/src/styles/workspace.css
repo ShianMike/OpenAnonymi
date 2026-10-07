@@ -28,6 +28,15 @@
 }
 .workspace-picker label { color: var(--muted); font-size: .78rem; font-weight: 550; white-space: nowrap; }
 .workspace-picker .glass-select-trigger { min-width: 0; min-height: 44px; }
+:is(.intake-heading, .overview-heading) .workspace-picker {
+  width: 260px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  gap: 6px;
+}
 .data-scope {
   color: var(--muted);
   font-size: 0.86rem;
