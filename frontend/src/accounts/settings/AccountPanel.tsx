@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { ArrowRight, KeyRound, LockKeyhole, Mail, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Building2, KeyRound, LockKeyhole, Mail, Palette, ShieldCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { changePassword, type SessionView } from '../../api/client'
 import { GlassInput } from '../../ui/GlassField'
@@ -93,16 +93,32 @@ export function PasswordPanel({
 export function AccountPanel({ session }: { session: SessionView }) {
   const initials = session.email.split('@')[0].split(/[._+-]/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase()
   return <div className="account-panel-grid">
-    <section className="account-profile workspace-panel" aria-labelledby="account-profile-title">
+    <section className="account-overview workspace-panel" aria-labelledby="account-profile-title">
       <div className="account-profile-heading"><span className="account-avatar" aria-hidden="true">{initials}</span>
-        <div><h2 id="account-profile-title">Your account</h2><p>Your profile and email verification.</p></div>
+        <div><h2 id="account-profile-title">Your account</h2><p>Email, security, and workspace access.</p></div>
       </div>
-      <div className="account-email"><span><Mail size={15} aria-hidden="true" />Email address</span><strong>{session.email}</strong></div>
-      <EmailVerification session={session} />
-    </section>
-    <section className="account-signin workspace-panel">
-      <PanelHeading icon={ShieldCheck} title="Sign-in & security" description="Manage your password, authenticator, and active sessions." />
-      <Link className="button-secondary" to="/settings?section=security">Manage security<ArrowRight size={16} aria-hidden="true" /></Link>
+      <div className="account-details-grid">
+        <div className="account-profile">
+          <div className="account-email"><span><Mail size={16} aria-hidden="true" />Email address</span><strong>{session.email}</strong></div>
+          <EmailVerification session={session} />
+        </div>
+        <section className="account-workspaces" aria-labelledby="account-workspaces-title">
+          <div className="account-section-heading"><h3 id="account-workspaces-title">Workspace access</h3><span>{session.memberships.length}</span></div>
+          <p>Your role is set separately in each workspace.</p>
+          <ul>{session.memberships.map(item => <li key={item.workspace_id}>
+            <Building2 size={18} aria-hidden="true" /><div><strong>{item.workspace_name || 'Workspace'}</strong><small>{item.role === 'administrator' ? 'Administrator' : 'Member'}</small></div>
+            <Link to={`/?workspace=${encodeURIComponent(item.workspace_id)}`} aria-label={`Open ${item.workspace_name || 'workspace'}`}><ArrowRight size={17} aria-hidden="true" /></Link>
+          </li>)}</ul>
+        </section>
+      </div>
+      <div className="account-setting-row">
+        <ShieldCheck size={20} aria-hidden="true" /><div><h3>Sign-in protection</h3><p>{session.second_factor_enabled ? 'Two-step verification is enabled.' : 'Add an authenticator for an extra sign-in check.'}</p></div>
+        <Link className="button-secondary" to="/settings?section=security">Manage security<ArrowRight size={16} aria-hidden="true" /></Link>
+      </div>
+      <div className="account-setting-row">
+        <Palette size={20} aria-hidden="true" /><div><h3>Display preferences</h3><p>Theme, text size, spacing, and motion on this device.</p></div>
+        <Link className="button-secondary" to="/preferences">Preferences<ArrowRight size={16} aria-hidden="true" /></Link>
+      </div>
     </section>
     <NotificationPreferencesPanel key={session.user_id} session={session} />
   </div>

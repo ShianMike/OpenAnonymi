@@ -31,6 +31,7 @@ export function SettingsPage({ session, onPasswordChanged, onSessionChanged, onS
   const workspaceSection = requested !== 'members' && !!workspaceId && section !== 'account'
   const [attempt, setAttempt] = useState(0)
   const [data, setData] = useState<Data>({ kind: 'loading' })
+  const [retentionActions, setRetentionActions] = useState<HTMLDivElement | null>(null)
   const settings = data.kind === 'ready' && data.settings.id === workspaceId ? data.settings : null
 
   useEffect(() => {
@@ -57,22 +58,22 @@ export function SettingsPage({ session, onPasswordChanged, onSessionChanged, onS
 
   return <section className="settings-hub" aria-labelledby="settings-title">
     <PageHeader title="Settings" titleId="settings-title" description="Your account, sign-in security, and workspace retention."
-      action={workspaceSection ? <div className="settings-workspace">
+      action={workspaceSection ? <div className="settings-heading-tools"><div className="settings-workspace">
         <label htmlFor="admin-workspace">Workspace</label>
         {adminWorkspaces.length > 1 ? <GlassSelect id="admin-workspace" value={workspaceId} onValueChange={id => {
           setData({ kind: 'loading' })
           setParams(current => { const next = new URLSearchParams(current); next.set('workspace', id); return next })
         }}>{adminWorkspaces.map(item => <option key={item.workspace_id} value={item.workspace_id}>{item.workspace_name || 'Workspace'}</option>)}</GlassSelect>
           : <span>{workspace.workspace_name}</span>}
-      </div> : undefined} />
+      </div>{section === 'retention' && <div className="settings-retention-actions" ref={setRetentionActions} />}</div> : undefined} />
     <Tabs.Root value={section} onValueChange={value => setParams(current => {
       const next = new URLSearchParams(current); next.set('section', value); return next
     })} className="settings-tabs">
       <div className="settings-tab-bar">
         <Tabs.List aria-label="Settings sections">
-          <Tabs.Trigger value="account"><UserRound size={16} aria-hidden="true" />Account</Tabs.Trigger>
-          <Tabs.Trigger value="security"><ShieldCheck size={16} aria-hidden="true" />Security</Tabs.Trigger>
-          {!!workspaceId && <Tabs.Trigger value="retention"><Clock3 size={16} aria-hidden="true" />Retention</Tabs.Trigger>}
+          <Tabs.Trigger value="account" aria-label="Account"><UserRound size={18} aria-hidden="true" /><span><strong>Account</strong><small>Email &amp; workspaces</small></span></Tabs.Trigger>
+          <Tabs.Trigger value="security" aria-label="Security"><ShieldCheck size={18} aria-hidden="true" /><span><strong>Security</strong><small>Password &amp; sign-in</small></span></Tabs.Trigger>
+          {!!workspaceId && <Tabs.Trigger value="retention" aria-label="Retention"><Clock3 size={18} aria-hidden="true" /><span><strong>Retention</strong><small>Workspace defaults</small></span></Tabs.Trigger>}
         </Tabs.List>
       </div>
       <Tabs.Content value="account" forceMount>
@@ -87,7 +88,7 @@ export function SettingsPage({ session, onPasswordChanged, onSessionChanged, onS
           }} onReload={reload} /> : workspaceState)}
       </Tabs.Content>
       {!!workspaceId && <Tabs.Content value="retention" forceMount>
-        {settings ? <RetentionPanel key={workspaceId} settings={settings} csrfToken={session.csrf_token} onSaved={saved} onReload={reload} /> : workspaceState}
+        {settings ? <RetentionPanel key={workspaceId} settings={settings} csrfToken={session.csrf_token} onSaved={saved} onReload={reload} actionsTarget={retentionActions} /> : workspaceState}
       </Tabs.Content>}
     </Tabs.Root>
   </section>

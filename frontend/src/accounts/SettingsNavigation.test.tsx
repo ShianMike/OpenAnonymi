@@ -1,10 +1,11 @@
 import { expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
-import type { SessionView } from '../api/client'
+import type { SessionView, WorkspaceSettingsView } from '../api/client'
 import { SettingsPage } from './SettingsPage'
 import { MembersPage } from './MembersPage'
 import { RefreshButton } from '../ui/WorkspaceControls'
+import { RetentionPanel } from './settings/RetentionPanel'
 
 const session = { user_id: 'synthetic', email: 'test@example.test', csrf_token: 'synthetic', email_verified: false,
   email_verification_available: false, second_factor_enabled: false, second_factor_setup_required: false,
@@ -19,6 +20,10 @@ it('separates personal account from sign-in controls and keeps member management
   const account = settings('/settings')
   expect(account).toContain('test@example.test')
   expect(account).toContain('Manage security')
+  expect(account).toContain('Workspace access')
+  expect(account).toContain('Administrator')
+  expect(account).toContain('href="/?workspace=synthetic-workspace"')
+  expect(account).toContain('href="/preferences"')
   expect(account).not.toContain('current-password')
   expect(account).not.toContain('value="members"')
   expect(account).not.toContain('Invite member')
@@ -33,6 +38,18 @@ it('separates personal account from sign-in controls and keeps member management
   const management = renderToStaticMarkup(<MemoryRouter><MembersPage session={member} /></MemoryRouter>)
   expect(management).toContain('Only workspace administrators')
   expect(management).not.toContain('Invite member')
+})
+
+it('associates the header save button with the retention form and preserves native limits', () => {
+  const workspace: WorkspaceSettingsView = { id: 'synthetic-workspace', name: 'Test workspace', content_retention_days: 7,
+    activity_retention_days: 90, settings_version: 1, require_second_factor: false, members_without_second_factor: 0,
+    approval_policy: 'owner_choice', active_member_count: 1 }
+  const html = renderToStaticMarkup(<RetentionPanel settings={workspace} csrfToken="synthetic" onSaved={noop} onReload={noop} />)
+  const formId = html.match(/<form id="([^"]+)"/)?.[1]
+  expect(formId).toBeTruthy()
+  expect(html).toContain(`type="submit" form="${formId}" disabled=""`)
+  expect(html).toContain('min="1" max="30" required=""')
+  expect(html).toContain('min="1" max="365" required=""')
 })
 
 it('uses one accessible refresh control and blocks duplicate requests while pending', () => {

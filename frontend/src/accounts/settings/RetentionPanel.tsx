@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { Activity, Clock3, FileText } from 'lucide-react'
 import { updateWorkspaceSettings, type WorkspaceSettingsView } from '../../api/client'
 import { InlineNotice, PanelHeading, RefreshButton } from '../../ui/WorkspaceControls'
@@ -9,12 +10,15 @@ export function RetentionPanel({
   csrfToken,
   onSaved,
   onReload,
+  actionsTarget,
 }: {
   settings: WorkspaceSettingsView
   csrfToken: string
   onSaved: (value: WorkspaceSettingsView) => void
   onReload: () => void
+  actionsTarget?: HTMLElement | null
 }) {
+  const formId = useId()
   const [contentDays, setContentDays] = useState(String(settings.content_retention_days))
   const [activityDays, setActivityDays] = useState(String(settings.activity_retention_days))
   const [pending, setPending] = useState(false)
@@ -47,14 +51,20 @@ export function RetentionPanel({
       setPending(false)
     }
   }
+  const actions = <div className="retention-actions">
+    {changed ? <button type="button" className="quiet-button" disabled={pending} onClick={() => {
+      setContentDays(String(settings.content_retention_days)); setActivityDays(String(settings.activity_retention_days)); setError(null); setNotice(null)
+    }}>Reset changes</button> : <RefreshButton label="Reload defaults" onClick={onReload} disabled={pending} />}
+    <button type="submit" form={formId} disabled={pending || !changed}>{pending ? 'Saving…' : 'Save defaults'}</button>
+  </div>
   return (
-    <div className="retention-panel workspace-panel">
+    <><div className="retention-panel workspace-panel">
       <PanelHeading
         icon={Clock3}
         title="Retention defaults"
         description="Choose how long new review content and activity records are kept."
       />
-      <form onSubmit={save}>
+      <form id={formId} onSubmit={save}>
         <div className="retention-cards">
           <div className="retention-setting">
             <span className="retention-setting-icon">
@@ -112,16 +122,8 @@ export function RetentionPanel({
         </div>
         {error && <InlineNotice error>{error}</InlineNotice>}
         {notice && <InlineNotice>{notice}</InlineNotice>}
-        <div className="settings-save-row">
-          {changed ? <button type="button" className="quiet-button" disabled={pending} onClick={() => {
-            setContentDays(String(settings.content_retention_days)); setActivityDays(String(settings.activity_retention_days)); setError(null); setNotice(null)
-          }}>Reset changes</button> : <RefreshButton label="Reload defaults" onClick={onReload} disabled={pending} />}
-          <button type="submit" disabled={pending || !changed}>
-            {pending ? 'Saving…' : 'Save defaults'}
-          </button>
-        </div>
       </form>
       <CleanupHealthPanel key={settings.id} workspaceId={settings.id} />
-    </div>
+    </div>{actionsTarget ? createPortal(actions, actionsTarget) : actions}</>
   )
 }
