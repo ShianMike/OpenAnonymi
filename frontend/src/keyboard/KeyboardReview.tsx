@@ -1,5 +1,5 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { Keyboard, CircleHelp } from 'lucide-react'
+import { Keyboard, ChevronDown } from 'lucide-react'
 import type { ReviewController } from '../review/useReviewController'
 import { sameVersion } from '../review/reviewState'
 import { ChoiceSwitch, DialogFrame } from '../ui/WorkspaceControls'
@@ -18,15 +18,28 @@ export function KeyboardReview({ review, userId, compact = false }: { review: Re
   const currentGeneralize = mode.generalize && saved && sameVersion(mode.generalize.version, saved.version)
   return <section className={`keyboard-review${compact ? ' keyboard-review--compact' : ''}`} aria-label="Keyboard review controls">
     <span className="keyboard-review-icon"><Keyboard size={20} strokeWidth={1.5} aria-hidden="true" /></span>
-    <ChoiceSwitch label="Keyboard review mode" checked={mode.enabled} onChange={mode.toggle}
-      description={mode.enabled ? mode.blocked ? 'Paused while saving or editing.' : compact ? 'N / P · L · R · K · U' : 'N / P to move · L label · R redact · K keep · U undo' : compact ? undefined : 'Turn on shortcuts to review without switching to your mouse.'} />
+    <ChoiceSwitch label="Keyboard shortcuts" checked={mode.enabled} onChange={mode.toggle}
+      description={mode.enabled ? mode.blocked ? 'Paused while saving or editing.' : 'On · N / P to move' : 'Off · Turn on to use keys'} />
     <Dialog.Root open={mode.help} onOpenChange={mode.setHelp}>
-      <Dialog.Trigger asChild><button type="button" className="keyboard-guide-button" aria-label="Shortcut guide" title="Shortcut guide"><CircleHelp size={16} aria-hidden="true" /><span>Shortcut guide</span></button></Dialog.Trigger>
-      <DialogFrame title="A little faster. Still your call." description="Keyboard shortcuts apply to one selected occurrence in the visible finding list. Turn on keyboard review mode to use them.">
-        <dl className="keyboard-shortcut-list">{shortcutGuide.map(([key, name, note]) => <div key={key}>
-          <dt><kbd>{key}</kbd><strong>{name}</strong></dt><dd>{note}</dd>
-        </div>)}</dl>
-        <p className="field-note">Shortcuts pause in text fields, menus, dialogs, during saving, and when the review needs a reload. They never confirm the review or export it.</p>
+      <Dialog.Trigger asChild><button type="button" className="keyboard-guide-button" aria-label="Shortcut guide" title="Shortcut guide"><Keyboard size={17} aria-hidden="true" /><span>Guide</span></button></Dialog.Trigger>
+      <DialogFrame title="Keyboard shortcuts" description="Turn on shortcuts to move through details and choose what to share.">
+        <div className="keyboard-guide-body">
+          <h3>Move and review</h3>
+          <dl className="keyboard-shortcut-list">{shortcutGuide.slice(0, 6).map(([key, name, note]) => <div key={key}>
+            <dt><kbd>{key}</kbd><strong>{name}</strong></dt><dd>{note}</dd>
+          </div>)}</dl>
+          <details className="keyboard-shortcut-more">
+            <summary>More ways to hide or replace details <ChevronDown size={16} aria-hidden="true" /></summary>
+            <p>These options work only when the selected detail supports them.</p>
+            <dl className="keyboard-shortcut-list">{shortcutGuide.slice(6, -1).map(([key, name, note]) => <div key={key}>
+              <dt><kbd>{key}</kbd><strong>{name}</strong></dt><dd>{note}</dd>
+            </div>)}</dl>
+          </details>
+        </div>
+        <div className="keyboard-guide-footer">
+          <span><kbd>?</kbd> Open guide <kbd>Esc</kbd> Close</span>
+          <p>Shortcuts pause while you type, save, or open a menu or dialog. Use the review buttons to confirm and share.</p>
+        </div>
       </DialogFrame>
     </Dialog.Root>
     {!mode.savedPreference && <p className="field-note">Enabled for this visit. Your browser did not save this preference.</p>}

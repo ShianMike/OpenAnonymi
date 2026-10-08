@@ -8,10 +8,10 @@
 .global-search-heading button { flex: none; width: 44px; min-height: 44px; padding: 0; background: transparent; border-color: transparent; color: var(--muted); }
 .global-search-header > p { margin: 0 0 18px; color: var(--muted); font-size: .86rem; }
 .global-search-field { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line-strong); border-radius: 12px; padding: 0 14px; background: var(--surface-subtle); color: var(--muted); }
-.global-search-field:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; border-color: var(--focus); color: var(--blue); }
+.global-search-field:focus-within { outline: 2px solid var(--focus); outline-offset: -2px; border-color: var(--focus); color: var(--blue); }
 .global-search-field > svg { flex: none; }
-.global-search-field input { width: 100%; min-width: 0; min-height: 52px; padding: 0; border: 0; border-radius: 0; background: transparent; font-size: 1rem; outline: none; box-shadow: none; }
-.global-search-field input:focus-visible { outline: none; }
+.global-search-field input[type='search'] { width: 100%; min-width: 0; min-height: 52px; padding: 0; border: 0; border-radius: 0; background: transparent; font-size: 1rem; outline: none; box-shadow: none; backdrop-filter: none; }
+.global-search-field input[type='search']:focus { background: transparent; outline: none; box-shadow: none; animation: none; }
 .global-search-scope { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; margin-top: 10px; font-size: .78rem; color: var(--muted); }
 .search-favorites { min-height: 44px; padding: 8px 10px; background: transparent; border-color: transparent; font-size: .8rem; font-weight: 550; }
 .search-favorites[aria-pressed='true'] { border-color: var(--line-strong); color: var(--blue-strong); background: var(--blue-tint); }
@@ -50,7 +50,7 @@
   .global-search-dialog { top: 12px; width: calc(100vw - 24px); max-height: calc(100dvh - 24px); border-radius: 16px; }
   .global-search-header { padding: 12px 16px; }
   .global-search-header > p { margin-bottom: 14px; }
-  .global-search-field input { font-size: 16px; }
+  .global-search-field input[type='search'] { font-size: 16px; }
   .global-search-scope { gap: 4px 8px; }
   .search-results { padding: 14px 10px 16px; }
   .search-pages ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
