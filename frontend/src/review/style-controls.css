@@ -1,4 +1,11 @@
-.style-controls { display: grid; gap: .65rem; padding-block: 1rem; margin-top: .75rem; border-top: 1px solid var(--tone-line, #66796b70); }
+.style-controls { display: flex; flex-direction: column; min-height: 0; }
+.style-controls-body { display: grid; gap: 14px; padding: 16px 18px; overflow-y: auto; min-height: 0; overscroll-behavior: contain; }
+.finding-decision-options { display: grid; gap: 8px; }
+.finding-decision-help { margin: 0; padding: 0; border: 0; background: transparent; }
+.finding-decision-help summary { min-height: 44px; align-content: center; color: var(--muted); font-size: .76rem; cursor: pointer; }
+.finding-decision-help[open] p { padding-bottom: 8px; }
+.style-controls-footer { display: grid; flex-shrink: 0; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--line); }
+.style-controls-footer > button { min-height: 44px; margin: 0; width: 100%; }
 .style-controls .field-label { margin: 0; }
 .style-controls .field-note, .style-group-confirmation p { margin: 0; font-size: .78rem; line-height: 1.6; overflow-wrap: anywhere; }
 .style-group-confirmation { display: grid; gap: .6rem; padding: .75rem; border: 1px solid var(--tone-line, #66796b70); border-radius: .75rem; }
@@ -13,4 +20,8 @@
 .preset-default-row-fields { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
 .preset-default-row-fields > div { min-width: 0; }
 @media (max-width: 480px) { .preset-default-row-fields { grid-template-columns: 1fr; } }
+@media (max-width: 700px), (max-height: 700px) {
+  .style-controls-body { padding: 12px 14px; gap: 10px; }
+  .style-controls-footer { padding: 12px 14px; }
+}
 @media (forced-colors: active) { .style-group-confirmation, .fictional-badge { border-color: CanvasText; } }

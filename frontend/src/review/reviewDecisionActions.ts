@@ -158,9 +158,9 @@ export function createReviewDecisionActions({ documentId, state, findings, previ
       setError('This group changed. Review its occurrences again before applying a decision.')
       return
     }
-    const { findingId, action, choice } = groupConfirmation
+    const { findingId, action, choice, keepReason: confirmedKeepReason } = groupConfirmation
     setGroupConfirmation(null)
-    void changeReview('decision', findingId, { action, choice, groupScope: true })
+    void changeReview('decision', findingId, { action, choice, keepReason: confirmedKeepReason, groupScope: true })
   }
 
   function cancelGroupDecision() {

@@ -14,6 +14,7 @@ export type GroupConfirmation = {
   findingId: string
   action: 'label' | 'redact' | 'keep'
   choice?: StyleChoice
+  keepReason?: 'false_match' | 'intended_disclosure'
   affectedIds: string[]
   spans: SourceSpan[]
   version: VersionRef
