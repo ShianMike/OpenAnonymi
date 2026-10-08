@@ -15,6 +15,13 @@ export type ActivityEntry = ActivityView['own_events'][number]
 export type ActivityFilter = 'all' | 'reviews' | 'outputs' | 'workspace'
 export type DocumentMap = Record<string, DocumentIndexView>
 
+export const ACTIVITY_PAGE_SIZE = 6
+export function activityWindow(total: number, requestedPage: number) {
+  const pages = Math.max(1, Math.ceil(total / ACTIVITY_PAGE_SIZE))
+  const page = Math.max(0, Math.min(requestedPage, pages - 1))
+  return { page, pages, start: page * ACTIVITY_PAGE_SIZE, end: Math.min((page + 1) * ACTIVITY_PAGE_SIZE, total) }
+}
+
 export function eventGroup(code: string): Exclude<ActivityFilter, 'all'> {
   if (code.startsWith('output_')) return 'outputs'
   if (/^(workspace_|member_|preset_|second_factor_|backup_codes_|device_|other_devices_)/.test(code)) return 'workspace'
@@ -63,7 +70,6 @@ export function dayLabel(value: string, asOf: string): string {
   yesterday.setDate(yesterday.getDate() - 1)
   if (dayKey(value) === dayKey(yesterday.toISOString())) return 'Yesterday'
   return new Date(value).toLocaleDateString(undefined, {
-    weekday: 'long',
     month: 'short',
     day: 'numeric',
     ...(new Date(value).getFullYear() !== new Date(asOf).getFullYear() ? { year: 'numeric' as const } : {}),
