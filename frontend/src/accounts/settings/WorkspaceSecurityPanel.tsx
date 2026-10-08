@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { ShieldCheck } from 'lucide-react'
+import { ChevronDown, ShieldCheck } from 'lucide-react'
 import { updateWorkspaceSettings, type SessionView, type WorkspaceSettingsView } from '../../api/client'
-import { ChoiceSwitch, InlineNotice, PanelHeading } from '../../ui/WorkspaceControls'
+import { ChoiceSwitch, InlineNotice, RefreshButton } from '../../ui/WorkspaceControls'
 
 export function WorkspaceSecurityPanel({ settings, session, onSaved, onReload }: {
   settings: WorkspaceSettingsView; session: SessionView;
@@ -32,8 +32,9 @@ export function WorkspaceSecurityPanel({ settings, session, onSaved, onReload }:
     finally { setApprovalRequested(null); setPending(false) }
   }
   return (
-    <section className="workspace-panel">
-      <PanelHeading icon={ShieldCheck} title="Workspace security" description="The requirement applies to every active member of the selected workspace." />
+    <details className="workspace-panel workspace-security settings-details">
+      <summary><ShieldCheck size={19} aria-hidden="true" /><span><strong>Workspace security</strong><small>Authenticator and approval requirements for this workspace.</small></span><ChevronDown size={16} aria-hidden="true" /></summary>
+      <div className="settings-details-body">
       <p>{settings.members_without_second_factor} active {settings.members_without_second_factor === 1 ? 'member has' : 'members have'} no two-step verification.</p>
       <ChoiceSwitch label="Require two-step verification" checked={requested ?? settings.require_second_factor}
         disabled={pending || (!settings.require_second_factor && !session.second_factor_enabled)} onChange={(value) => void change(value)} />
@@ -46,8 +47,9 @@ export function WorkspaceSecurityPanel({ settings, session, onSaved, onReload }:
       {(approvalRequested ?? settings.approval_policy === 'always') && settings.active_member_count < 2 &&
         <p role="alert">This workspace has one active member. Add another member before any document can receive independent approval.</p>}
       <p className="field-note">The policy is checked when each output is generated. Changing it keeps existing review versions and reviewer assignments.</p>
-      {error && <InlineNotice error>{error}<button type="button" onClick={onReload}>Reload workspace settings</button></InlineNotice>}
+      {error && <InlineNotice error>{error}<RefreshButton label="Reload workspace settings" disabled={pending} onClick={onReload} /></InlineNotice>}
       {notice && <InlineNotice>{notice}</InlineNotice>}
-    </section>
+      </div>
+    </details>
   )
 }

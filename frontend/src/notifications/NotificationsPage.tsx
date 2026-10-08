@@ -4,7 +4,7 @@ import { ArrowUpRight, Bell, Check, CheckCheck, MessageSquare, RefreshCw, Shield
 import type { SessionView } from '../api/client'
 import { LoadingState } from '../loading/LoadingState'
 import { PageHeader } from '../ui/PageHeader'
-import { InlineNotice } from '../ui/WorkspaceControls'
+import { InlineNotice, RefreshButton } from '../ui/WorkspaceControls'
 import { cn } from '../ui/cn'
 import { dayKey, dayLabel } from '../workspace/activity/activityPresentation'
 import { relativeEdit } from '../workspace/documents/documentPresentation'
@@ -149,11 +149,11 @@ export function NotificationsPage({ session }: { session: SessionView }) {
   return <section className="notifications-page" aria-labelledby="notifications-title">
     <PageHeader title="Notifications" titleId="notifications-title" description="Assignments, approvals, and comments across your workspaces."
       action={<div className="notification-heading-actions">
-        <button type="button" className="quiet-button" disabled={!!pending || !page} onClick={refreshInbox} aria-label="Refresh notifications"><RefreshCw size={16} aria-hidden="true" />Refresh</button>
+        <RefreshButton label="Refresh notifications" disabled={!!pending || !page} onClick={refreshInbox} />
         <button type="button" className="button-secondary" disabled={!!pending || !unread} onClick={() => void read()}><CheckCheck size={17} aria-hidden="true" />{pending === 'all' ? 'Saving…' : 'Mark all as read'}</button>
       </div>} />
     {notice && <InlineNotice>{notice}</InlineNotice>}
-    {error && <InlineNotice error>{error} <button type="button" onClick={refreshInbox}>Refresh notifications</button></InlineNotice>}
+    {error && <InlineNotice error>{error} <RefreshButton label="Retry notification refresh" disabled={!!pending} onClick={refreshInbox} /></InlineNotice>}
     <div className="notification-inbox">
       <div className="notification-toolbar">
         <div className="notification-filters" role="group" aria-label="Notification views">

@@ -1,8 +1,17 @@
 import { useId, type ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { CheckCircle2, AlertCircle, X } from 'lucide-react'
+import { CheckCircle2, AlertCircle, RefreshCw, X } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import './workspace-controls.css'
+
+export function RefreshButton({ label, pending = false, disabled = false, onClick }: {
+  label: string; pending?: boolean; disabled?: boolean; onClick: () => void
+}) {
+  return <button type="button" className="refresh-button" aria-label={label} aria-busy={pending}
+    disabled={disabled || pending} onClick={onClick}>
+    <RefreshCw size={16} aria-hidden="true" />{pending ? 'Refreshing…' : 'Refresh'}
+  </button>
+}
 
 
 export function PanelHeading({

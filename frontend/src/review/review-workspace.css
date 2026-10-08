@@ -149,7 +149,7 @@
 .review-suggestions .scan-actions > .disabled-reason { flex: 1; }
 .review-suggestions .scan-actions > .disabled-reason > button { width: 100%; min-height: 44px; justify-content: center; }
 .review-suggestions .scan-actions > button { min-width: 44px; min-height: 44px; border: 1px solid var(--line); }
-.review-suggestions.is-complete { grid-template-columns: minmax(0, 1fr) 44px; gap: 12px; }
+.review-suggestions.is-complete { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
 .review-suggestions.is-complete .scan-heading { grid-column: 1; }
 .review-suggestions.is-complete .scan-actions { grid-column: 2; grid-row: 1; align-self: start; width: auto; }
 .review-suggestions.is-complete > :not(.scan-heading, .scan-actions) { grid-column: 1 / -1; }

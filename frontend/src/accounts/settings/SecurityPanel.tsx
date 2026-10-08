@@ -8,9 +8,11 @@ import { GlassInput } from '../../ui/GlassField'
 import { InlineNotice, PanelHeading } from '../../ui/WorkspaceControls'
 import { AuthenticatorSetup, BackupCodes } from '../AuthenticatorSetup'
 import { DevicesPanel } from './DevicesPanel'
+import { PasswordPanel } from './AccountPanel'
 
-export function SecurityPanel({ session, onSessionChanged, onSignedOut }: {
+export function SecurityPanel({ session, onSessionChanged, onSignedOut, onPasswordChanged }: {
   session: SessionView; onSessionChanged: (session: SessionView) => void; onSignedOut: () => void;
+  onPasswordChanged: () => void;
 }) {
   const [state, setState] = useState<SecondFactorState | null>(null)
   const [enrollment, setEnrollment] = useState<EnrollmentView | null>(null)
@@ -60,16 +62,16 @@ export function SecurityPanel({ session, onSessionChanged, onSignedOut }: {
   }
   return (
     <div className="security-stack">
-      <section className="workspace-panel" aria-busy={pending}>
-        <PanelHeading icon={ShieldCheck} title="Two-step verification" description="Use an authenticator app and keep backup codes for recovery." />
+      <section className="workspace-panel factor-panel" aria-busy={pending}>
+        <PanelHeading icon={ShieldCheck} title="Two-step verification" description="Add a second check with an authenticator app." />
         {error && <InlineNotice error>{error}</InlineNotice>}
         {notice && <InlineNotice>{notice}</InlineNotice>}
         {!state && !error && <p role="status">Loading security settings…</p>}
         {!state && error && <button type="button" onClick={() => { setError(null); setAttempt((value) => value + 1) }}>Retry security settings</button>}
         {state && <>
-          <p><strong>{state.enabled ? 'Enabled' : 'Not enabled'}</strong>{state.enabled && ` · ${state.backup_codes_remaining} backup codes remaining`}</p>
+          <p className="security-state"><span className={`settings-status${state.enabled ? ' is-enabled' : ''}`}>{state.enabled ? 'Enabled' : 'Not enabled'}</span>{state.enabled && ` · ${state.backup_codes_remaining} backup codes remaining`}</p>
           {state.locked && <InlineNotice error>Authenticator attempts are locked. Recover your password to unlock attempts, or ask your administrator for a reset.</InlineNotice>}
-          <p>{state.security_emails_available ? 'Account security changes send an email notice.' : 'Security email notices are unavailable because email delivery is not configured. Your security changes still take effect.'}</p>
+          <p className="field-note">{state.security_emails_available ? 'Account security changes send an email notice.' : 'Security email notices are unavailable on this site. Security changes still take effect.'}</p>
           {session.second_factor_setup_required && <InlineNotice>A workspace requires two-step verification. Set it up now; your next sign-in will require it.</InlineNotice>}
           {codes ? <BackupCodes codes={codes} onSaved={() => setCodes(null)} /> : <>
             {!state.enabled && !enrollment && <button type="button" onClick={() => void start()} disabled={pending || state.locked}>
@@ -97,6 +99,7 @@ export function SecurityPanel({ session, onSessionChanged, onSignedOut }: {
           </>}
         </>}
       </section>
+      <PasswordPanel session={session} onPasswordChanged={onPasswordChanged} />
       <DevicesPanel key={attempt} csrfToken={session.csrf_token} onSignedOut={onSignedOut} />
     </div>
   )

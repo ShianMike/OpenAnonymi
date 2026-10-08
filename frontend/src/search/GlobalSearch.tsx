@@ -97,7 +97,8 @@ function SearchDialog({ session, onClose }: { session: SessionView; onClose: () 
     targets[next]?.focus()
   }
 
-  const navigation = pages.filter((page) => page.name.toLowerCase().includes(query.trim().toLowerCase()))
+  const navigation = pages.filter(page => page.name.toLowerCase().includes(query.trim().toLowerCase()) &&
+    (page.path !== '/members' || session.memberships.some(item => item.role === 'administrator')))
   return <Dialog.Portal>
     <Dialog.Overlay className="global-search-overlay" />
     <Dialog.Content className="global-search-dialog" ref={contentRef} onKeyDown={arrows}

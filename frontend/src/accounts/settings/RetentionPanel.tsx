@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
-import { Activity, Clock3, FileText, RotateCcw } from 'lucide-react'
+import { Activity, Clock3, FileText } from 'lucide-react'
 import { updateWorkspaceSettings, type WorkspaceSettingsView } from '../../api/client'
-import { InlineNotice, PanelHeading } from '../../ui/WorkspaceControls'
+import { InlineNotice, PanelHeading, RefreshButton } from '../../ui/WorkspaceControls'
 import { CleanupHealthPanel } from './CleanupHealthPanel'
 
 export function RetentionPanel({
@@ -51,8 +51,8 @@ export function RetentionPanel({
     <div className="retention-panel workspace-panel">
       <PanelHeading
         icon={Clock3}
-        title="Keep what you need. Let the rest go."
-        description="Set how long content and activity remain in this workspace."
+        title="Retention defaults"
+        description="Choose how long new review content and activity records are kept."
       />
       <form onSubmit={save}>
         <div className="retention-cards">
@@ -104,7 +104,7 @@ export function RetentionPanel({
         <div className="retention-explanation">
           <Clock3 size={17} aria-hidden="true" />
           <div>
-            <strong>Expiry stays predictable.</strong>
+            <strong>Applies to new reviews</strong>
             <p>
               New reviews use your content default. Changing it won’t extend or shorten reviews already saved.
             </p>
@@ -113,9 +113,9 @@ export function RetentionPanel({
         {error && <InlineNotice error>{error}</InlineNotice>}
         {notice && <InlineNotice>{notice}</InlineNotice>}
         <div className="settings-save-row">
-          <button className="quiet-button" type="button" onClick={onReload} disabled={pending}>
-            <RotateCcw size={14} aria-hidden="true" /> Reload defaults
-          </button>
+          {changed ? <button type="button" className="quiet-button" disabled={pending} onClick={() => {
+            setContentDays(String(settings.content_retention_days)); setActivityDays(String(settings.activity_retention_days)); setError(null); setNotice(null)
+          }}>Reset changes</button> : <RefreshButton label="Reload defaults" onClick={onReload} disabled={pending} />}
           <button type="submit" disabled={pending || !changed}>
             {pending ? 'Saving…' : 'Save defaults'}
           </button>

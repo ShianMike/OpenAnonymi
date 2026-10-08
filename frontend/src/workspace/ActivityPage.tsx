@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import * as Tabs from '@radix-ui/react-tabs'
-import { History, RotateCw, Users } from 'lucide-react'
+import { History, Users } from 'lucide-react'
 import { GlassSelect } from '../ui/GlassSelect'
 import {
   getWorkspaceActivity,
@@ -10,7 +10,7 @@ import {
 } from '../api/client'
 import { PageHeader } from '../ui/PageHeader'
 import { LoadingState } from '../loading/LoadingState'
-import { InlineNotice } from '../ui/WorkspaceControls'
+import { InlineNotice, RefreshButton } from '../ui/WorkspaceControls'
 import { ActivityFeed } from './activity/ActivityFeed'
 import { ActivitySummary } from './activity/ActivitySummary'
 import { AdminActivityPanel } from './activity/AdminActivityPanel'
@@ -71,9 +71,7 @@ export function ActivityPage({ session }: { session: SessionView }) {
             {membership.workspace_name || `Workspace ${index + 1}`}
           </option>)}</GlassSelect>
         </div> : <span className="activity-workspace-name">{session.memberships[0]?.workspace_name ?? 'No active workspace'}</span>}
-        <button className="quiet-button" type="button" aria-label="Refresh activity" disabled={data.kind === 'loading' || (data.kind === 'ready' && data.refreshing) || !workspaceId} onClick={reload}>
-          <RotateCw size={16} aria-hidden="true" /> {data.kind === 'ready' && data.refreshing ? 'Refreshing…' : 'Refresh'}
-        </button>
+        <RefreshButton label="Refresh activity" pending={data.kind === 'ready' && !!data.refreshing} disabled={data.kind === 'loading' || !workspaceId} onClick={reload} />
       </div>} />
     {!workspaceId ? <p role="status">You need an active workspace membership to view activity.</p> : <>
       {data.kind === 'loading' && <LoadingState label="Loading activity…" description="Bringing your workspace history into view." />}

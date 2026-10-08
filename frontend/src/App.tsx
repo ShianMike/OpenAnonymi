@@ -18,6 +18,7 @@ import './App.css'
 
 const SignInPage = lazy(() => import('./accounts/SignInPage').then((module) => ({ default: module.SignInPage })))
 const SettingsPage = lazy(() => import('./accounts/SettingsPage').then((module) => ({ default: module.SettingsPage })))
+const MembersPage = lazy(() => import('./accounts/MembersPage').then((module) => ({ default: module.MembersPage })))
 const NewReviewPage = lazy(() => import('./review/NewReviewPage').then((module) => ({ default: module.NewReviewPage })))
 const ActivityPage = lazy(() => import('./workspace/ActivityPage').then((module) => ({ default: module.ActivityPage })))
 const OverviewPage = lazy(() => import('./workspace/OverviewPage').then((module) => ({ default: module.OverviewPage })))
@@ -308,6 +309,7 @@ function App() {
               <Route path="/notifications" element={<NotificationsPage key={authentication.session.user_id} session={authentication.session} />} />
               <Route path="/continue" element={<ContinueReviewPage session={authentication.session} />} />
               <Route path="/activity" element={<ActivityPage session={authentication.session} />} />
+              <Route path="/members" element={<MembersPage session={authentication.session} />} />
               <Route path="/rules" element={<RulesPage session={authentication.session} />} />
               <Route path="/preferences" element={<PreferencesPage />} />
               <Route

@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from 'react'
-import { KeyRound, LockKeyhole, Mail, ShieldCheck } from 'lucide-react'
+import { ArrowRight, KeyRound, LockKeyhole, Mail, ShieldCheck } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { changePassword, type SessionView } from '../../api/client'
 import { GlassInput } from '../../ui/GlassField'
 import { InlineNotice, PanelHeading } from '../../ui/WorkspaceControls'
 import { EmailVerification } from './EmailVerification'
 import { NotificationPreferencesPanel } from '../../notifications/NotificationPreferencesPanel'
 
-export function AccountPanel({
+export function PasswordPanel({
   session,
   onPasswordChanged,
 }: {
@@ -34,30 +35,11 @@ export function AccountPanel({
     }
   }
   return (
-    <div className="account-panel-grid">
-      <div className="account-profile workspace-panel">
-        <span className="account-avatar" aria-hidden="true">
-          {session.email.slice(0, 2).toUpperCase()}
-        </span>
-        <h2>Your account</h2>
-        <p>Your own space to review with care.</p>
-        <div className="account-email">
-          <span>
-            <Mail size={14} aria-hidden="true" /> Email address
-          </span>
-          <strong>{session.email}</strong>
-        </div>
-        <EmailVerification session={session} />
-        <div className="account-privacy-note">
-          <ShieldCheck size={18} strokeWidth={1.5} aria-hidden="true" />
-          <p>Your documents and decisions stay connected to this account.</p>
-        </div>
-      </div>
-      <div className="account-security workspace-panel">
+      <section className="account-security workspace-panel">
         <PanelHeading
           icon={KeyRound}
-          title="Password & security"
-          description="Keep access to your account in your hands."
+          title="Password"
+          description="Choose a strong password for your next sign-in."
         />
         <form className="account-password-form" onSubmit={save}>
           <div>
@@ -104,8 +86,24 @@ export function AccountPanel({
             </button>
           </div>
         </form>
-      </div>
-      <NotificationPreferencesPanel key={session.user_id} session={session} />
-    </div>
+      </section>
   )
+}
+
+export function AccountPanel({ session }: { session: SessionView }) {
+  const initials = session.email.split('@')[0].split(/[._+-]/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase()
+  return <div className="account-panel-grid">
+    <section className="account-profile workspace-panel" aria-labelledby="account-profile-title">
+      <div className="account-profile-heading"><span className="account-avatar" aria-hidden="true">{initials}</span>
+        <div><h2 id="account-profile-title">Your account</h2><p>Your profile and email verification.</p></div>
+      </div>
+      <div className="account-email"><span><Mail size={15} aria-hidden="true" />Email address</span><strong>{session.email}</strong></div>
+      <EmailVerification session={session} />
+    </section>
+    <section className="account-signin workspace-panel">
+      <PanelHeading icon={ShieldCheck} title="Sign-in & security" description="Manage your password, authenticator, and active sessions." />
+      <Link className="button-secondary" to="/settings?section=security">Manage security<ArrowRight size={16} aria-hidden="true" /></Link>
+    </section>
+    <NotificationPreferencesPanel key={session.user_id} session={session} />
+  </div>
 }

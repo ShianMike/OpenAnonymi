@@ -1,8 +1,8 @@
-import { RefreshCw } from 'lucide-react'
 import { useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { SessionView } from '../api/client'
 import { PageHeader } from '../ui/PageHeader'
+import { RefreshButton } from '../ui/WorkspaceControls'
 import { LoadingState } from '../loading/LoadingState'
 import { GlassSelect } from '../ui/GlassSelect'
 import { useLastReview } from './lastReview'
@@ -38,9 +38,7 @@ export function ContinueReviewPage({ session }: { session: SessionView }) {
           {session.memberships.map((item) => <option key={item.workspace_id} value={item.workspace_id}>{item.workspace_name}</option>)}
         </GlassSelect>
       </div> : <span className="continue-workspace-name">{membership?.workspace_name ?? 'No active workspace'}</span>}
-      <button type="button" className="quiet-button" aria-label="Refresh reviews" onClick={retry} disabled={data.kind === 'loading' || (data.kind === 'ready' && data.refreshing)}>
-        <RefreshCw size={16} aria-hidden="true" /> {data.kind === 'ready' && data.refreshing ? 'Refreshing…' : 'Refresh'}
-      </button>
+      <RefreshButton label="Refresh reviews" onClick={retry} disabled={data.kind === 'loading'} pending={data.kind === 'ready' && !!data.refreshing} />
       </div>} />
     {!membership ? <p role="status">You need an active workspace membership to continue a review.</p> : <>
       {data.kind === 'loading' && <LoadingState label="Checking your available reviews…" description="Finding your unfinished work and assigned reviews." />}

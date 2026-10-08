@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react'
+import { AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { getCleanupHealth, type CleanupHealthView } from '../../api/client'
-import { InlineNotice } from '../../ui/WorkspaceControls'
+import { InlineNotice, RefreshButton } from '../../ui/WorkspaceControls'
 
 function ago(value: string, checked: string) {
   const seconds = Math.max(0, Math.floor((Date.parse(checked) - Date.parse(value)) / 1000))
@@ -37,11 +37,9 @@ export function CleanupHealthPanel({ workspaceId }: { workspaceId: string }) {
           <h3 id="cleanup-health-heading">Content cleanup</h3>
           <p>Expired and deleted reviews are inaccessible while stored content awaits removal.</p>
         </div>
-        <button type="button" className="quiet-button" disabled={pending} onClick={() => {
+        <RefreshButton label="Refresh cleanup status" pending={pending} onClick={() => {
           setPending(true); setError(null); setAttempt((value) => value + 1)
-        }}>
-          <RefreshCw size={14} aria-hidden="true" /> {pending ? 'Checking…' : 'Check again'}
-        </button>
+        }} />
       </div>
       {error && <InlineNotice error>{error}</InlineNotice>}
       {!health && pending && <p role="status">Checking cleanup health…</p>}

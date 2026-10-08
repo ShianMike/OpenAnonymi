@@ -22,7 +22,8 @@ export function Sidebar({ session, menuOpen, onClose, navRef }: Props) {
   const label = workspace?.workspace_name ?? `${session.memberships.length} workspaces`
   const sections = [
     { title: 'Workspace', icon: FolderOpen, entries: pages.slice(0, 3) },
-    { title: 'Manage', icon: SlidersHorizontal, entries: pages.slice(3).filter((page) => page.path !== '/preferences') },
+    { title: 'Manage', icon: SlidersHorizontal, entries: pages.slice(3).filter(page => page.path !== '/preferences' &&
+      (page.path !== '/members' || session.memberships.some(item => item.role === 'administrator'))) },
   ]
   return (
     <aside

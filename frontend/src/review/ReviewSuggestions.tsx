@@ -1,10 +1,11 @@
-import { CheckCircle2, Sparkles, RotateCw, ChevronDown } from 'lucide-react'
+import { CheckCircle2, Sparkles, ChevronDown } from 'lucide-react'
 import type { ReviewController } from './useReviewController'
 import { ReviewSetup } from './ReviewSetup'
 import { LoadingState } from '../loading/LoadingState'
 import { CsvReview } from './CsvReview'
 import { DisabledReason } from '../ui/DisabledReason'
 import { cn } from '../ui/cn'
+import { RefreshButton } from '../ui/WorkspaceControls'
 
 export function ReviewSuggestions({ review }: { review: ReviewController }) {
   if (review.state.kind !== 'ready') return null
@@ -51,15 +52,7 @@ export function ReviewSuggestions({ review }: { review: ReviewController }) {
                 : 'Find suggestions'}
           </button></DisabledReason>
         )}
-        <button
-          className="quiet-icon"
-          type="button"
-          disabled={review.dirty || review.actionPending}
-          aria-label="Refresh scan status"
-          onClick={() => void review.refreshScan()}
-        >
-          <RotateCw size={16} aria-hidden="true" />
-        </button>
+        <RefreshButton label="Refresh scan status" disabled={review.dirty || review.actionPending} onClick={() => void review.refreshScan()} />
       </div>
       {blocked && <p className="scan-blocked-note" role="status">{blockedReason}</p>}
       {scan?.status === 'scanning' && (

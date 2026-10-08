@@ -1,7 +1,8 @@
 import { useLayoutEffect, useRef, type RefObject } from 'react'
-import { CheckCircle2, Files, ScanLine, Star, RefreshCw, Search, X } from 'lucide-react'
+import { CheckCircle2, Files, ScanLine, Star, Search, X } from 'lucide-react'
 import type { DocumentIndexView } from '../../api/client'
 import { GlassSelect } from '../../ui/GlassSelect'
+import { RefreshButton } from '../../ui/WorkspaceControls'
 import { matchesStatus, type DocumentSort } from './documentPresentation'
 
 export function DocumentFilters({
@@ -142,16 +143,7 @@ export function DocumentFilters({
             <option value="title">Title</option>
           </GlassSelect>
         </div>
-        <button
-          className="document-refresh"
-          type="button"
-          title="Refresh documents"
-          aria-label="Refresh documents"
-          disabled={refreshing}
-          onClick={onRefresh}
-        >
-          <RefreshCw size={17} aria-hidden="true" className={refreshing ? 'is-refreshing' : undefined} />
-        </button>
+        <RefreshButton label="Refresh documents" pending={refreshing} onClick={onRefresh} />
       </div>
       <div className="document-results-line">
         <p role="status" aria-live="polite">

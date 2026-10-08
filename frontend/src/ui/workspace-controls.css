@@ -1,3 +1,20 @@
+.refresh-button {
+  min-height: 44px;
+  padding: 0 14px;
+  margin: 0;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: none;
+  font-size: .82rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.refresh-button:hover:not(:disabled) { border-color: var(--blue); background: var(--surface-subtle); color: var(--text); }
+.refresh-button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.refresh-button:disabled { opacity: .5; }
 .workspace-panel {
   min-width: 0;
   background: linear-gradient(135deg, var(--tone-paper, #1d2520), var(--tone-paper, #19201c));

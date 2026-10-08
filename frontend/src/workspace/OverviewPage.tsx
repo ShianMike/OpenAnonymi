@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { ArrowRight, ArrowUpRight, Building2, CircleAlert, Clock3, FilePlus2, FileText, Files, Layers2, RefreshCw, ScanLine } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Building2, CircleAlert, Clock3, FilePlus2, FileText, Files, Layers2, ScanLine } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ApiRequestError, getWorkspaceOverview, type OverviewView, type SessionView } from '../api/client'
 import { GlassSelect } from '../ui/GlassSelect'
+import { RefreshButton } from '../ui/WorkspaceControls'
 import { StatusBadge } from '../ui/StatusBadge'
 import { LoadingState } from '../loading/LoadingState'
 import { OverviewAnalytics } from './overview/OverviewAnalytics'
@@ -82,8 +83,7 @@ export function OverviewPage({ session }: { session: SessionView }) {
           {value && <time className="overview-updated" dateTime={value.as_of} title={new Date(value.as_of).toLocaleString()}>
             {refreshing ? 'Updating…' : `Updated ${new Date(value.as_of).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}
           </time>}
-          <button type="button" className="overview-refresh" onClick={refresh} disabled={!workspaceId || refreshing || data.kind === 'loading'}
-            aria-label="Refresh overview"><RefreshCw size={16} aria-hidden="true" />{refreshing ? 'Refreshing…' : 'Refresh'}</button>
+          <RefreshButton label="Refresh overview" onClick={refresh} disabled={!workspaceId || data.kind === 'loading'} pending={refreshing} />
         </div>
       </div>
     </header>
