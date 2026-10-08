@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { FileText, Pin, Search, Star, X } from 'lucide-react'
+import { ArrowRight, FileText, Pin, Search, Star, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ApiRequestError, searchDocuments, type DocumentSearchView, type SessionView } from '../api/client'
 import { pages } from '../shell/navigation'
@@ -89,9 +89,12 @@ function SearchDialog({ session, onClose }: { session: SessionView; onClose: () 
     if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return
     const targets = Array.from(contentRef.current?.querySelectorAll<HTMLAnchorElement>('.search-results a') ?? [])
     if (!targets.length) return
+    const index = targets.indexOf(event.target as HTMLAnchorElement)
+    if (index < 0 && (event.target as HTMLElement).id !== 'global-document-search') return
     event.preventDefault()
-    const index = targets.indexOf(document.activeElement as HTMLAnchorElement)
-    targets[(index + (event.key === 'ArrowDown' ? 1 : targets.length - 1) + targets.length) % targets.length]?.focus()
+    const next = index < 0 ? (event.key === 'ArrowDown' ? 0 : targets.length - 1)
+      : (index + (event.key === 'ArrowDown' ? 1 : -1) + targets.length) % targets.length
+    targets[next]?.focus()
   }
 
   const navigation = pages.filter((page) => page.name.toLowerCase().includes(query.trim().toLowerCase()))
@@ -99,35 +102,45 @@ function SearchDialog({ session, onClose }: { session: SessionView; onClose: () 
     <Dialog.Overlay className="global-search-overlay" />
     <Dialog.Content className="global-search-dialog" ref={contentRef} onKeyDown={arrows}
       onOpenAutoFocus={(event) => { event.preventDefault(); contentRef.current?.querySelector<HTMLInputElement>('#global-document-search')?.focus() }}>
-      <div className="global-search-heading"><Dialog.Title>Find your way</Dialog.Title>
-        <Dialog.Close aria-label="Close search"><X size={18} aria-hidden="true" /></Dialog.Close>
+      <div className="global-search-header">
+        <div className="global-search-heading"><Dialog.Title>Search</Dialog.Title>
+          <Dialog.Close aria-label="Close search"><X size={18} aria-hidden="true" /></Dialog.Close>
+        </div>
+        <Dialog.Description>Find a review by title or jump to a page.</Dialog.Description>
+        <label className="sr-only" htmlFor="global-document-search">Search documents and pages</label>
+        <div className="global-search-field"><Search size={20} aria-hidden="true" />
+          <input id="global-document-search" type="search" autoComplete="off" maxLength={100}
+            value={query} onChange={(event) => { clearResults(); setQuery(event.target.value) }} placeholder="Type a review title or page…" />
+        </div>
+        <div className="global-search-scope"><span>All workspaces</span>
+          <button className="search-favorites" type="button" aria-pressed={favorites} onClick={() => { clearResults(); setFavorites((current) => !current) }}>
+            <Star size={16} aria-hidden="true" /> Favorites only
+          </button>
+        </div>
       </div>
-      <Dialog.Description>Search review titles across your workspaces, or go to a page.</Dialog.Description>
-      <label htmlFor="global-document-search">Search documents and pages</label>
-      <div className="global-search-field"><Search size={18} aria-hidden="true" />
-        <input id="global-document-search" type="search" autoComplete="off" maxLength={100}
-          value={query} onChange={(event) => { clearResults(); setQuery(event.target.value) }} placeholder="Type a review title or page…" />
-      </div>
-      <button className="search-favorites" type="button" aria-pressed={favorites} onClick={() => { clearResults(); setFavorites((current) => !current) }}>
-        <Star size={15} aria-hidden="true" /> Favorites only
-      </button>
       <div className="search-results" aria-busy={pending}>
-        {navigation.length > 0 && <section aria-label="Pages"><h2>Pages</h2><ul>{navigation.map((page) =>
-          <li key={page.path}><Link to={page.path} onClick={onClose}><page.icon size={17} aria-hidden="true" />{page.name}</Link></li>,
-        )}</ul></section>}
-        <section aria-label="Matching documents"><h2>{query ? 'Matching documents' : 'Recent documents'}</h2>
-          {value && <ul>{value.items.map((item) => <li key={item.id}>
-            <Link to={`/documents/${item.id}/edit`} onClick={onClose}><FileText size={18} aria-hidden="true" />
+        <section aria-label="Matching documents"><h2>{query.trim() ? 'Matching reviews' : favorites ? 'Your favorites' : 'Recent reviews'}</h2>
+          {pending && !value && <p className="search-inline-status">Finding your reviews…</p>}
+          {value && <ul className="search-document-list">{value.items.map((item) => <li key={item.id}>
+            <Link to={`/documents/${item.id}/edit`} onClick={onClose}><span className="search-result-icon"><FileText size={18} aria-hidden="true" /></span>
               <span className="search-document-copy"><strong>{item.title || 'Untitled review'}</strong><small>{item.workspace_name}{!item.is_owner && ' · Assigned to you'}</small></span>
               {item.favorite && <Star size={15} aria-label="Favorite" />}{item.pinned && <Pin size={15} aria-label="Pinned" />}
+              <ArrowRight className="search-result-arrow" size={17} aria-hidden="true" />
             </Link></li>)}</ul>}
-          {!pending && value?.items.length === 0 && <p>{value.next_cursor ? 'No matches in this group. Search more documents to continue.' : 'No matching reviews.'}</p>}
+          {!pending && value?.items.length === 0 && <div className="search-empty"><Search size={22} aria-hidden="true" />
+            <strong>{favorites ? 'No matching favorites' : 'No matching reviews'}</strong>
+            <p>{value.next_cursor ? 'Search more documents to keep looking.' : favorites ? 'Turn off Favorites only to see all your reviews.' : 'Try another title, or use a page shortcut below.'}</p>
+          </div>}
         </section>
+        {navigation.length > 0 && <section className="search-pages" aria-label="Pages"><h2>Go to a page</h2><ul>{navigation.map((page) =>
+          <li key={page.path}><Link to={page.path} onClick={onClose}><page.icon size={17} aria-hidden="true" />{page.name}</Link></li>,
+        )}</ul></section>}
+        {error && <div className="search-error" role="alert"><p>{error}</p><button type="button" onClick={() => { clearResults(); setAttempt((current) => current + 1) }}>Retry search</button></div>}
       </div>
-      {error && <div role="alert"><p>{error}</p><button type="button" onClick={() => { clearResults(); setAttempt((current) => current + 1) }}>Retry search</button></div>}
-      <div className="global-search-footer"><span role="status">{pending ? 'Searching…' : `${value?.items.length ?? 0} review results`}</span>
+      <div className="global-search-footer">
+        <small><span><kbd>↑</kbd><kbd>↓</kbd> Move</span><span><kbd>Enter</kbd> Open</span><span><kbd>Esc</kbd> Close</span></small>
+        <span role="status">{pending ? 'Searching…' : error ? 'Search unavailable' : `${value?.items.length ?? 0} ${value?.items.length === 1 ? 'review' : 'reviews'}`}</span>
         {value?.next_cursor && <button type="button" disabled={pending} onClick={() => void more()}>Search more documents</button>}
-        <small>↑ ↓ to move · Enter to open · Esc to close</small>
       </div>
     </Dialog.Content>
   </Dialog.Portal>
