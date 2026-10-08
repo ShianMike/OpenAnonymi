@@ -1,4 +1,4 @@
-import { Check, Clock3, FileText, Pin, Star } from 'lucide-react'
+import { Check, CheckCircle2, CircleDashed, Clock3, FileText, Minus, Pin, Star } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { DocumentIndexView, DocumentPreferenceRequest } from '../../api/client'
 import { StatusBadge } from '../../ui/StatusBadge'
@@ -23,14 +23,9 @@ function ReviewProgress({ item }: { item: DocumentIndexView }) {
   return (
     <div className={`document-progress ${decided === count ? 'is-decided' : ''}`}>
       <span className="document-progress-label">
-        <strong>
-          {decided}
-          <span> of {count}</span>
-        </strong>
-        <span>checked</span>
+        <strong>{decided}</strong> of {count} reviewed
       </span>
-      <progress max={count} value={decided} aria-label={`Findings decided in ${documentLabel(item)}`} />
-      <span className="document-next-step">{decided === count ? 'All choices made' : `${count - decided} ${count - decided === 1 ? 'detail needs' : 'details need'} your choice`}</span>
+      <progress className={decided === count ? 'sr-only' : undefined} max={count} value={decided} aria-label={`Findings decided in ${documentLabel(item)}`} />
     </div>
   )
 }
@@ -64,14 +59,6 @@ export function DocumentTable({
   const allSelected = selectable.every((item) => selected.has(item.id))
   return (
     <table className="documents-table" aria-label="Documents">
-      <caption>
-        <div className="document-selection-heading">
-          <label className="document-select-visible"><input id="document-select-visible" type="checkbox" checked={allSelected}
-            ref={(node) => { if (node) node.indeterminate = !allSelected && selectable.some((item) => selected.has(item.id)) }}
-            disabled={pending} onChange={(event) => onSelectVisible(event.target.checked)} /> Select visible</label>
-          <span>Select reviews to organize them together. Up to 50 at once.</span>
-        </div>
-      </caption>
       <colgroup>
         <col className="document-select-col" />
         <col className="document-name-col" />
@@ -81,7 +68,16 @@ export function DocumentTable({
       </colgroup>
       <thead>
         <tr>
-          <th scope="col" className="document-select-cell"><span className="sr-only">Selection</span></th>
+          <th scope="col" className="document-select-cell">
+            <label className="document-select-target document-select-all" title="Select shown reviews (up to 50)">
+              <input id="document-select-visible" type="checkbox" aria-label="Select visible" checked={allSelected}
+                ref={(node) => { if (node) node.indeterminate = !allSelected && selectable.some((item) => selected.has(item.id)) }}
+                disabled={pending} onChange={(event) => onSelectVisible(event.target.checked)} />
+              <Check className="document-check-mark" size={14} strokeWidth={2.5} aria-hidden="true" />
+              <Minus className="document-check-mixed" size={14} strokeWidth={2.5} aria-hidden="true" />
+              <span className="document-select-caption">Select visible</span>
+            </label>
+          </th>
           <th scope="col">Document</th>
           <th scope="col">Review status</th>
           <th scope="col">Available until</th>
@@ -94,14 +90,15 @@ export function DocumentTable({
         {items.map((item) => {
           const title = documentLabel(item)
           const lifetime = retention(item, now)
+          const status = lifetime.expired ? 'expired' : item.status
           const unavailable = lifetime.expired || item.status === 'deleted'
           const example = title.startsWith('Example · ')
           const displayTitle = example ? title.slice('Example · '.length) : title
           return (
-            <tr key={item.id} className="document-row">
+            <tr key={item.id} className="document-row" data-selected={selected.has(item.id) || undefined}>
               <td className="document-select-cell"><label className="document-select-target"><input type="checkbox" aria-label={`Select ${title}`}
                 checked={selected.has(item.id)} disabled={pending || (!selected.has(item.id) && selected.size >= 50)}
-                onChange={(event) => onSelect(item.id, event.target.checked)} /><span className="sr-only">Select {title}</span></label></td>
+                onChange={(event) => onSelect(item.id, event.target.checked)} /><Check className="document-check-mark" size={14} strokeWidth={2.5} aria-hidden="true" /><span className="sr-only">Select {title}</span></label></td>
               <th scope="row" className="document-name-cell">
                 <div className="document-identity">
                   <span
@@ -140,8 +137,10 @@ export function DocumentTable({
                 </div>
               </th>
               <td className="document-progress-cell">
-                <StatusBadge status={lifetime.expired ? 'expired' : item.status} />
-                <ReviewProgress item={lifetime.expired ? { ...item, status: 'expired' } : item} />
+                <div className={`document-review-state ${['ready', 'exported'].includes(status) ? 'is-complete' : ''}`}>
+                  <span className="document-review-icon">{['ready', 'exported'].includes(status) ? <CheckCircle2 size={18} aria-hidden="true" /> : <CircleDashed size={18} aria-hidden="true" />}</span>
+                  <div><StatusBadge status={status} /><ReviewProgress item={lifetime.expired ? { ...item, status } : item} /></div>
+                </div>
               </td>
               <td className={`document-retention-cell ${lifetime.urgent ? 'is-urgent' : ''}`}>
                 <span className="document-retention-label">

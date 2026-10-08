@@ -319,14 +319,6 @@ export function DocumentsPage({ session }: { session: SessionView }) {
               onRenew={(item, trigger) => setRenewing({ item, trigger, workspaceId })}
             />
           )}
-          {visible.length > 0 && (
-            <footer className="document-list-footer">
-              <span>
-                {visible.length} document{visible.length === 1 ? '' : 's'}
-              </span>
-              <span>Available until the date shown. Use the actions menu to keep a review longer.</span>
-            </footer>
-          )}
         </div>
       )}
       {confirmation && (

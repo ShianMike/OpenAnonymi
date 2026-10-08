@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, type RefObject } from 'react'
-import { Check, CheckCircle2, Files, ScanLine, Star, RefreshCw, Search, X } from 'lucide-react'
+import { CheckCircle2, Files, ScanLine, Star, RefreshCw, Search, X } from 'lucide-react'
 import type { DocumentIndexView } from '../../api/client'
 import { GlassSelect } from '../../ui/GlassSelect'
 import { matchesStatus, type DocumentSort } from './documentPresentation'
@@ -64,10 +64,8 @@ export function DocumentFilters({
         const count = items.filter((item) => matchesStatus(item, value)).length
         return <button type="button" key={value} aria-label={`${label} ${count}`}
           aria-describedby={`document-view-${value}`} aria-pressed={status === value} onClick={() => onStatus(value)}>
-          <span className="document-view-label"><Icon size={18} aria-hidden="true" /> {label}</span>
-          <strong>{count}</strong>
-          <span id={`document-view-${value}`} className="document-view-help">{help}</span>
-          {status === value && <Check className="document-view-selected" size={15} aria-hidden="true" />}
+          <span className="document-view-label"><span className="document-view-icon"><Icon size={18} aria-hidden="true" /></span>{label}</span>
+          <span className="document-view-metric"><strong>{count}</strong><span id={`document-view-${value}`} className="document-view-help">{help}</span></span>
         </button>
       })}
     </div>
