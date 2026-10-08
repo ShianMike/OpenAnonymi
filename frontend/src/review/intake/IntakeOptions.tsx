@@ -6,6 +6,7 @@ import type { IntakeController } from './useIntake'
 import { detectionChoices, extras } from '../../detection/categories'
 import { DetectionControls } from '../../detection/DetectionControls'
 import { LoadingState } from '../../loading/LoadingState'
+import { builtInPresets, findIntakePreset, workspacePresetId } from '../../workspace/rules/builtInPresets'
 
 export function IntakeOptions({ intake }: { intake: IntakeController }) {
   const { defaults, pending } = intake
@@ -38,7 +39,7 @@ export function IntakeOptions({ intake }: { intake: IntakeController }) {
               disabled={pending}
               onValueChange={(value) => {
                 intake.setPresetId(value)
-                const preset = defaults.presets.find((item) => item.id === value)
+                const preset = findIntakePreset(value, defaults.presets)
                 if (preset) {
                   intake.setEmailEnabled(preset.categories.includes('email'))
                   intake.setPhoneEnabled(preset.categories.includes('phone'))
@@ -50,6 +51,8 @@ export function IntakeOptions({ intake }: { intake: IntakeController }) {
               <option value="" data-description="Choose the suggestions for this review.">
                 Choose my own
               </option>
+              {builtInPresets.map((preset) => <option key={preset.id} value={preset.id}
+                data-description={`Built-in · ${preset.description}`}>{preset.name} · Built-in</option>)}
               {defaults.presets.map((preset) => (
                 <option
                   key={preset.id}
@@ -64,6 +67,7 @@ export function IntakeOptions({ intake }: { intake: IntakeController }) {
                 </option>
               ))}
             </GlassSelect>
+            {intake.presetId.startsWith('builtin-') && <p className="field-note">Built-in settings use readable labels. You decide every finding. Choose your phone region below.</p>}
           </div>
           <details className="intake-detection-options">
             <summary>
@@ -105,7 +109,7 @@ export function IntakeOptions({ intake }: { intake: IntakeController }) {
               id="phone-region"
               value={intake.phoneRegion}
               onValueChange={intake.setPhoneRegion}
-              disabled={!!intake.presetId || pending || (!intake.phoneEnabled && !intake.extraCategories.includes('date'))}
+              disabled={!!workspacePresetId(intake.presetId) || pending || (!intake.phoneEnabled && !intake.extraCategories.includes('date'))}
             >
               {phoneRegions.map(([code, label]) => (
                 <option key={code} value={code}>

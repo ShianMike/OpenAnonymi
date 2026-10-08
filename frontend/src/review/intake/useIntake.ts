@@ -1,8 +1,9 @@
 import { importPreview } from '../../imports/api'
 import { defaultDetectionCategories, extras } from '../../detection/categories'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useProtectedDraft } from '../../recovery/useProtectedDraft'
+import { findIntakePreset, workspacePresetId } from '../../workspace/rules/builtInPresets'
 import {
   createPastedDraft,
   createFileDraft,
@@ -27,10 +28,13 @@ function messageFrom(error: unknown): string {
 
 export function useIntake(session: SessionView) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [params] = useSearchParams()
   const allowNavigationRef = useRef(false)
   const [initialWorkspace] = useState(() => session.memberships.find((item) => item.workspace_id === params.get('workspace'))?.workspace_id ?? session.memberships[0]?.workspace_id ?? '')
   const [workspaceId, storeWorkspaceId] = useState(initialWorkspace)
+  const [requestedPreset] = useState(params.get('preset') ?? '')
+  const [presetNavigationKey] = useState(location.key)
   const [defaults, setDefaults] = useState<Defaults>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
   const [mode, setMode] = useState<'paste' | 'file'>('paste')
@@ -66,7 +70,8 @@ export function useIntake(session: SessionView) {
         if (controller.signal.aborted) return
         setDefaults({ kind: 'ready', value, presets })
         setRetentionDays(value.content_retention_days)
-        const initial = presets.find((preset) => preset.is_default)
+        const initial = (workspaceId === initialWorkspace ? findIntakePreset(requestedPreset, presets) : undefined)
+          ?? presets.find((preset) => preset.is_default)
         setPresetId(initial?.id ?? '')
         const categories = initial?.categories ?? defaultDetectionCategories
         setEmailEnabled(categories.includes('email'))
@@ -78,7 +83,7 @@ export function useIntake(session: SessionView) {
         if (!controller.signal.aborted) setDefaults({ kind: 'error', message: messageFrom(cause) })
       })
     return () => controller.abort()
-  }, [workspaceId, attempt])
+  }, [workspaceId, initialWorkspace, requestedPreset, attempt])
 
   const fileAttempt = useRef(0)
 
@@ -149,10 +154,10 @@ export function useIntake(session: SessionView) {
     setError(null)
     const categories = [...(emailEnabled ? ['email'] : []), ...(phoneEnabled ? ['phone'] : []), ...extraCategories]
     try {
-      const saved = mode === 'file' && file ? await createFileDraft(workspaceId, file, title.trim(), categories, phoneRegion, retentionDays, session.csrf_token, presetId || undefined, language, csvDelimiter, csvHeader, fileText) : await createPastedDraft({ workspace_id: workspaceId,
+      const saved = mode === 'file' && file ? await createFileDraft(workspaceId, file, title.trim(), categories, phoneRegion, retentionDays, session.csrf_token, workspacePresetId(presetId) ?? undefined, language, csvDelimiter, csvHeader, fileText) : await createPastedDraft({ workspace_id: workspaceId,
         source: mode === 'paste' ? source : fileText, title: title.trim() || null,
         categories: categories as FindingCategory[], phone_region: phoneRegion, language,
-        retention_days: retentionDays, preset_id: presetId || null,
+        retention_days: retentionDays, preset_id: workspacePresetId(presetId),
       }, session.csrf_token)
       await recovery.clear().catch(() => undefined)
       allowNavigationRef.current = true
@@ -169,7 +174,8 @@ export function useIntake(session: SessionView) {
   const bytes = new TextEncoder().encode(previewText).length
   const overLimit = characters > 100_000 || bytes > 1_048_576
   const initialPreset =
-    defaults.kind === 'ready' ? defaults.presets.find((preset) => preset.is_default) : undefined
+    defaults.kind === 'ready' ? (workspaceId === initialWorkspace ? findIntakePreset(requestedPreset, defaults.presets) : undefined)
+      ?? defaults.presets.find((preset) => preset.is_default) : undefined
   const intakeDirty =
     source.length > 0 ||
     file !== null ||
@@ -184,6 +190,8 @@ export function useIntake(session: SessionView) {
         retentionDays !== defaults.value.content_retention_days))
 
   const recovery = useProtectedDraft({
+    startKey: requestedPreset && workspaceId === initialWorkspace && defaults.kind === 'ready'
+      && findIntakePreset(requestedPreset, defaults.presets) ? `${presetNavigationKey}:${requestedPreset}` : undefined,
     scope: defaults.kind === 'ready' ? {
       userId: session.user_id, workspaceId, documentId: null,
     } : null,
@@ -194,7 +202,7 @@ export function useIntake(session: SessionView) {
       source: previewText, title, categories: [
         ...(emailEnabled ? ['email' as const] : []), ...(phoneEnabled ? ['phone' as const] : []), ...extraCategories,
       ], phone_region: phoneRegion, language, retention_days: retentionDays,
-      preset_id: presetId || null, base_version: null,
+      preset_id: workspacePresetId(presetId), base_version: null,
     } : null,
     onRestore: (view) => {
       setSource(view.payload.source)

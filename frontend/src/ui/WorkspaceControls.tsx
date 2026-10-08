@@ -85,19 +85,21 @@ export function DialogFrame({
   busy,
   children,
   onCloseAutoFocus,
+  className = '',
 }: {
   title: string
   description: string
   busy?: boolean
   children: ReactNode
   onCloseAutoFocus?: (event: Event) => void
+  className?: string
 }) {
   return (
     <Dialog.Portal>
       <Dialog.Overlay className="workspace-dialog-overlay" />
       <Dialog.Content
         aria-busy={busy}
-        className="workspace-dialog"
+        className={`workspace-dialog ${className}`}
         onCloseAutoFocus={onCloseAutoFocus}
         onInteractOutside={(event) => event.preventDefault()}
         onEscapeKeyDown={(event) => {

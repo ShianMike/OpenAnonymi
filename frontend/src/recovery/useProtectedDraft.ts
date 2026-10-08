@@ -5,6 +5,9 @@ import { deleteRecovery, getRecovery, listRecovery, saveRecovery,
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+export const recoveryCandidate = (copies: RecoveryMetadata[], id: string, fresh: boolean) =>
+  copies.find((copy) => copy.id === id) ?? (fresh ? undefined : copies[0])
+
 function workingId(key: string) {
   try {
     const existing = sessionStorage.getItem(key)
@@ -24,13 +27,14 @@ type Runtime = { key: string; id: string; version: number; initialized: boolean;
   disposed: boolean; clearing: boolean; forkOnRetry: boolean; operation: Promise<void> | null;
   confirmedHash: string }
 
-export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false, onRestore }: {
+export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false, onRestore, startKey }: {
   scope: Scope | null
   csrf: string
   payload: RecoveryPayload | null
   dirty: boolean
   paused?: boolean
   onRestore: (view: RecoveryView) => void
+  startKey?: string
 }) {
   const key = scope ? `openanonymi.working-id.${scope.userId}.${scope.workspaceId}.${scope.documentId ?? 'intake'}` : ''
   const [attempt, setAttempt] = useState(0)
@@ -50,6 +54,17 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
     const controller = new AbortController()
     const run: Runtime = { key, id: workingId(key), version: 0, initialized: false,
       disposed: false, clearing: false, forkOnRetry: false, operation: null, confirmedHash: '' }
+    // A deliberate preset handoff gets its own slot. Refreshing that history entry resumes the slot.
+    let newStart = !!startKey
+    try { newStart = !!startKey && sessionStorage.getItem(`${key}.start`) !== startKey } catch { /* Optional metadata. */ }
+    if (newStart) {
+      run.id = crypto.randomUUID()
+      rememberId(key, run.id)
+      try {
+        sessionStorage.setItem(`${key}.start`, startKey!)
+        sessionStorage.setItem(`${key}.fresh`, 'true')
+      } catch { /* Older backups remain on the server. */ }
+    }
     runtime.current = run
     setPhase('loading')
     setError(null)
@@ -61,9 +76,9 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
         const available = await listRecovery(scope!.workspaceId, scope!.documentId, controller.signal)
         if (controller.signal.aborted) return
         setCopies(available)
-        let fresh = false
-        try { fresh = sessionStorage.getItem(`${key}.fresh`) === 'true' } catch { /* Optional metadata. */ }
-        const chosen = available.find((item) => item.id === run.id) ?? (fresh ? undefined : available[0])
+        let fresh = newStart
+        try { fresh ||= sessionStorage.getItem(`${key}.fresh`) === 'true' } catch { /* Optional metadata. */ }
+        const chosen = recoveryCandidate(available, run.id, fresh)
         if (chosen?.id !== run.id) {
           run.id = crypto.randomUUID()
           rememberId(key, run.id)
@@ -95,7 +110,7 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
   // The scope key contains every identity/scope value; callbacks and current text
   // live in latest so typing does not restart recovery or discard the write queue.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, attempt])
+  }, [key, attempt, startKey])
 
   const saveNow = useCallback(async () => {
     const run = runtime.current

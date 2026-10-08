@@ -13,10 +13,12 @@ import { choiceKey, presetChoices, tokenChoice } from '../../review/useStyleCont
 
 export function PresetDialog({
   preset,
+  initial,
   trigger,
   onSave,
 }: {
   preset?: PresetView
+  initial?: PresetInput
   trigger: ReactNode
   onSave: (value: PresetInput) => Promise<void>
 }) {
@@ -35,15 +37,16 @@ export function PresetDialog({
   function changeOpen(next: boolean) {
     if (pending) return
     if (next) {
-      setName(preset?.name ?? '')
-      const categories = preset?.categories ?? defaultDetectionCategories
+      const setup = preset ?? initial
+      setName(setup?.name ?? '')
+      const categories = setup?.categories ?? defaultDetectionCategories
       setEmail(categories.includes('email'))
       setPhone(categories.includes('phone'))
       setExtraCategories(extras(categories))
-      setPhoneRegion(preset?.phone_region ?? 'PH')
-      setPreferredAction(preset?.preferred_action ?? 'label')
-      setIsDefault(preset?.is_default ?? false)
-      setCategoryDefaults(preset?.category_defaults ?? {})
+      setPhoneRegion(setup?.phone_region ?? 'PH')
+      setPreferredAction(setup?.preferred_action ?? 'label')
+      setIsDefault(setup?.is_default ?? false)
+      setCategoryDefaults(setup?.category_defaults ?? {})
       setError(null)
     }
     setOpen(next)
@@ -76,11 +79,11 @@ export function PresetDialog({
     <Dialog.Root open={open} onOpenChange={changeOpen}>
       <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>
       <DialogFrame
-        title={preset ? 'Edit preset' : 'Create a preset'}
+        title={preset ? 'Edit preset' : initial ? 'Customize built-in preset' : 'Create a preset'}
         description="A reusable starting point for new reviews. You still decide every finding."
         busy={pending}
       >
-        <form onSubmit={save}>
+        <form onSubmit={save} className="preset-form">
           <div>
             <label className="field-label" htmlFor={`preset-name-${fieldId}`}>
               Preset name
@@ -156,7 +159,7 @@ export function PresetDialog({
                 Cancel
               </button>
             </Dialog.Close>
-            <button type="submit" disabled={pending || !name.trim()}>
+            <button type="submit" className="button-primary" disabled={pending || !name.trim()}>
               {pending ? 'Saving…' : preset ? 'Save preset' : 'Create preset'}
             </button>
           </div>
