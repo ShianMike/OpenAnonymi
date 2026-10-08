@@ -9,7 +9,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.config import ConfigurationError, Settings, load_settings
-from app.db.batches import Batch
 from app.db.column_rules import DocumentColumnRules
 from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedContentError, ProtectedValue
 from app.db.custom_rules import RuleVersion
@@ -187,34 +186,6 @@ def rotate_preset_columns(session: Session, keys: KeyRing) -> int:
     return len(rows)
 
 
-def rotate_batches(session: Session, keys: KeyRing) -> int:
-    rows = session.scalars(
-        select(Batch)
-        .where(
-            ((Batch.name_ciphertext.is_not(None)) & (Batch.name_key_id != keys.active_key_id))
-            | (
-                (Batch.column_rules_ciphertext.is_not(None))
-                & (Batch.column_rules_key_id != keys.active_key_id)
-            )
-        )
-        .order_by(Batch.id)
-        .limit(BATCH_SIZE)
-        .with_for_update()
-    ).all()
-    for row in rows:
-        for field, key_field in (
-            ("name_ciphertext", "name_key_id"),
-            ("column_rules_ciphertext", "column_rules_key_id"),
-        ):
-            if getattr(row, field) is not None and getattr(row, key_field) != keys.active_key_id:
-                rotated = keys.rotate_text(
-                    ProtectedValue(getattr(row, field), getattr(row, key_field))
-                )
-                setattr(row, field, rotated.ciphertext)
-                setattr(row, key_field, rotated.key_id)
-    return len(rows)
-
-
 def rotate_database(settings: Settings, keys: KeyRing) -> dict[str, int]:
     engine = create_engine(settings.database_url, pool_pre_ping=True, hide_parameters=True)
     totals = {
@@ -229,7 +200,6 @@ def rotate_database(settings: Settings, keys: KeyRing) -> dict[str, int]:
         "source structures": 0,
         "column rules": 0,
         "preset column rules": 0,
-        "batches": 0,
     }
     try:
         for label, rotate_batch in (
@@ -244,7 +214,6 @@ def rotate_database(settings: Settings, keys: KeyRing) -> dict[str, int]:
             ("source structures", rotate_source_structures),
             ("column rules", rotate_column_rules),
             ("preset column rules", rotate_preset_columns),
-            ("batches", rotate_batches),
         ):
             while True:
                 with Session(engine) as session:
@@ -252,7 +221,6 @@ def rotate_database(settings: Settings, keys: KeyRing) -> dict[str, int]:
                         "source revisions",
                         "source structures",
                         "column rules",
-                        "batches",
                     ):
                         session.info["allow_source_key_rotation"] = True
                         session.execute(text("SET LOCAL openanonymi.key_rotation = 'on'"))
@@ -284,8 +252,7 @@ def main() -> None:
         f", {totals['replacement secrets']} replacement secrets "
         f", {totals['source structures']} source structures "
         f", {totals['column rules']} column rule snapshots "
-        f", {totals['preset column rules']} preset column rules "
-        f"and {totals['batches']} batches."
+        f"and {totals['preset column rules']} preset column rules."
     )
 
 

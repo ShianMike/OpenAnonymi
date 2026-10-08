@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.team_review import FindingComment, ReviewApproval, ReviewHandoff
-from tests.test_intake_batch_lifecycle_access_pg import lifecycle_fingerprint
+from tests.test_intake_lifecycle_access_pg import lifecycle_fingerprint
 from tests.test_team_review_pg import _decision, _setup
 
 OPERATIONS = (

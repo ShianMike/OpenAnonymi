@@ -82,18 +82,6 @@ def _version(document: Document) -> VersionRef:
     )
 
 
-@dataclass(frozen=True)
-class IntakeSnapshot:
-    """Trusted settings copied from an authorized, immutable batch snapshot."""
-
-    preset_id: UUID | None
-    preset_version: int | None
-    preferred_action: str
-    category_defaults: dict
-    column_rules: list[dict]
-    custom_rules: tuple[tuple[UUID, int], ...]
-
-
 def create_document(
     session: Session,
     *,
@@ -160,7 +148,6 @@ def create_document_in_transaction(
     layout: dict | None = None,
     layout_kind: str = "docx",
     validated_source: ValidatedSource | None = None,
-    snapshot: IntakeSnapshot | None = None,
 ) -> SavedDocument:
     from app.detection.local_nlp import SUPPORTED_LANGUAGES
 
@@ -187,7 +174,7 @@ def create_document_in_transaction(
     except WorkspaceAccessDenied:
         raise DocumentNotFound("Workspace not found.") from None
     selected_preset = None
-    if preset_id is not None and snapshot is None:
+    if preset_id is not None:
         selected_preset = session.scalar(
             select(Preset).where(Preset.id == preset_id, Preset.workspace_id == workspace_id)
         )
@@ -215,28 +202,10 @@ def create_document_in_transaction(
         category_settings=",".join(sorted(category.value for category in categories)),
         phone_region=phone_region.upper(),
         language=language,
-        preset_id=snapshot.preset_id
-        if snapshot
-        else selected_preset.id
-        if selected_preset
-        else None,
-        preset_version=snapshot.preset_version
-        if snapshot
-        else selected_preset.version
-        if selected_preset
-        else None,
-        preferred_action=snapshot.preferred_action
-        if snapshot
-        else selected_preset.preferred_action
-        if selected_preset
-        else "label",
-        category_defaults=deepcopy(
-            snapshot.category_defaults
-            if snapshot
-            else selected_preset.category_defaults
-            if selected_preset
-            else {}
-        ),
+        preset_id=selected_preset.id if selected_preset else None,
+        preset_version=selected_preset.version if selected_preset else None,
+        preferred_action=selected_preset.preferred_action if selected_preset else "label",
+        category_defaults=deepcopy(selected_preset.category_defaults if selected_preset else {}),
         created_at=now,
         updated_at=now,
         expires_at=expiry,
@@ -267,9 +236,7 @@ def create_document_in_transaction(
 
         store_csv(session, revision.id, layout, validated.text, keys, now)
         rules = (
-            match_preset(snapshot.column_rules, validated.text, layout)
-            if snapshot
-            else match_preset(load_preset_rules(selected_preset, keys), validated.text, layout)
+            match_preset(load_preset_rules(selected_preset, keys), validated.text, layout)
             if selected_preset
             else []
         )
@@ -279,17 +246,7 @@ def create_document_in_transaction(
     document.current_revision_id = revision.id
     from app.custom_rules.service import snapshot_rules
 
-    if snapshot is None:
-        snapshot_rules(session, document)
-    else:
-        from app.db.custom_rules import DocumentRuleSnapshot
-
-        session.add_all(
-            DocumentRuleSnapshot(
-                document_id=document.id, settings_version=1, rule_id=rule_id, rule_version=version
-            )
-            for rule_id, version in snapshot.custom_rules
-        )
+    snapshot_rules(session, document)
     session.flush()
     record_event(
         session,

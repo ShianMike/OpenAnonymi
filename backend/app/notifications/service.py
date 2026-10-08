@@ -26,11 +26,18 @@ class NotificationReadChanged(RuntimeError):
     pass
 
 
-def validate_notification_page(engine: Engine, actor_id: UUID, view: NotificationPage, now: datetime):
+def validate_notification_page(
+    engine: Engine, actor_id: UUID, view: NotificationPage, now: datetime
+):
     with Session(engine) as session:
         ids = {item.id for item in view.items}
-        visible = set(session.scalars(visible_query(actor_id, now)
-            .with_only_columns(Notification.id).where(Notification.id.in_(ids))))
+        visible = set(
+            session.scalars(
+                visible_query(actor_id, now)
+                .with_only_columns(Notification.id)
+                .where(Notification.id.in_(ids))
+            )
+        )
         if visible != ids:
             raise NotificationNotFound("Notification not found.")
         # Unavailable-history rows intentionally retain only opaque event data.
@@ -38,7 +45,9 @@ def validate_notification_page(engine: Engine, actor_id: UUID, view: Notificatio
             try:
                 review_document(session, document_id, actor_id, now)
             except (DocumentNotFound, ContentUnavailable):
-                raise NotificationReadChanged("Notification access changed while loading.") from None
+                raise NotificationReadChanged(
+                    "Notification access changed while loading."
+                ) from None
 
 
 def notify(
@@ -127,8 +136,8 @@ def list_notifications(
             query.order_by(Notification.created_at.desc(), Notification.id.desc()).limit(limit + 1)
         ).all()
         content, result = {None: (False, None)}, []
-        # Match the document lock order used by membership revocation and batch
-        # deletion, even when the notification page is ordered by creation time.
+        # Match membership revocation's document lock order even when the
+        # notification page is ordered by creation time.
         for document_id in sorted({row.document_id for row in rows[:limit] if row.document_id}):
             available, title = False, None
             try:

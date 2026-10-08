@@ -17,8 +17,6 @@ from app.accounts.api import create_auth_router
 from app.accounts.outbox import OutboxMailer
 from app.accounts.recovery import RecoveryMailer, SmtpRecoveryMailer
 from app.accounts.second_factor_api import create_second_factor_router
-from app.batches.api import create_batch_router
-from app.batches.worker import ScanWorker
 from app.cleanup.api import create_cleanup_router
 from app.cleanup.runner import periodic_cleanup
 from app.comparison.api import create_comparison_router
@@ -72,7 +70,6 @@ def create_app(
         hide_parameters=True,
         connect_args={"connect_timeout": settings.database_connect_timeout},
     )
-    scan_worker = ScanWorker(engine, settings)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -82,9 +79,6 @@ def create_app(
             asyncio.create_task(periodic_cleanup(engine))
             if settings.environment != "test"
             else None
-        )
-        scan_task = (
-            asyncio.create_task(scan_worker.run()) if settings.environment != "test" else None
         )
 
         def after_commit(session):
@@ -103,10 +97,6 @@ def create_app(
                 notification_task.cancel()
                 with suppress(asyncio.CancelledError):
                     await notification_task
-            if scan_task is not None:
-                scan_task.cancel()
-                with suppress(asyncio.CancelledError):
-                    await scan_task
             if cleanup_task is not None:
                 cleanup_task.cancel()
                 with suppress(asyncio.CancelledError):
@@ -128,7 +118,6 @@ def create_app(
     )
     app.state.settings = settings
     app.state.engine = engine
-    app.state.scan_worker = scan_worker
     app.state.recovery_mailer = recovery_mailer or (
         SmtpRecoveryMailer(settings)
         if settings.smtp_host
@@ -164,7 +153,6 @@ def create_app(
     app.include_router(create_admin_router(engine))
     app.include_router(create_intake_router(engine))
     app.include_router(create_import_router(engine))
-    app.include_router(create_batch_router(engine))
     app.include_router(create_comparison_router(engine))
     app.include_router(create_team_router(engine))
     app.include_router(create_recovery_router(engine))

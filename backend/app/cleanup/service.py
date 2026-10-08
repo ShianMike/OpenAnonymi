@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 
 from app.accounts.access import owned_document_record
 from app.contracts import DocumentStatus
-from app.db.batches import ScanJob
 from app.db.column_rules import DocumentColumnRules
 from app.db.custom_rules import DocumentRuleSnapshot
 from app.db.document_preferences import DocumentPreference
@@ -74,7 +73,6 @@ def purge_document(session: Session, document: Document, now: datetime) -> bool:
         )
     session.execute(delete(ReviewHandoff).where(ReviewHandoff.document_id == document.id))
     session.execute(delete(ReviewUndoEntry).where(ReviewUndoEntry.document_id == document.id))
-    session.execute(delete(ScanJob).where(ScanJob.document_id == document.id))
     session.execute(delete(Notification).where(Notification.document_id == document.id))
     session.execute(
         delete(DocumentColumnRules).where(DocumentColumnRules.document_id == document.id)
@@ -136,10 +134,6 @@ def expired_activity(now: datetime):
 
 
 def cleanup_remaining(session: Session, now: datetime) -> bool:
-    from app.cleanup.batches import removable_batches
-
-    if session.scalar(select(exists().where(removable_batches(now)))):
-        return True
     if session.scalar(select(exists().where(unavailable_content(now)))):
         return True
     for model, predicate in expired_row_predicates(now):
@@ -194,9 +188,6 @@ def purge_unavailable_content(
         ).all()
         documents_purged = sum(purge_document(session, document, now) for document in documents)
         expired_rows_removed = 0
-        from app.cleanup.batches import purge_empty_batches
-
-        expired_rows_removed += purge_empty_batches(session, now, batch_size)
         for model, predicate in expired_row_predicates(now):
             key = model.__mapper__.primary_key[0]
             candidates = (

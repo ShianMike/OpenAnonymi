@@ -13,7 +13,7 @@ from app.workspace.organize import DocumentSearchView
 from app.workspace.presets_api import PresetView
 from tests.intake_support import _draft_body
 from tests.test_content_read_access_pg import change_actor
-from tests.test_intake_batch_lifecycle_access_pg import assert_denied
+from tests.test_intake_lifecycle_access_pg import assert_denied
 from tests.workspace_access_support import (
     OPERATIONS,
     PRIVATE_PRESET,

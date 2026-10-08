@@ -7,36 +7,25 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy.orm import Session
 
-from app.batches.contracts import BatchList, BatchView
-from app.db.batches import Batch
 from app.db.models import Document, Membership, User, Workspace
 from app.db.team_review import ReviewHandoff
 from app.intake.api import SourceView
 from app.intake.csv_contracts import CsvSettingsView
 from app.intake.import_api import ImportPreview
 from app.notifications.contracts import NotificationPage
-from tests.batch_support import batch_client, upload
 from tests.intake_support import _login
 from tests.test_notifications_pg import TITLE, assign, start_review
 from tests.test_output_session_access_pg import end_session
 from tests.test_review_state_pg import prepare
 
-READS = ("source", "revision", "csv", "rules", "batch", "batches", "notifications")
+READS = ("source", "revision", "csv", "rules", "notifications")
 PRIVATE = ("Fictional", "nora@example.test", "Synthetic optional title", TITLE, "Contact")
 
 
 def read_case(site, route):
     owner, other, engine, workspace, actor = site
     case = {"engine": engine, "workspace": workspace, "actor": actor, "client": owner}
-    if route in ("batch", "batches"):
-        owner, headers, base = batch_client(site)
-        case.update(batch_id=UUID(base.rsplit("/", 1)[1]), headers=headers)
-        if route == "batch":
-            version = upload(owner, headers, base)
-            case.update(document_id=UUID(version["document_id"]), path=base, model=BatchView)
-        else:
-            case.update(path=f"/api/v1/batches?workspace_id={workspace}", model=BatchList)
-    elif route == "notifications":
+    if route == "notifications":
         review = start_review(site)
         assign(review)
         case.update(
@@ -71,7 +60,6 @@ def read_case(site, route):
 
 
 def after_read(monkeypatch, route, case, phase, change):
-    from app.batches import api as batch_api
     from app.intake import api as intake_api
     from app.notifications import api as notification_api
 
@@ -79,14 +67,10 @@ def after_read(monkeypatch, route, case, phase, change):
         module, hook = case["model"], "model_dump_json"
     elif phase == "authorized":
         module, hook = {
-            "batch": (batch_api, "validate_batch_view"),
-            "batches": (batch_api, "validate_batch_list"),
             "notifications": (notification_api, "validate_notification_page"),
         }.get(route, (intake_api, "review_document"))
     else:
         module, hook = {
-            "batch": (batch_api, "load_batch"),
-            "batches": (batch_api, "list_batches"),
             "notifications": (notification_api, "list_notifications"),
         }.get(route, (intake_api, "_load_owned_source"))
     original = getattr(module, hook)
@@ -135,7 +119,7 @@ def test_ended_session_cannot_release_assembled_private_json(
     assert fired
 
 
-@pytest.mark.parametrize("route", ("source", "batch", "batches", "notifications"))
+@pytest.mark.parametrize("route", ("source", "notifications"))
 def test_session_ending_during_final_resource_queries_is_rechecked(intake_site, monkeypatch, route):
     case = read_case(intake_site, route)
     fired = after_read(
@@ -214,7 +198,7 @@ def test_reviewer_grant_removed_after_serialization_denies_content(intake_site, 
     "route,change",
     [
         (route, change)
-        for route in ("source", "revision", "csv", "rules", "batch", "notifications")
+        for route in ("source", "revision", "csv", "rules", "notifications")
         for change in ("expired", "version", "deleted")
         if (route, change) != ("notifications", "version")
     ],
@@ -235,14 +219,12 @@ def test_document_change_after_serialization_never_returns_stale_content(
                 document.decision_version += 1
 
     fired = after_read(monkeypatch, route, case, "serialized", change_document)
-    expected = (
-        410 if change in ("expired", "deleted") and route not in ("batch", "notifications") else 409
-    )
+    expected = 410 if change in ("expired", "deleted") and route != "notifications" else 409
     assert_neutral(case["client"].get(case["path"]), expected)
     assert fired
 
 
-@pytest.mark.parametrize("route", ("source", "batch", "notifications"))
+@pytest.mark.parametrize("route", ("source", "notifications"))
 def test_real_time_expiry_during_serialization_denies_private_body(intake_site, monkeypatch, route):
     case = read_case(intake_site, route)
     expires_at = datetime.now(UTC) + timedelta(seconds=3)
@@ -256,36 +238,6 @@ def test_real_time_expiry_during_serialization_denies_private_body(intake_site, 
     fired = after_read(monkeypatch, route, case, "serialized", expire)
     assert_neutral(case["client"].get(case["path"]), 410 if route == "source" else 409)
     assert fired
-
-
-@pytest.mark.parametrize("route", ("batch", "batches"))
-def test_deleted_batch_cannot_release_previously_decrypted_name(intake_site, monkeypatch, route):
-    case = read_case(intake_site, route)
-
-    def remove_batch():
-        with Session(case["engine"]) as session, session.begin():
-            session.get(Batch, case["batch_id"]).deleted_at = datetime.now(UTC)
-
-    fired = after_read(monkeypatch, route, case, "serialized", remove_batch)
-    assert_neutral(case["client"].get(case["path"]), 404)
-    assert fired
-
-
-def test_administrator_role_loss_cannot_release_workspace_batch_totals(intake_site, monkeypatch):
-    case = read_case(intake_site, "batches")
-    with Session(case["engine"]) as session, session.begin():
-        session.get(Membership, (case["workspace"], case["actor"])).role = "administrator"
-    assert case["client"].get(case["path"]).json()["workspace_total"] == 1
-
-    def demote():
-        with Session(case["engine"]) as session, session.begin():
-            session.get(Membership, (case["workspace"], case["actor"])).role = "member"
-
-    fired = after_read(monkeypatch, "batches", case, "serialized", demote)
-    assert_neutral(case["client"].get(case["path"]), 404)
-    assert fired
-    monkeypatch.undo()
-    assert case["client"].get(case["path"]).json()["workspace_total"] is None
 
 
 @pytest.mark.parametrize("format", ("txt", "csv"))

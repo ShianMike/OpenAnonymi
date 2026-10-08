@@ -30,7 +30,7 @@ from tests.team_access_support import (
     team_perform,
 )
 from tests.test_content_read_access_pg import change_actor
-from tests.test_intake_batch_lifecycle_access_pg import another_active_workspace, assert_denied
+from tests.test_intake_lifecycle_access_pg import another_active_workspace, assert_denied
 
 
 def scan_content_fingerprint(case):

@@ -1,6 +1,4 @@
 const names: Record<string, string> = {
-  batch_created: 'Batch created',
-  batch_deleted: 'Batch deleted',
   document_created: 'Review created',
   source_revised: 'Source revised',
   review_completed: 'Review confirmed',

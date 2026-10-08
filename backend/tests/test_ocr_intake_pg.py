@@ -8,11 +8,9 @@ import pytest
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from app.batches import api as batch_api
 from app.db.models import Document, Membership, SourceRevision, User
 from app.db.models import Session as StoredSession
 from app.intake import api, import_api, imports
-from tests.batch_support import batch_client
 from tests.docx_fixtures import read_word
 from tests.import_fixtures import docx_sample
 from tests.intake_support import ORIGIN, _login
@@ -104,7 +102,7 @@ def test_actual_preview_edit_save_scan_confirm_outputs_preserve_corrected_source
         assert source["structure"] == "none"
 
 
-@pytest.mark.parametrize("route", ["import-preview", "from-file", "batch"])
+@pytest.mark.parametrize("route", ["import-preview", "from-file"])
 @pytest.mark.parametrize(
     "change", ["session_revoked", "session_expired", "user_disabled", "membership_revoked"]
 )
@@ -112,12 +110,8 @@ def test_late_auth_change_after_actual_ocr_blocks_preview_or_persistence(
     intake_site, monkeypatch, route, change
 ):
     owner, _, engine, workspace, actor = intake_site
-    if route == "batch":
-        owner, headers, base = batch_client(intake_site)
-        target = base + "/documents"
-    else:
-        headers = _login(owner, "intake-owner@example.invalid")
-        target = "/api/v1/documents/" + route
+    headers = _login(owner, "intake-owner@example.invalid")
+    target = "/api/v1/documents/" + route
     real_extract = imports.extract_import
 
     def extract_then_revoke(*args):
@@ -141,11 +135,11 @@ def test_late_auth_change_after_actual_ocr_blocks_preview_or_persistence(
                 session.get(Membership, (workspace, actor)).revoked_at = datetime.now(UTC)
         return value
 
-    module = {"import-preview": import_api, "from-file": api, "batch": batch_api}[route]
+    module = {"import-preview": import_api, "from-file": api}[route]
     monkeypatch.setattr(module, "extract_import", extract_then_revoke)
     response = owner.post(
         target,
-        data={} if route == "batch" else {"workspace_id": str(workspace)},
+        data={"workspace_id": str(workspace)},
         files={"file": ("scan.png", image_sample())},
         headers=headers,
     )

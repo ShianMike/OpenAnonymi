@@ -2,7 +2,6 @@
 
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
-from zipfile import ZipFile
 
 import pytest
 from sqlalchemy import select
@@ -10,7 +9,6 @@ from sqlalchemy.orm import Session
 
 from app.db.models import ExportEvent
 from app.db.models import Session as StoredSession
-from tests.batch_support import batch_client, review_and_confirm, upload
 from tests.docx_support import confirm
 from tests.test_review_manual_access_pg import fingerprint
 from tests.test_review_mutation_access_pg import decision
@@ -94,57 +92,3 @@ def test_late_output_session_loss_denies_bytes_and_rolls_back_events(
     assert b"Fictional" not in response.content and b"EMAIL_001" not in response.content
     assert response.headers["cache-control"] == "no-store"
     assert output_fingerprint(engine, document_id) == before
-
-
-@pytest.mark.parametrize("phase", ("document_rendered", "manifest_written", "spool_returned"))
-@pytest.mark.parametrize("change", ("revoked", "expired"))
-def test_late_zip_session_loss_discards_and_closes_spool(intake_site, monkeypatch, phase, change):
-    from app.batches import api, outputs
-
-    owner, headers, base = batch_client(intake_site)
-    _, _, engine, _, actor = intake_site
-    version = upload(owner, headers, base)
-    review_and_confirm(owner, headers, version)
-    spools = []
-    make_spool = outputs.SpooledTemporaryFile
-
-    def remember_spool(*args, **kwargs):
-        spool = make_spool(*args, **kwargs)
-        spools.append(spool)
-        return spool
-
-    monkeypatch.setattr(outputs, "SpooledTemporaryFile", remember_spool)
-    if phase == "document_rendered":
-        original = outputs.generate_output
-
-        def generated(*args, **kwargs):
-            result = original(*args, **kwargs)
-            end_session(engine, actor, change)
-            return result
-
-        monkeypatch.setattr(outputs, "generate_output", generated)
-    elif phase == "manifest_written":
-        original = ZipFile.writestr
-
-        def written(archive, name, *args, **kwargs):
-            result = original(archive, name, *args, **kwargs)
-            if name == "manifest.json":
-                end_session(engine, actor, change)
-            return result
-
-        monkeypatch.setattr(ZipFile, "writestr", written)
-    else:
-        original = api.build_zip
-
-        def built(*args, **kwargs):
-            result = original(*args, **kwargs)
-            end_session(engine, actor, change)
-            return result
-
-        monkeypatch.setattr(api, "build_zip", built)
-    response = owner.post(
-        base + "/outputs", headers=headers, json={"request_id": str(uuid4()), "mode": "txt"}
-    )
-    assert response.status_code == 401
-    assert b"PK\x03\x04" not in response.content and b"Fictional" not in response.content
-    assert spools and all(spool.closed for spool in spools)

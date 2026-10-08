@@ -26,8 +26,6 @@ const HistoryPage = lazy(() => import('./workspace/HistoryPage').then((module) =
 const EditDraftPage = lazy(() =>
   import('./review/EditDraftPage').then((module) => ({ default: module.EditDraftPage })),
 )
-const BatchesPage = lazy(() => import('./batches/BatchesPage').then((module) => ({ default: module.BatchesPage })))
-const BatchPage = lazy(() => import('./batches/BatchPage').then((module) => ({ default: module.BatchPage })))
 const NotificationsPage = lazy(() => import('./notifications/NotificationsPage').then((module) => ({ default: module.NotificationsPage })))
 const DocumentsPage = lazy(() =>
   import('./workspace/DocumentsPage').then((module) => ({ default: module.DocumentsPage })),
@@ -102,7 +100,6 @@ function App() {
   const activePage = pages.find((page) => page.path === pathname)
   const pageTitle =
     activePage?.name ?? (pathname === '/continue' ? 'Continue review' : undefined) ??
-    (matchPath('/batches/:batchId', pathname) ? 'Batch review' : undefined) ??
     (matchPath('/workspaces/:workspaceId/documents/:documentId/history', pathname)
       ? 'Review history'
       : matchPath('/documents/:documentId/edit', pathname)
@@ -229,7 +226,6 @@ function App() {
     const knownRoute =
       authRoute || pages.some((page) => matchPath(page.path, pathname)) ||
       matchPath('/continue', pathname) ||
-      matchPath('/batches/:batchId', pathname) ||
       matchPath('/documents/:documentId/edit', pathname) ||
       matchPath('/workspaces/:workspaceId/documents/:documentId/history', pathname)
     if (!knownRoute) {
@@ -309,9 +305,7 @@ function App() {
                 }
               />
               <Route path="/documents" element={<DocumentsPage session={authentication.session} />} />
-              <Route path="/batches" element={<BatchesPage session={authentication.session} />} />
               <Route path="/notifications" element={<NotificationsPage key={authentication.session.user_id} session={authentication.session} />} />
-              <Route path="/batches/:batchId" element={<BatchPage session={authentication.session} onUnsavedChange={handleUnsavedChange} />} />
               <Route path="/continue" element={<ContinueReviewPage session={authentication.session} />} />
               <Route path="/activity" element={<ActivityPage session={authentication.session} />} />
               <Route path="/rules" element={<RulesPage session={authentication.session} />} />

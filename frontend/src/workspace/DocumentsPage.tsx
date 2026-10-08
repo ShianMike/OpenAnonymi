@@ -1,7 +1,7 @@
 import { LoadingState } from '../loading/LoadingState'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { CheckCircle2, Files, FileSearch, Plus } from 'lucide-react'
+import { CheckCircle2, FileSearch, Plus } from 'lucide-react'
 import {
   ApiRequestError,
   deleteDocument,
@@ -217,9 +217,6 @@ export function DocumentsPage({ session }: { session: SessionView }) {
               </GlassSelect>
             </div>
           )}
-          <Link className="documents-batch-link" to={`/batches?workspace=${encodeURIComponent(workspaceId)}`}>
-            <Files size={17} aria-hidden="true" /> Batch reviews
-          </Link>
           <Link className="button-primary" to={`/new?workspace=${encodeURIComponent(workspaceId)}`}>
             <Plus size={17} aria-hidden="true" /> New review
           </Link>

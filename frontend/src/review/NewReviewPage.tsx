@@ -1,5 +1,4 @@
-import { ArrowRight, Files, ShieldCheck } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { ArrowRight, ShieldCheck } from 'lucide-react'
 import type { SessionView } from '../api/client'
 import { GlassSelect } from '../ui/GlassSelect'
 import { InlineNotice } from '../ui/WorkspaceControls'
@@ -47,7 +46,6 @@ export function NewReviewPage({
               </GlassSelect>
             </div>
           )}
-          <Link className="intake-batch-link" to={`/batches?workspace=${encodeURIComponent(intake.workspaceId)}`}><Files size={17} aria-hidden="true" /> Review a batch</Link>
         </div>
       </header>
       <ol className="intake-steps" aria-label="Review workflow">

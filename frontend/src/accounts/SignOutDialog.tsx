@@ -5,7 +5,7 @@ import { cn } from '../ui/cn'
 import './auth.css'
 
 /** Editors that can hold the unsaved work this prompt protects. */
-const EDITOR = '#source-text, #source-file, #saved-source, #batch-files'
+const EDITOR = '#source-text, #source-file, #saved-source'
 
 /** Every sign-out asks first; unsaved editor work gets an explicit warning. */
 export function SignOutDialog({

@@ -22,20 +22,6 @@
   font-size: .9rem;
   text-wrap: pretty;
 }
-.intake-batch-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  flex-shrink: 0;
-  min-height: 44px;
-  padding: 10px 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  color: var(--text);
-  font-size: .8rem;
-  text-decoration: none;
-}
-.intake-batch-link:hover { background: var(--blue-tint); }
 .intake-steps {
   display: flex;
   flex-wrap: wrap;

@@ -18,7 +18,7 @@ from tests.factor_access_support import (
 )
 from tests.mail_support import Mailbox
 from tests.test_content_read_access_pg import change_actor
-from tests.test_intake_batch_lifecycle_access_pg import assert_denied
+from tests.test_intake_lifecycle_access_pg import assert_denied
 
 
 @pytest.mark.parametrize("operation", OPERATIONS)

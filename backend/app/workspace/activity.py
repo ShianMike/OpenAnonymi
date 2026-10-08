@@ -15,8 +15,6 @@ from app.workspace.decision_audit import decision_diff
 
 EVENT_CODES = frozenset(
     {
-        "batch_created",
-        "batch_deleted",
         "document_created",
         "source_revised",
         "review_completed",

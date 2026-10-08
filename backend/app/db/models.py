@@ -51,10 +51,14 @@ class User(Base):
     second_factor_reenroll_required: Mapped[bool] = mapped_column(
         nullable=False, server_default="false"
     )
-    notification_emails: Mapped[str] = mapped_column(String(9), nullable=False, server_default="off")
+    notification_emails: Mapped[str] = mapped_column(
+        String(9), nullable=False, server_default="off"
+    )
 
     __table_args__ = (
-        CheckConstraint("notification_emails IN ('off', 'immediate')", name="valid_notification_emails"),
+        CheckConstraint(
+            "notification_emails IN ('off', 'immediate')", name="valid_notification_emails"
+        ),
     )
 
 
@@ -78,7 +82,9 @@ class Workspace(Base):
         CheckConstraint("content_retention_days > 0", name="positive_content_retention"),
         CheckConstraint("activity_retention_days > 0", name="positive_activity_retention"),
         CheckConstraint("settings_version > 0", name="positive_workspace_settings_version"),
-        CheckConstraint("approval_policy IN ('owner_choice', 'always')", name="valid_approval_policy"),
+        CheckConstraint(
+            "approval_policy IN ('owner_choice', 'always')", name="valid_approval_policy"
+        ),
     )
 
 
@@ -165,8 +171,6 @@ class Document(Base):
     )
     csv_delimiter: Mapped[str | None] = mapped_column(String(1))
     csv_has_header: Mapped[bool | None] = mapped_column()
-    batch_id: Mapped[UUID | None] = uuid_column(nullable=True)
-    batch_position: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = timestamp_column()
     updated_at: Mapped[datetime] = timestamp_column()
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -218,18 +222,6 @@ class Document(Base):
         ),
         Index("ix_documents_owner_created", "owner_id", "created_at"),
         Index("ix_documents_expiry", "expires_at"),
-        ForeignKeyConstraint(
-            ["batch_id", "workspace_id", "owner_id"],
-            ["batches.id", "batches.workspace_id", "batches.owner_id"],
-            ondelete="RESTRICT",
-            name="fk_documents_batch_owner",
-        ),
-        UniqueConstraint("batch_id", "batch_position", name="uq_documents_batch_position"),
-        UniqueConstraint("id", "batch_id", name="uq_documents_id_batch"),
-        CheckConstraint(
-            "(batch_id IS NULL AND batch_position IS NULL) OR (batch_id IS NOT NULL AND batch_position IS NOT NULL AND batch_position BETWEEN 1 AND 20)",
-            name="document_batch_pair",
-        ),
     )
 
 
@@ -481,7 +473,9 @@ class ExportEvent(Base):
             ["review_completions.document_id", "review_completions.id"],
             ondelete="CASCADE",
         ),
-        CheckConstraint("format IN ('copy','txt','docx','csv','pdf','report')", name="valid_format"),
+        CheckConstraint(
+            "format IN ('copy','txt','docx','csv','pdf','report')", name="valid_format"
+        ),
     )
 
 
