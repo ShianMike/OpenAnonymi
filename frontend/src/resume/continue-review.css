@@ -9,9 +9,9 @@
 .continue-workspace-picker .glass-select-trigger { min-width: 0; width: 100%; min-height: 44px; }
 .continue-workspace-name { color: var(--muted); font-size: .82rem; }
 .continue-heading-tools .button-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 16px; border-radius: 12px; font-size: .84rem; text-decoration: none; }
-.continue-tools { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; color: var(--muted); font-size: .82rem; }
-.continue-tools a { display: inline-flex; align-items: center; min-height: 44px; color: var(--text); text-underline-offset: 4px; }
-.continue-tools .quiet-icon { display: inline-flex; align-items: center; gap: 8px; min-width: 44px; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; font-size: .8rem; }
+.continue-tools { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding-bottom: 20px; color: var(--muted); font-size: .82rem; }
+.continue-tools a { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; color: var(--text); text-underline-offset: 4px; }
+.continue-tools .quiet-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex-shrink: 0; width: auto; min-height: 44px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; font-size: .8rem; white-space: nowrap; }
 .continue-page .continue-last { display: flex; align-items: center; justify-content: space-between; gap: 32px; padding: 26px 28px; margin-bottom: 24px; border: 1px solid var(--line-strong, var(--line)); border-radius: 16px; background: var(--surface); }
 .continue-last-copy { min-width: 0; }
 .continue-kicker { display: flex; align-items: center; gap: 8px; color: var(--blue-strong); font-size: .78rem; font-weight: 600; }

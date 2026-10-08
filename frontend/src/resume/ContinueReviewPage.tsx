@@ -1,4 +1,4 @@
-import { FilePlus2, RefreshCw } from 'lucide-react'
+import { ArrowUpRight, FilePlus2, RefreshCw } from 'lucide-react'
 import { useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import type { SessionView } from '../api/client'
@@ -41,8 +41,8 @@ export function ContinueReviewPage({ session }: { session: SessionView }) {
       <Link className="button-primary" to={`/new?workspace=${workspaceId}`}><FilePlus2 size={16} aria-hidden="true" /> New review</Link>
       </div>} />
     <div className="continue-tools">
-        <Link to={`/documents?workspace=${workspaceId}`}>All documents</Link>
-        <button type="button" className="quiet-icon" aria-label="Refresh reviews" onClick={retry} disabled={data.kind === 'loading' || (data.kind === 'ready' && data.refreshing)}>
+        <Link to={`/documents?workspace=${workspaceId}`}>All documents <ArrowUpRight size={15} aria-hidden="true" /></Link>
+        <button type="button" className="quiet-button" aria-label="Refresh reviews" onClick={retry} disabled={data.kind === 'loading' || (data.kind === 'ready' && data.refreshing)}>
           <RefreshCw size={16} aria-hidden="true" /> {data.kind === 'ready' && data.refreshing ? 'Refreshing…' : 'Refresh'}
         </button>
     </div>

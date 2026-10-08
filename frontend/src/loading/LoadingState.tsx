@@ -1,3 +1,4 @@
+import { FileText } from 'lucide-react'
 import { cn } from '../ui/cn'
 import { Brand } from '../ui/Brand'
 import { LoadingMark } from './LoadingMark'
@@ -23,10 +24,10 @@ export function LoadingState({ label, description, shape = 'list', compact = fal
   const { ref, slow, offline } = useLoadingAwareness()
   useLoadingPresence(ref, !compact)
   const Title = heading ? 'h1' : 'strong'
-  return <div ref={ref} className={cn('loading-state', compact && 'loading-state-compact', className)} data-slow={slow} data-offline={offline}>
+  return <div ref={ref} className={cn('loading-state', !compact && !heading && 'loading-state-page', compact && 'loading-state-compact', className)} data-slow={slow} data-offline={offline}>
     <div className="loading-heading">
       {heading ? <span className="loading-mark loading-mark-entrance" aria-hidden="true"><Brand compact /></span>
-        : <LoadingMark small={compact} />}
+        : compact ? <LoadingMark small /> : <span className="loading-page-icon" aria-hidden="true"><FileText size={20} strokeWidth={1.6} /></span>}
       <div className="loading-copy" role="status" aria-atomic="true">
         <Title>{label}</Title>
         {description && !compact && <p>{description}</p>}
