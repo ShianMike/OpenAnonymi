@@ -1,6 +1,6 @@
-import { ArrowUpRight, FilePlus2, RefreshCw } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import { useEffect } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import type { SessionView } from '../api/client'
 import { PageHeader } from '../ui/PageHeader'
 import { LoadingState } from '../loading/LoadingState'
@@ -38,14 +38,10 @@ export function ContinueReviewPage({ session }: { session: SessionView }) {
           {session.memberships.map((item) => <option key={item.workspace_id} value={item.workspace_id}>{item.workspace_name}</option>)}
         </GlassSelect>
       </div> : <span className="continue-workspace-name">{membership?.workspace_name ?? 'No active workspace'}</span>}
-      <Link className="button-primary" to={`/new?workspace=${workspaceId}`}><FilePlus2 size={16} aria-hidden="true" /> New review</Link>
+      <button type="button" className="quiet-button" aria-label="Refresh reviews" onClick={retry} disabled={data.kind === 'loading' || (data.kind === 'ready' && data.refreshing)}>
+        <RefreshCw size={16} aria-hidden="true" /> {data.kind === 'ready' && data.refreshing ? 'Refreshing…' : 'Refresh'}
+      </button>
       </div>} />
-    <div className="continue-tools">
-        <Link to={`/documents?workspace=${workspaceId}`}>All documents <ArrowUpRight size={15} aria-hidden="true" /></Link>
-        <button type="button" className="quiet-button" aria-label="Refresh reviews" onClick={retry} disabled={data.kind === 'loading' || (data.kind === 'ready' && data.refreshing)}>
-          <RefreshCw size={16} aria-hidden="true" /> {data.kind === 'ready' && data.refreshing ? 'Refreshing…' : 'Refresh'}
-        </button>
-    </div>
     {!membership ? <p role="status">You need an active workspace membership to continue a review.</p> : <>
       {data.kind === 'loading' && <LoadingState label="Checking your available reviews…" description="Finding your unfinished work and assigned reviews." />}
       {data.kind === 'error' && <div className="continue-notice" role="alert">
