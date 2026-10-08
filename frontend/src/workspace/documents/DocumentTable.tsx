@@ -10,14 +10,14 @@ function ReviewProgress({ item }: { item: DocumentIndexView }) {
   const decided = Math.min(count, item.decided_count)
   if (item.status === 'expired' || item.status === 'deleted')
     return <span className="document-muted">Unavailable</span>
-  if (item.status === 'draft') return <span className="document-progress-placeholder">Not scanned yet</span>
-  if (item.status === 'scanning') return <span className="document-progress-placeholder">Scanning…</span>
+  if (item.status === 'draft') return <span className="document-progress-placeholder">Not checked yet</span>
+  if (item.status === 'scanning') return <span className="document-progress-placeholder">Checking for details…</span>
   if (item.status === 'failed')
-    return <span className="document-progress-placeholder">Scan needs a retry</span>
+    return <span className="document-progress-placeholder">Try the check again</span>
   if (count === 0)
     return (
       <span className="document-progress-empty">
-        <Check size={14} aria-hidden="true" /> No findings
+        <Check size={14} aria-hidden="true" /> No details flagged
       </span>
     )
   return (
@@ -25,11 +25,12 @@ function ReviewProgress({ item }: { item: DocumentIndexView }) {
       <span className="document-progress-label">
         <strong>
           {decided}
-          <span> / {count}</span>
+          <span> of {count}</span>
         </strong>
-        <span>decided</span>
+        <span>checked</span>
       </span>
       <progress max={count} value={decided} aria-label={`Findings decided in ${documentLabel(item)}`} />
+      <span className="document-next-step">{decided === count ? 'All choices made' : `${count - decided} ${count - decided === 1 ? 'detail needs' : 'details need'} your choice`}</span>
     </div>
   )
 }
@@ -43,6 +44,7 @@ export function DocumentTable({
   pending,
   preferencePending,
   onSelect,
+  onSelectVisible,
   onPreference,
   onRenew,
 }: {
@@ -54,15 +56,25 @@ export function DocumentTable({
   pending: boolean
   preferencePending: Set<string>
   onSelect: (id: string, value: boolean) => void
+  onSelectVisible: (value: boolean) => void
   onPreference: (item: DocumentIndexView, value: DocumentPreferenceRequest) => void
   onRenew: (item: DocumentIndexView, trigger: HTMLButtonElement | null) => void
 }) {
+  const selectable = items.slice(0, 50)
+  const allSelected = selectable.every((item) => selected.has(item.id))
   return (
     <table className="documents-table" aria-label="Documents">
+      <caption>
+        <div className="document-selection-heading">
+          <label className="document-select-visible"><input id="document-select-visible" type="checkbox" checked={allSelected}
+            ref={(node) => { if (node) node.indeterminate = !allSelected && selectable.some((item) => selected.has(item.id)) }}
+            disabled={pending} onChange={(event) => onSelectVisible(event.target.checked)} /> Select visible</label>
+          <span>Select reviews to organize them together. Up to 50 at once.</span>
+        </div>
+      </caption>
       <colgroup>
         <col className="document-select-col" />
         <col className="document-name-col" />
-        <col className="document-status-col" />
         <col className="document-progress-col" />
         <col className="document-retention-col" />
         <col className="document-actions-col" />
@@ -71,9 +83,8 @@ export function DocumentTable({
         <tr>
           <th scope="col" className="document-select-cell"><span className="sr-only">Selection</span></th>
           <th scope="col">Document</th>
-          <th scope="col">Status</th>
-          <th scope="col">Review progress</th>
-          <th scope="col">Retention</th>
+          <th scope="col">Review status</th>
+          <th scope="col">Available until</th>
           <th scope="col">
             <span className="sr-only">Actions</span>
           </th>
@@ -88,9 +99,9 @@ export function DocumentTable({
           const displayTitle = example ? title.slice('Example · '.length) : title
           return (
             <tr key={item.id} className="document-row">
-              <td className="document-select-cell"><input type="checkbox" aria-label={`Select ${title}`}
+              <td className="document-select-cell"><label className="document-select-target"><input type="checkbox" aria-label={`Select ${title}`}
                 checked={selected.has(item.id)} disabled={pending || (!selected.has(item.id) && selected.size >= 50)}
-                onChange={(event) => onSelect(item.id, event.target.checked)} /></td>
+                onChange={(event) => onSelect(item.id, event.target.checked)} /><span className="sr-only">Select {title}</span></label></td>
               <th scope="row" className="document-name-cell">
                 <div className="document-identity">
                   <span
@@ -128,12 +139,9 @@ export function DocumentTable({
                   </div>
                 </div>
               </th>
-              <td className="document-status-cell">
-                <StatusBadge status={lifetime.expired ? 'expired' : item.status} />
-              </td>
               <td className="document-progress-cell">
-                <span className="document-mobile-label">Review progress</span>
-                <ReviewProgress item={item} />
+                <StatusBadge status={lifetime.expired ? 'expired' : item.status} />
+                <ReviewProgress item={lifetime.expired ? { ...item, status: 'expired' } : item} />
               </td>
               <td className={`document-retention-cell ${lifetime.urgent ? 'is-urgent' : ''}`}>
                 <span className="document-retention-label">

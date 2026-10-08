@@ -1,7 +1,7 @@
 import { LoadingState } from '../loading/LoadingState'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { CheckCircle2, FileSearch, Plus } from 'lucide-react'
+import { CheckCircle2, Files, FileSearch, Plus } from 'lucide-react'
 import {
   ApiRequestError,
   deleteDocument,
@@ -14,7 +14,6 @@ import {
   type DocumentIndexView,
   type SessionView,
 } from '../api/client'
-import { PageHeader } from '../ui/PageHeader'
 import { GlassSelect } from '../ui/GlassSelect'
 import { DocumentTable } from './documents/DocumentTable'
 import { DocumentFilters } from './documents/DocumentFilters'
@@ -187,48 +186,50 @@ export function DocumentsPage({ session }: { session: SessionView }) {
 
   return (
     <section ref={pageRef} className="documents-page" aria-labelledby="documents-title">
-      <PageHeader
-        title="Documents"
-        titleId="documents-title"
-        description="A little care in every document. Pick up where you left off."
-        action={
-          <div className="batch-entry-actions"><Link to={`/batches?workspace=${encodeURIComponent(workspaceId)}`}>Batch reviews</Link>
-          <Link className="button-primary" to="/new">
+      <header className="documents-heading">
+        <div>
+          <h1 id="documents-title">Documents</h1>
+          <p>Find a review, pick up where you left off, and share when you’re ready.</p>
+        </div>
+        <div className="documents-heading-tools">
+          {session.memberships.length > 1 && (
+            <div className="workspace-picker">
+              <label htmlFor="documents-workspace">Workspace</label>
+              <GlassSelect
+                id="documents-workspace"
+                value={workspaceId}
+                disabled={bulkPending || deleting || preferencePending.size > 0 || renewing !== null}
+                onValueChange={(value) => {
+                  setWorkspaceId(value)
+                  currentWorkspace.current = value
+                  setData({ kind: 'loading' })
+                  setRefreshError(null)
+                  setSelected(new Set())
+                  setBulkResults(null)
+                  setActionError(null)
+                }}
+              >
+                {session.memberships.map((membership, index) => (
+                  <option key={membership.workspace_id} value={membership.workspace_id}>
+                    {membership.workspace_name || `Workspace ${index + 1}`}
+                  </option>
+                ))}
+              </GlassSelect>
+            </div>
+          )}
+          <Link className="documents-batch-link" to={`/batches?workspace=${encodeURIComponent(workspaceId)}`}>
+            <Files size={17} aria-hidden="true" /> Batch reviews
+          </Link>
+          <Link className="button-primary" to={`/new?workspace=${encodeURIComponent(workspaceId)}`}>
             <Plus size={17} aria-hidden="true" /> New review
           </Link>
-          </div>
-        }
-      />
+        </div>
+      </header>
       {notice && (
         <p className="document-notice" role="status" ref={noticeRef} tabIndex={-1}>
           <CheckCircle2 size={17} aria-hidden="true" />
           {notice}
         </p>
-      )}
-      {session.memberships.length > 1 && (
-        <div className="workspace-picker">
-          <label htmlFor="documents-workspace">Workspace</label>
-          <GlassSelect
-            id="documents-workspace"
-            value={workspaceId}
-            disabled={bulkPending || deleting || preferencePending.size > 0 || renewing !== null}
-            onValueChange={(value) => {
-              setWorkspaceId(value)
-              currentWorkspace.current = value
-              setData({ kind: 'loading' })
-              setRefreshError(null)
-              setSelected(new Set())
-              setBulkResults(null)
-              setActionError(null)
-            }}
-          >
-            {session.memberships.map((membership, index) => (
-              <option key={membership.workspace_id} value={membership.workspace_id}>
-                {membership.workspace_name || `Workspace ${index + 1}`}
-              </option>
-            ))}
-          </GlassSelect>
-        </div>
       )}
       {data.kind === 'loading' && <LoadingState label="Loading documents…" description="Finding the reviews available in this workspace." />}
       {data.kind === 'error' && (
@@ -266,9 +267,10 @@ export function DocumentsPage({ session }: { session: SessionView }) {
           {actionError && !confirmation && <p className="document-refresh-error" role="alert">{actionError}</p>}
           <DocumentBulkActions count={selected.size} action={bulkAction} pending={bulkPending || deleting || preferencePending.size > 0}
             onAction={setBulkAction} onApply={() => { if (bulkAction === 'delete') setBulkConfirm(true); else void applyBulk() }}
-            onClear={() => setSelected(new Set())} results={bulkResults}
-            allVisibleSelected={visible.length > 0 && visible.slice(0, 50).every((item) => selected.has(item.id))}
-            hasVisible={visible.length > 0} onSelectVisible={(value) => setSelected(value ? new Set(visible.slice(0, 50).map((item) => item.id)) : new Set())} />
+            onClear={() => {
+              setSelected(new Set())
+              pageRef.current?.querySelector<HTMLInputElement>('#document-select-visible')?.focus()
+            }} results={bulkResults} />
           {refreshError && (
             <p className="document-refresh-error" role="alert">
               {refreshError} Your last loaded list is still shown.
@@ -286,7 +288,7 @@ export function DocumentsPage({ session }: { session: SessionView }) {
                   : 'Try a different title or adjust your filters.'}
               </p>
               {data.items.length === 0 ? (
-                <Link className="button-primary" to="/new">
+                <Link className="button-primary" to={`/new?workspace=${encodeURIComponent(workspaceId)}`}>
                   Create a review
                 </Link>
               ) : (
@@ -311,6 +313,7 @@ export function DocumentsPage({ session }: { session: SessionView }) {
                 setConfirmation({ item, trigger })
               }}
               selected={selected} pending={bulkPending || deleting} preferencePending={preferencePending}
+              onSelectVisible={(value) => setSelected(value ? new Set(visible.slice(0, 50).map((item) => item.id)) : new Set())}
               onSelect={(id, value) => setSelected((current) => { const next = new Set(current); if (value && next.size < 50) next.add(id); else next.delete(id); return next })}
               onPreference={(item, value) => void preference(item, value)}
               onRenew={(item, trigger) => setRenewing({ item, trigger, workspaceId })}
@@ -321,7 +324,7 @@ export function DocumentsPage({ session }: { session: SessionView }) {
               <span>
                 {visible.length} document{visible.length === 1 ? '' : 's'}
               </span>
-              <span>Content is kept until its retention date.</span>
+              <span>Available until the date shown. Use the actions menu to keep a review longer.</span>
             </footer>
           )}
         </div>

@@ -34,7 +34,7 @@ export function DocumentActions({
           aria-label={`Open review: ${title}`}
           title="Open review"
         >
-          <ArrowUpRight size={18} aria-hidden="true" />
+          Open review <ArrowUpRight size={16} aria-hidden="true" />
         </Link>
       )}
       <Menu.Root modal={false}>
