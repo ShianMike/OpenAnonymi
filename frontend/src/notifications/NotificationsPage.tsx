@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Bell, Check, Circle } from 'lucide-react'
+import { ArrowUpRight, Bell, Check, CheckCheck, MessageSquare, RefreshCw, ShieldCheck, UserCheck, UserMinus, type LucideIcon } from 'lucide-react'
 import type { SessionView } from '../api/client'
 import { LoadingState } from '../loading/LoadingState'
 import { PageHeader } from '../ui/PageHeader'
 import { InlineNotice } from '../ui/WorkspaceControls'
+import { cn } from '../ui/cn'
+import { dayKey, dayLabel } from '../workspace/activity/activityPresentation'
+import { relativeEdit } from '../workspace/documents/documentPresentation'
 import { getNotifications, markAllNotificationsRead, markNotificationRead, notificationChanged, type Notification, type NotificationPage } from './api'
 import './notifications.css'
 
@@ -17,12 +20,66 @@ const messages: Record<Notification['event_code'], string> = {
   comment_added: 'A comment was added to a review',
 }
 
+const icons: Record<Notification['event_code'], LucideIcon> = {
+  review_assigned: UserCheck,
+  review_unassigned: UserMinus,
+  approval_requested: ShieldCheck,
+  review_approved: CheckCheck,
+  approval_invalidated: RefreshCw,
+  comment_added: MessageSquare,
+}
+
+export function NotificationList({ items, pending, onRead, now }: {
+  items: Notification[]
+  pending: string | null
+  onRead: (id: string) => void
+  now: number
+}) {
+  const days = new Map<string, Notification[]>()
+  for (const item of items) {
+    const key = dayKey(item.created_at)
+    const rows = days.get(key) ?? []
+    rows.push(item)
+    days.set(key, rows)
+  }
+  return <>{Array.from(days, ([key, rows]) => {
+    const label = dayLabel(rows[0].created_at, new Date(now).toISOString())
+    return <section className="notification-day" key={key} aria-label={`${label} notifications`}>
+      <h2 className="notification-day-heading">{label}</h2>
+      <ul className="notification-list">{rows.map((item) => {
+        const Icon = icons[item.event_code]
+        return <li key={item.id} className={cn('notification', item.read_at && 'is-read')}>
+          <span className="notification-event-icon" aria-hidden="true"><Icon size={20} strokeWidth={1.6} /></span>
+          <div className="notification-details">
+            <h3>{messages[item.event_code]}</h3>
+            {item.document_available && item.document_id ? <Link to={`/documents/${encodeURIComponent(item.document_id)}/edit`}><span>{item.title || 'Untitled document'}</span><ArrowUpRight size={14} aria-hidden="true" /></Link>
+              : <p className="notification-unavailable">Document unavailable. Its access may have changed, or it may have expired or been deleted.</p>}
+            <div className="notification-meta">
+              {!item.read_at && <span className="notification-unread"><span aria-hidden="true" />Unread</span>}
+              <time dateTime={item.created_at} title={new Date(item.created_at).toLocaleString()}>{relativeEdit(item.created_at, now)}</time>
+            </div>
+          </div>
+          <button type="button" className="notification-read" disabled={!!pending}
+            aria-disabled={!!item.read_at} tabIndex={item.read_at ? -1 : undefined}
+            onClick={() => { if (!item.read_at) onRead(item.id) }}
+            aria-label={`${item.read_at ? 'Read' : 'Mark as read'}: ${messages[item.event_code]}`}>
+            <Check size={16} aria-hidden="true" />{pending === item.id ? 'Saving…' : item.read_at ? 'Read' : 'Mark as read'}
+          </button>
+        </li>
+      })}</ul>
+    </section>
+  })}</>
+}
+
 export function NotificationsPage({ session }: { session: SessionView }) {
   const [page, setPage] = useState<NotificationPage | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
   const [pending, setPending] = useState<string | null>(null)
+  const [view, setView] = useState<'all' | 'unread'>('all')
+  const [checkedAt, setCheckedAt] = useState(() => Date.now())
+  const activeFilter = useRef<HTMLButtonElement>(null)
   const mounted = useRef(false)
   const generation = useRef(0)
   useEffect(() => {
@@ -42,7 +99,7 @@ export function NotificationsPage({ session }: { session: SessionView }) {
       controller = new AbortController()
       const current = controller
       getNotifications(current.signal).then((result) => {
-        if (!current.signal.aborted) setPage(result)
+        if (!current.signal.aborted) { setCheckedAt(Date.now()); setPage(result) }
       }).catch((cause: unknown) => {
         if (!current.signal.aborted) setError(cause instanceof Error ? cause.message : 'Notifications could not be loaded.')
       })
@@ -69,6 +126,7 @@ export function NotificationsPage({ session }: { session: SessionView }) {
         !item.read_at && (!id || item.id === id) ? { ...item, read_at: new Date().toISOString() } : item) })
       setNotice(id ? 'Notification marked as read.' : 'All notifications marked as read.')
       notificationChanged()
+      if (view === 'unread' || !id) activeFilter.current?.focus()
     } catch (cause: unknown) {
       if (mounted.current) setError(cause instanceof Error ? cause.message : 'Read status could not be saved.')
     } finally { if (mounted.current) setPending(null) }
@@ -85,25 +143,37 @@ export function NotificationsPage({ session }: { session: SessionView }) {
       if (mounted.current && generation.current === expected) setError(cause instanceof Error ? cause.message : 'More notifications could not be loaded.')
     } finally { if (mounted.current) setPending(null) }
   }
+  const unread = page?.items.filter((item) => !item.read_at).length ?? 0
+  const visible = page?.items.filter((item) => view === 'all' || !item.read_at) ?? []
+  function refreshInbox() { setAttempt((value) => value + 1); notificationChanged() }
   return <section className="notifications-page" aria-labelledby="notifications-title">
-    <PageHeader title="Notifications" titleId="notifications-title" description="Review assignments, approvals, and discussion across your workspaces."
-      action={<button type="button" className="button-secondary" disabled={!!pending || !page?.items.some((item) => !item.read_at)} onClick={() => void read()}>{pending === 'all' ? 'Saving…' : 'Mark all as read'}</button>} />
+    <PageHeader title="Notifications" titleId="notifications-title" description="Assignments, approvals, and comments across your workspaces."
+      action={<div className="notification-heading-actions">
+        <button type="button" className="quiet-button" disabled={!!pending || !page} onClick={refreshInbox} aria-label="Refresh notifications"><RefreshCw size={16} aria-hidden="true" />Refresh</button>
+        <button type="button" className="button-secondary" disabled={!!pending || !unread} onClick={() => void read()}><CheckCheck size={17} aria-hidden="true" />{pending === 'all' ? 'Saving…' : 'Mark all as read'}</button>
+      </div>} />
     {notice && <InlineNotice>{notice}</InlineNotice>}
-    {error && <InlineNotice error>{error} <button type="button" onClick={() => setAttempt((value) => value + 1)}>Refresh notifications</button></InlineNotice>}
-    {!page && !error && <LoadingState label="Checking notifications…" shape="cards" />}
-    {page && <div className="workspace-panel notification-inbox">
-      {!page.items.length ? <div className="notification-empty"><Bell size={24} aria-hidden="true" /><h2>You’re all caught up</h2><p>Your review notifications will appear here.</p></div>
-        : <ul className="notification-list">{page.items.map((item) => <li key={item.id} className={item.read_at ? 'notification is-read' : 'notification'}>
-          <span className="notification-status" title={item.read_at ? 'Read' : 'Unread'}>{item.read_at ? <Check size={16} aria-label="Read" /> : <Circle size={12} aria-label="Unread" />}</span>
-          <div className="notification-details"><h2>{messages[item.event_code]}</h2>
-            {item.document_available && item.document_id ? <Link to={`/documents/${encodeURIComponent(item.document_id)}/edit`}>{item.title || 'Untitled document'}</Link>
-              : <p className="field-note">Document unavailable. Its access may have changed, or it may have expired or been deleted.</p>}
-            <time dateTime={item.created_at}>{new Date(item.created_at).toLocaleString()}</time>
-          </div>
-          {!item.read_at && <button type="button" className="button-secondary" disabled={!!pending} onClick={() => void read(item.id)} aria-label={`Mark as read: ${messages[item.event_code]}`}>{pending === item.id ? 'Saving…' : 'Mark as read'}</button>}
-        </li>)}</ul>}
-      {page.next_cursor && <button type="button" className="button-secondary notification-more" disabled={!!pending} onClick={() => void more()}>{pending === 'more' ? 'Loading…' : 'Load more notifications'}</button>}
-    </div>}
-    <p className="field-note">Notifications are kept for 30 days and removed when their document’s content is purged. Opening a document checks your access again.</p>
+    {error && <InlineNotice error>{error} <button type="button" onClick={refreshInbox}>Refresh notifications</button></InlineNotice>}
+    <div className="notification-inbox">
+      <div className="notification-toolbar">
+        <div className="notification-filters" role="group" aria-label="Notification views">
+          <button type="button" aria-pressed={view === 'all'} ref={view === 'all' ? activeFilter : undefined} onClick={() => setView('all')}>All notifications</button>
+          <button type="button" aria-pressed={view === 'unread'} ref={view === 'unread' ? activeFilter : undefined} onClick={() => setView('unread')}>Unread{page && <span className="notification-filter-count" aria-label={`${unread} unread in this view`}>{unread}</span>}</button>
+        </div>
+        <p className="notification-view-count" role="status">{page ? `${visible.length} ${view === 'unread' ? 'unread' : 'updates'}${page.next_cursor ? ' in this view' : ''}` : ''}</p>
+      </div>
+      {!page && !error && <LoadingState label="Checking notifications…" shape="list" />}
+      {page && <>
+        {visible.length ? <NotificationList items={visible} pending={pending} onRead={(id) => void read(id)} now={checkedAt} />
+          : <div className="notification-empty"><span className="notification-empty-icon">{view === 'unread' ? <CheckCheck size={24} aria-hidden="true" /> : <Bell size={24} aria-hidden="true" />}</span>
+            <h2>{view === 'unread' ? page.next_cursor ? 'No unread updates in this view' : 'You’re all caught up' : 'No notifications yet'}</h2>
+            <p>{view === 'unread' ? page.next_cursor ? 'Load older notifications to continue through your inbox.' : 'Your earlier updates are still here whenever you need them.' : 'Review assignments, approvals, and comments will appear here.'}</p>
+            {view === 'unread' ? <button type="button" className="button-secondary" onClick={() => setView('all')}>View all notifications</button>
+              : <Link className="button-secondary" to="/documents">Go to documents <ArrowUpRight size={15} aria-hidden="true" /></Link>}
+          </div>}
+        {page.next_cursor && <div className="notification-pagination"><button type="button" className="button-secondary" disabled={!!pending} onClick={() => void more()}>{pending === 'more' ? 'Loading…' : 'Load more notifications'}</button></div>}
+      </>}
+    </div>
+    <p className="notification-retention">Updates stay here for 30 days, or until the review’s content is removed. Review access is checked each time you open it.</p>
   </section>
 }
