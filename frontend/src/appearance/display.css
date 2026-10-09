@@ -1,5 +1,6 @@
 html[data-font-size='large'] { font-size: 18px; }
-html[data-motion='reduced'] *, html[data-motion='reduced'] *::before, html[data-motion='reduced'] *::after {
+html[data-motion='reduced'], html[data-motion='reduced'] *, html[data-motion='reduced'] *::before, html[data-motion='reduced'] *::after,
+html[data-motion='reduced'] details::details-content {
   scroll-behavior: auto !important;
   animation: none !important;
   transition: none !important;

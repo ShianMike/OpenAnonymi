@@ -44,6 +44,7 @@ def native_inventory():
     from PIL import features
 
     binaries, sboms, linked = [], [], {}
+    ocr_version = tesserocr.tesseract_version()
     for name in ("Pillow", "tesserocr", "pypdfium2"):
         distribution = importlib.metadata.distribution(name)
         for relative in distribution.files or ():
@@ -74,6 +75,13 @@ def native_inventory():
         assert importlib.metadata.version("pypdfium2") == provenance["pypdfium2"]["version"]
         assert str(pypdfium2.PDFIUM_INFO) == provenance["pypdfium2"]["pdfium_version"]
         assert features.version("freetype2") and features.version("webp")
+        assert ocr_version.startswith("tesseract " + provenance["tesseract"]["version"])
+        assert "leptonica-" + provenance["leptonica"]["version"] in ocr_version
+        assert "libtiff " + provenance["libtiff"]["version"] in ocr_version
+        assert not any(codec in ocr_version.lower() for codec in ("libpng", "libwebp", "zlib"))
+        assert not any("tesserocr.libs" in path for path in linked)
+        assert all(any(path.startswith("/usr/lib/") and library in path for path in linked)
+            for library in ("libtesseract", "libleptonica"))
         packages = subprocess.run(["dpkg-query", "-W", "-f=${Package} ${Version}\\n"],
             capture_output=True, text=True, timeout=10, check=True).stdout.splitlines()
     assets = Path("app/assets/ocr")
@@ -83,7 +91,7 @@ def native_inventory():
     return {"platform": platform.system(), "kernel": platform.release(),
         "machine": platform.machine(), "python": platform.python_version(),
         "packages": {name: importlib.metadata.version(name) for name in ("Pillow", "tesserocr", "pypdfium2")},
-        "tesseract_linked_version_report": tesserocr.tesseract_version(),
+        "tesseract_linked_version_report": ocr_version,
         "pillow_linked_versions": {name: features.version(name) for name in features.get_supported()},
         "pdfium_version": str(pypdfium2.PDFIUM_INFO), "binary_hashes": binaries, "sboms": sboms,
         "linked_library_hashes": linked, "native_build_provenance": provenance,

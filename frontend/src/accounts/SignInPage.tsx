@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowUpRight } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { motion } from 'motion/react'
 import type { SessionView } from '../api/client'
 import { Brand } from '../ui/Brand'
 import { AppCredit } from '../ui/AppCredit'
 import { BorderBeam } from '../ui/BorderBeam'
 import { useLoadingMotion } from '../loading/useLoadingMotion'
+import { useDisplayPreferences } from '../appearance/useDisplayPreferences'
 import { AuthCredentials, type CredentialStage } from './AuthCredentials'
 import { AuthNotice } from './AuthNotice'
 import { AuthStory } from './AuthStory'
@@ -47,6 +49,8 @@ export function SignInPage({
   const [knownEmail, setKnownEmail] = useState('')
   const heading = useRef<HTMLHeadingElement>(null)
   const panelMotion = useLoadingMotion<HTMLElement>()
+  const { reducedMotion } = useDisplayPreferences()
+  const transition = { duration: reducedMotion ? 0 : .18, ease: 'easeOut' as const }
   const { pathname, search } = useLocation()
   const navigate = useNavigate()
   const authRoute = pathname === '/sign-in' || pathname === '/sign-up'
@@ -85,7 +89,8 @@ export function SignInPage({
         </Link>
       </header>
       <main id="main-content" className="auth-main">
-        <section ref={panelMotion} className="auth-panel auth-card" aria-labelledby="auth-title">
+        <motion.section ref={panelMotion} className="auth-panel auth-card" aria-labelledby="auth-title"
+          initial={reducedMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={transition}>
           <BorderBeam />
           {recovering && (
             <div className="auth-recovery-nav">
@@ -101,13 +106,15 @@ export function SignInPage({
               </p>
             </div>
           )}
-          <h1 id="auth-title" ref={heading} tabIndex={-1}>
+          <motion.h1 key={`${mode}-${recovering ? recoveryStep : stage}`} id="auth-title" ref={heading} tabIndex={-1}
+            initial={reducedMotion ? false : { opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={transition}>
             {view.title}
             {recovering && <span className="sr-only"> Step {step} of 2.</span>}
-          </h1>
+          </motion.h1>
           <p className="auth-description">{description}</p>
           {showNotices && localNotice && <AuthNotice tone="success">{localNotice}</AuthNotice>}
           {showNotices && !localNotice && notice && <AuthNotice tone="info">{notice}</AuthNotice>}
+          <motion.div key={mode} initial={reducedMotion ? false : { opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={transition}>
           {recovering ? (
             <RecoveryForm
               initialEmail={knownEmail}
@@ -131,6 +138,7 @@ export function SignInPage({
               }}
             />
           )}
+          </motion.div>
           {!recovering && (stage === 'credentials' || stage === 'signup-code') && (
             <div className="auth-switch">
               <span>{mode === 'sign-in' ? 'New to OpenAnonymi?' : 'Already have an account?'}</span>
@@ -143,7 +151,7 @@ export function SignInPage({
               </button>
             </div>
           )}
-        </section>
+        </motion.section>
       </main>
       <AuthStory />
       <footer className="auth-footer">

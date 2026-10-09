@@ -11,8 +11,15 @@ On Windows CPython 3.11, uv selects the upstream-endorsed
 [community wheel](https://github.com/simonflueckiger/tesserocr-windows_build)
 containing Tesseract 5.5.2 and Leptonica 1.87.0. Its locked SHA256 is
 `02f75202a13804dacaac111cc4375cdb7b0194217f7f36add30cbb57c37c002c`.
-Linux uses the PyPI wheel selected by uv. Windows DLL versions do not establish
-Linux runtime versions or container memory usage; those remain hosted CI gates.
+The production Linux image builds the locked tesserocr source against
+hash-verified Tesseract 5.5.3 and Leptonica 1.87.0 sources. Leptonica retains
+source-built TIFF 4.7.2 for its internal bitmap fonts; optional image codecs are
+disabled. Pillow/PDFium decode uploads, and OCR receives raw RGB pixels.
+This replaces the older codec copies bundled in the PyPI wheel.
+`backend/native-runtime.json` records sources and build options; hosted CI checks
+the actual linked versions, raw-image/PDF recognition, memory and isolation.
+Other Linux installs using a default `uv sync` still select the PyPI wheel.
+Windows DLL versions do not establish Linux runtime versions or container usage.
 
 The model ships with the application. OCR makes no model or recognition service
 request. Each bounded job runs in a short-lived process with scrubbed environment,

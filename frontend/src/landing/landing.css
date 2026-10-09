@@ -2,6 +2,8 @@
 .landing-page :is(h1, h2, h3) { text-wrap: balance; }
 .landing-page p { text-wrap: pretty; }
 .landing-page a { text-decoration: none; }
+html:has(.landing-page) { scroll-behavior: smooth; }
+html:has(.landing-page[data-paused='true']) { scroll-behavior: auto; }
 .landing-container { width: min(1120px, calc(100% - 80px)); margin-inline: auto; }
 .landing-page .landing-main { position: relative; padding: 0; overflow-wrap: normal; }
 .landing-main > section { max-width: none; }
@@ -10,7 +12,9 @@
 .landing-nav-inner { display: flex; align-items: center; gap: 32px; min-height: 72px; padding: 10px 20px; }
 .landing-brand { display: inline-flex; flex-shrink: 0; }
 .landing-section-links { display: flex; align-items: center; justify-content: center; flex: 1; gap: 26px; }
-.landing-section-links a { padding-block: 12px; color: var(--muted); font-size: .84rem; }
+.landing-section-links a { position: relative; padding-block: 12px; color: var(--muted); font-size: .84rem; }
+.landing-section-links a::after { content: ''; position: absolute; inset: auto 0 6px; height: 1px; background: var(--blue); transform: scaleX(0); transform-origin: left; transition: transform 160ms ease-out; }
+.landing-section-links a:is(:hover, :focus-visible)::after { transform: scaleX(1); }
 .landing-section-links a:hover { color: var(--text); }
 .landing-nav-actions { display: flex; align-items: center; gap: 18px; }
 .landing-page .landing-theme-button { min-width: 38px; min-height: 38px; padding: 8px; border: 0; background: transparent; color: var(--muted); }
@@ -69,6 +73,11 @@
 .landing-faq-list summary::-webkit-details-marker { display: none; }
 .landing-faq-list summary svg { color: var(--muted); flex-shrink: 0; transition: transform 160ms ease-out; }
 .landing-faq-list details[open] summary svg { transform: rotate(45deg); }
+/* shortcut: browsers without ::details-content keep native toggles; add a fallback if animated exits are required there. */
+.landing-faq-list details::details-content { opacity: 0; transform: translateY(-4px); transition: opacity 180ms ease-out, transform 180ms ease-out, content-visibility 180ms allow-discrete; }
+.landing-faq-list details[open]::details-content { opacity: 1; transform: none; }
+.landing-page[data-paused='true'] .landing-faq-list details::details-content,
+.landing-page[data-paused='true'] .landing-faq-list summary svg { transition: none; }
 .landing-faq-list details p { margin: 0; padding: 0 28px 24px 0; color: var(--muted); font-size: .87rem; line-height: 1.8; }
 .landing-final { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 40px; margin-block: 0 68px; padding: 56px 64px; border: 1px solid var(--line-strong); border-radius: 24px; background: var(--surface); overflow: hidden; }
 .landing-final h2 { margin: 18px 0; font-size: clamp(2rem, 3.6vw, 3.5rem); font-weight: 550; line-height: 1.16; }
@@ -144,7 +153,11 @@
   .landing-footer nav { gap: 18px; }
   .landing-questions { padding-block: 56px; }
 }
-@media (prefers-reduced-motion: reduce) { .landing-page[data-motion-ready='true'] [data-landing-reveal] { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  html:has(.landing-page) { scroll-behavior: auto; }
+  .landing-page[data-motion-ready='true'] [data-landing-reveal] { opacity: 1; transform: none; }
+  .landing-faq-list details::details-content { transition: none; }
+}
 @media (forced-colors: active) {
   .landing-page { --landing-paper: Canvas; --landing-sage: Canvas; --landing-line: CanvasText; }
   .landing-page .landing-button, .landing-try-link { border-color: ButtonText; background: ButtonFace; color: ButtonText; }

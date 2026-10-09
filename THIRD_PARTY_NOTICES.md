@@ -11,6 +11,8 @@ bundled third-party material. Preserve those notices when redistributing.
 | Disposable email domain list | Its upstream notice, `backend/app/accounts/data/disposable_domains.LICENSE` |
 | Authored detection corpus | CC0-1.0, stated in its fixture files |
 | libtiff in the Linux image | Upstream license copied to `/usr/share/doc/openanonymi-libtiff/LICENSE.md` |
+| Leptonica in the Linux image | Upstream license copied to `/usr/share/doc/openanonymi-leptonica/LICENSE` |
+| Tesseract in the Linux image | Apache-2.0, copied to `/usr/share/doc/openanonymi-tesseract/LICENSE` |
 
 Python dependencies and the English spaCy model are pinned in `backend/uv.lock`.
 JavaScript dependencies are pinned in `frontend/package-lock.json`. Their

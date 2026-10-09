@@ -20,7 +20,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.10.6 /uv /uvx /bin/
 # Build the locked Pillow source against current TIFF fixes, rather than the
 # wheel's older bundled libtiff. Other codec libraries receive Debian updates.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential curl ca-certificates libjpeg62-turbo-dev zlib1g-dev \
+    build-essential cmake pkg-config curl ca-certificates libjpeg62-turbo-dev zlib1g-dev \
     libwebp-dev libfreetype6-dev liblcms2-dev liblzma-dev libzstd-dev \
     libdeflate-dev libjbig-dev liblerc-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -32,6 +32,27 @@ RUN curl --fail --location --proto '=https' --tlsv1.2 \
     && cd tiff-4.7.2 \
     && ./configure --prefix=/usr --disable-static --disable-tools --disable-tests --disable-contrib --disable-docs \
     && make -j2 && make install && ldconfig
+# OCR receives raw pixels; Leptonica's internal bitmap fonts still need patched TIFF.
+RUN curl --fail --location --proto '=https' --tlsv1.2 \
+    https://github.com/DanBloomberg/leptonica/releases/download/1.87.0/leptonica-1.87.0.tar.gz -o leptonica.tar.gz \
+    && echo 'c73363397f96eb1295602bf44d708a994ad42046c791bf03ea0505d829bdb6a7  leptonica.tar.gz' | sha256sum --check \
+    && tar -xzf leptonica.tar.gz \
+    && cd leptonica-1.87.0 \
+    && ./configure --prefix=/usr --libdir=/usr/lib --disable-static --disable-programs \
+        --without-zlib --without-libpng --without-jpeg --without-giflib --with-libtiff \
+        --without-libwebp --without-libwebpmux --without-libopenjpeg \
+    && make -j2 && make install && ldconfig
+RUN curl --fail --location --proto '=https' --tlsv1.2 \
+    https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.5.3.tar.gz -o tesseract.tar.gz \
+    && echo '9218e62793116d42a9f6d14cd9348518b27f382096eea3d0f2d1a24616bb5884  tesseract.tar.gz' | sha256sum --check \
+    && tar -xzf tesseract.tar.gz \
+    && cmake -S tesseract-5.5.3 -B tesseract-build -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib -DBUILD_SHARED_LIBS=ON \
+        -DBUILD_TRAINING_TOOLS=OFF -DBUILD_TESTS=OFF -DOPENMP_BUILD=OFF \
+        -DGRAPHICS_DISABLED=ON -DDISABLE_TIFF=ON \
+        -DDISABLE_ARCHIVE=ON -DDISABLE_CURL=ON -DINSTALL_CONFIGS=OFF \
+    && cmake --build tesseract-build --parallel 2 \
+    && cmake --install tesseract-build && ldconfig
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=never \
@@ -39,7 +60,8 @@ ENV UV_COMPILE_BYTECODE=1 \
 WORKDIR /app
 COPY backend/pyproject.toml backend/uv.lock backend/.python-version ./
 # Locked runtime dependencies only, including spaCy 3.8 and the en_core_web_sm 3.8.0 model.
-RUN uv sync --locked --no-dev --no-install-project --no-cache --no-binary-package pillow \
+RUN uv sync --locked --no-dev --no-install-project --no-cache \
+    --no-binary-package pillow --no-binary-package tesserocr \
     --config-settings-package pillow:tiff=enable \
     --config-settings-package pillow:webp=enable \
     --config-settings-package pillow:freetype=enable
@@ -65,7 +87,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --system app && useradd --system --gid app --home-dir /app --no-create-home app
 COPY --from=build /usr/lib/libtiff.so* /usr/lib/
+COPY --from=build /usr/lib/libleptonica.so* /usr/lib/libtesseract.so* /usr/lib/
 COPY --from=build /tmp/native/tiff-4.7.2/LICENSE.md /usr/share/doc/openanonymi-libtiff/LICENSE.md
+COPY --from=build /tmp/native/leptonica-1.87.0/leptonica-license.txt /usr/share/doc/openanonymi-leptonica/LICENSE
+COPY --from=build /tmp/native/tesseract-5.5.3/LICENSE /usr/share/doc/openanonymi-tesseract/LICENSE
 RUN ldconfig
 WORKDIR /app
 COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /usr/share/doc/openanonymi/
