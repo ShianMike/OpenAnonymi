@@ -68,9 +68,10 @@ def intake_site():
         _env_file=None,
     )
     try:
+        app = create_app(settings, engine=engine)
         with (
-            TestClient(create_app(settings, engine=engine)) as owner,
-            TestClient(create_app(settings, engine=engine)) as other,
+            TestClient(app) as owner,
+            TestClient(app) as other,
         ):
             yield owner, other, engine, workspace_id, owner_id
     finally:

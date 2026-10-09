@@ -1,4 +1,6 @@
-from datetime import datetime
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel
@@ -6,10 +8,15 @@ from sqlalchemy import select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from app.accounts.access import DocumentNotFound, owned_document, review_document
+from app.accounts.access import (
+    DocumentNotFound,
+    owned_document,
+    refresh_document_access,
+    review_document,
+)
 from app.contracts import DocumentStatus, VersionRef
 from app.db.crypto import KeyRing
-from app.db.models import Document, Membership, User
+from app.db.models import Document, Membership, User, Workspace
 from app.db.repository import VersionConflict, _version
 from app.db.team_review import ReviewApproval, ReviewHandoff
 from app.reviews.service import CompletionRejected, current_completion
@@ -31,14 +38,63 @@ class HandoffView(BaseModel):
     require_approval: bool
     approved_at: datetime | None
     generation: int
+    approval_policy: Literal["owner_choice", "always"]
+
+
+class HandoffPolicyRejected(ValueError):
+    pass
+
+
+class TeamReadChanged(RuntimeError):
+    pass
+
+
+def validate_handoff_view(engine: Engine, document_id: UUID, actor_id: UUID, view: HandoffView):
+    with Session(engine) as session:
+        document = review_document(session, document_id, actor_id, datetime.now(UTC))
+        if _view(session, document, actor_id) != view:
+            raise TeamReadChanged("Review access changed while loading.")
+
+
+def validate_teammates(engine: Engine, document_id: UUID, actor_id: UUID, view: list[TeammateView]):
+    with Session(engine) as session:
+        document = owned_document(session, document_id, actor_id, datetime.now(UTC))
+        active = set(session.execute(select(User.id, User.email).join(
+            Membership, Membership.user_id == User.id,
+        ).where(Membership.workspace_id == document.workspace_id,
+            Membership.revoked_at.is_(None), User.disabled_at.is_(None),
+            User.id.in_({item.user_id for item in view}))).all())
+        if active != {(item.user_id, item.email) for item in view}:
+            raise TeamReadChanged("Review teammates changed while loading.")
+
+
+def approval_policy(session: Session, document: Document) -> str:
+    # A scalar query reads the current policy even when the ORM workspace is cached.
+    value = session.scalar(
+        select(Workspace.approval_policy).where(Workspace.id == document.workspace_id)
+    )
+    if value is None:
+        raise DocumentNotFound("Workspace not found.")
+    return value
 
 
 def active_reviewer(session: Session, document: Document, handoff: ReviewHandoff) -> bool:
     if not handoff.reviewer_id or handoff.reviewer_id == document.owner_id:
         return False
-    member = session.get(Membership, (document.workspace_id, handoff.reviewer_id))
-    user = session.get(User, handoff.reviewer_id)
-    return bool(member and member.revoked_at is None and user and user.disabled_at is None)
+    # Read current access even when old membership/user objects remain in this session.
+    return (
+        session.scalar(
+            select(Membership.user_id)
+            .join(User, User.id == Membership.user_id)
+            .where(
+                Membership.workspace_id == document.workspace_id,
+                Membership.user_id == handoff.reviewer_id,
+                Membership.revoked_at.is_(None),
+                User.disabled_at.is_(None),
+            )
+        )
+        is not None
+    )
 
 
 def _approval(session: Session, document: Document, handoff: ReviewHandoff):
@@ -59,6 +115,12 @@ def _approval(session: Session, document: Document, handoff: ReviewHandoff):
 
 def require_second_approval(session: Session, document: Document):
     handoff = session.get(ReviewHandoff, document.id)
+    policy = approval_policy(session, document)
+    if policy == "always" and (handoff is None or _approval(session, document, handoff) is None):
+        raise CompletionRejected(
+            "approval_required_by_policy",
+            "Your workspace requires a reviewer to approve this version before export. Assign a reviewer.",
+        )
     if handoff and handoff.require_approval and _approval(session, document, handoff) is None:
         raise CompletionRejected(
             "second_approval_required",
@@ -70,15 +132,17 @@ def _view(session: Session, document: Document, actor_id: UUID):
     handoff = session.get(ReviewHandoff, document.id)
     approval = _approval(session, document, handoff) if handoff else None
     user = session.get(User, handoff.reviewer_id) if handoff and handoff.reviewer_id else None
+    policy = approval_policy(session, document)
     return HandoffView(
         version=_version(document),
         is_owner=document.owner_id == actor_id,
         reviewer_id=handoff.reviewer_id if handoff else None,
         reviewer_email=user.email if user else None,
         reviewer_active=active_reviewer(session, document, handoff) if handoff else False,
-        require_approval=handoff.require_approval if handoff else False,
+        require_approval=policy == "always" or bool(handoff and handoff.require_approval),
         approved_at=approval.approved_at if approval else None,
         generation=handoff.generation if handoff else 0,
+        approval_policy=policy,
     )
 
 
@@ -115,12 +179,16 @@ def change_handoff(
     reviewer_id: UUID | None,
     require_approval: bool,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ):
     with Session(engine) as session, session.begin():
         document = owned_document(session, document_id, actor_id, now, lock=True)
+        refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
         current = _version(document)
         if current != expected:
             raise VersionConflict(current)
+        if approval_policy(session, document) == "always" and not require_approval:
+            raise HandoffPolicyRejected("Workspace policy requires reviewer approval.")
         if document.status == DocumentStatus.SCANNING:
             raise CompletionRejected(
                 "scan_in_progress", "Finish the current scan before changing review access."
@@ -142,7 +210,25 @@ def change_handoff(
             and handoff.reviewer_id == reviewer_id
             and handoff.require_approval == require_approval
         ):
-            return _view(session, document, actor_id)
+            view = _view(session, document, actor_id)
+            refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
+            return view
+        from app.notifications.events import invalidate_approval
+        from app.notifications.service import notify
+
+        previous_reviewer = handoff.reviewer_id if handoff else None
+        invalidate_approval(session, document, actor_id, now)
+        if previous_reviewer != reviewer_id:
+            notify(
+                session,
+                document,
+                previous_reviewer,
+                actor_id,
+                "review_unassigned",
+                now,
+                require_active=False,
+            )
+            notify(session, document, reviewer_id, actor_id, "review_assigned", now)
         if not handoff:
             handoff = ReviewHandoff(
                 document_id=document_id,
@@ -172,7 +258,13 @@ def change_handoff(
             now=now,
         )
         session.flush()
-        return _view(session, document, actor_id)
+        view = _view(session, document, actor_id)
+        refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
+        if reviewer_id and not active_reviewer(session, document, handoff):
+            raise DocumentNotFound("Active reviewer not found.")
+        if approval_policy(session, document) == "always" and not require_approval:
+            raise HandoffPolicyRejected("Workspace policy requires reviewer approval.")
+        return view
 
 
 def approve_review(
@@ -184,9 +276,11 @@ def approve_review(
     confirmed_preview: bool,
     keys: KeyRing,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ):
     with Session(engine) as session, session.begin():
         document = review_document(session, document_id, actor_id, now, lock=True)
+        refresh_document_access(session, document_id, actor_id, reauthorize)
         handoff = session.get(ReviewHandoff, document_id)
         if document.owner_id == actor_id or not handoff or handoff.reviewer_id != actor_id:
             raise DocumentNotFound("Assigned reviewer not found.")
@@ -224,5 +318,10 @@ def approve_review(
                 event_code="review_second_approved",
                 now=now,
             )
+            from app.notifications.service import notify
+
+            notify(session, document, document.owner_id, actor_id, "review_approved", now)
             session.flush()
-        return _view(session, document, actor_id)
+        view = _view(session, document, actor_id)
+        refresh_document_access(session, document_id, actor_id, reauthorize)
+        return view

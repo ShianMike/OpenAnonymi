@@ -5,6 +5,9 @@ import { deleteRecovery, getRecovery, listRecovery, saveRecovery,
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+export const recoveryCandidate = (copies: RecoveryMetadata[], id: string, fresh: boolean) =>
+  copies.find((copy) => copy.id === id) ?? (fresh ? undefined : copies[0])
+
 function workingId(key: string) {
   try {
     const existing = sessionStorage.getItem(key)
@@ -24,18 +27,19 @@ type Runtime = { key: string; id: string; version: number; initialized: boolean;
   disposed: boolean; clearing: boolean; forkOnRetry: boolean; operation: Promise<void> | null;
   confirmedHash: string }
 
-export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false, onRestore }: {
+export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false, onRestore, startKey }: {
   scope: Scope | null
   csrf: string
   payload: RecoveryPayload | null
   dirty: boolean
   paused?: boolean
   onRestore: (view: RecoveryView) => void
+  startKey?: string
 }) {
   const key = scope ? `openanonymi.working-id.${scope.userId}.${scope.workspaceId}.${scope.documentId ?? 'intake'}` : ''
   const [attempt, setAttempt] = useState(0)
   const [phase, setPhase] = useState<'loading' | 'idle' | 'saving' | 'saved' | 'error'>('loading')
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | Error | null>(null)
   const [savedHash, setSavedHash] = useState('')
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [recoveredAt, setRecoveredAt] = useState<string | null>(null)
@@ -50,6 +54,17 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
     const controller = new AbortController()
     const run: Runtime = { key, id: workingId(key), version: 0, initialized: false,
       disposed: false, clearing: false, forkOnRetry: false, operation: null, confirmedHash: '' }
+    // A deliberate preset handoff gets its own slot. Refreshing that history entry resumes the slot.
+    let newStart = !!startKey
+    try { newStart = !!startKey && sessionStorage.getItem(`${key}.start`) !== startKey } catch { /* Optional metadata. */ }
+    if (newStart) {
+      run.id = crypto.randomUUID()
+      rememberId(key, run.id)
+      try {
+        sessionStorage.setItem(`${key}.start`, startKey!)
+        sessionStorage.setItem(`${key}.fresh`, 'true')
+      } catch { /* Older backups remain on the server. */ }
+    }
     runtime.current = run
     setPhase('loading')
     setError(null)
@@ -61,9 +76,9 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
         const available = await listRecovery(scope!.workspaceId, scope!.documentId, controller.signal)
         if (controller.signal.aborted) return
         setCopies(available)
-        let fresh = false
-        try { fresh = sessionStorage.getItem(`${key}.fresh`) === 'true' } catch { /* Optional metadata. */ }
-        const chosen = available.find((item) => item.id === run.id) ?? (fresh ? undefined : available[0])
+        let fresh = newStart
+        try { fresh ||= sessionStorage.getItem(`${key}.fresh`) === 'true' } catch { /* Optional metadata. */ }
+        const chosen = recoveryCandidate(available, run.id, fresh)
         if (chosen?.id !== run.id) {
           run.id = crypto.randomUUID()
           rememberId(key, run.id)
@@ -86,7 +101,7 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
         setPhase(chosen?.id === run.id ? 'saved' : 'idle')
       } catch (cause) {
         if (controller.signal.aborted) return
-        setError(cause instanceof Error ? cause.message : 'Working draft recovery is unavailable.')
+        setError(cause instanceof Error ? cause : 'Working draft recovery is unavailable.')
         setPhase('error')
       }
     }
@@ -95,7 +110,7 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
   // The scope key contains every identity/scope value; callbacks and current text
   // live in latest so typing does not restart recovery or discard the write queue.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, attempt])
+  }, [key, attempt, startKey])
 
   const saveNow = useCallback(async () => {
     const run = runtime.current
@@ -130,7 +145,7 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
         if (run.disposed) return
         run.forkOnRetry = cause instanceof ApiRequestError && cause.code === 'recovery_conflict'
         setPhase('error')
-        setError(cause instanceof Error ? cause.message : 'Autosave could not be confirmed. Your edits remain here.')
+        setError(cause instanceof Error ? cause : 'Autosave could not be confirmed. Your edits remain here.')
       } finally { run.operation = null }
     })()
     run.operation = operation
@@ -175,6 +190,7 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
       setSavedAt(null)
       setRecoveredAt(null)
       setCopies((rows) => rows.filter((item) => item.id !== old))
+      setError(null)
       setPhase('idle')
     } finally { run.clearing = false }
   }
@@ -190,7 +206,7 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
       await saveNow()
       if (current.dirty && current.payload && run.confirmedHash !== JSON.stringify(current.payload)) {
         setPhase('error')
-        setError('Back up your current edits before recovering another copy.')
+        setError((cause) => cause ?? 'Back up your current edits before recovering another copy.')
         return
       }
       const view = await getRecovery(current.scope.workspaceId, id)
@@ -204,7 +220,7 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
       setPhase('idle')
     } catch (cause) {
       setPhase('error')
-      setError(cause instanceof Error ? cause.message : 'This working copy could not be recovered.')
+      setError(cause instanceof Error ? cause : 'This working copy could not be recovered.')
     }
   }
 
@@ -221,7 +237,7 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
       await deleteRecovery(current.scope.workspaceId, id, copy.version, current.csrf)
       setCopies((rows) => rows.filter((item) => item.id !== id))
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'This working copy could not be discarded.')
+      setError(cause instanceof Error ? cause : 'This working copy could not be discarded.')
     }
   }
 
@@ -238,7 +254,8 @@ export function useProtectedDraft({ scope, csrf, payload, dirty, paused = false,
       run.confirmedHash === JSON.stringify(latest.current.payload))
   }
 
-  return { phase, error, savedAt, recoveredAt,
+  return { phase, error: error instanceof Error ? error.message : error,
+    errorCode: error instanceof ApiRequestError ? error.code : null, savedAt, recoveredAt,
     copies: copies.filter((item) => item.id !== runtime.current?.id),
     retry, clear, restore, saveNow, flush, discardCopy,
     loading: Boolean(key) && phase === 'loading',

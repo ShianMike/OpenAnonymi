@@ -1,6 +1,6 @@
 """Replace only selected Unicode code-point spans in source order."""
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
@@ -39,13 +39,25 @@ class TransformedText:
         return not self.unresolved_ids
 
 
-def transform_text(source: str, findings: Sequence[TransformFinding]) -> TransformedText:
+@dataclass(frozen=True)
+class ReplacementPlan:
+    replacements: Mapping[UUID, str]
+    fictional_ids: tuple[UUID, ...] = ()
+    fallback_ids: tuple[UUID, ...] = ()
+
+
+def transform_text(
+    source: str, findings: Sequence[TransformFinding], plan: ReplacementPlan | None = None
+) -> TransformedText:
     """Build a complete or provisional preview without global string replacement.
 
     Unresolved spans remain unchanged and are returned explicitly. Intersecting
     spans fail before output is built, so no caller can double-replace text.
     """
     ordered = sorted(findings, key=lambda item: (item.span.start, item.span.end, item.finding_id))
+    replacements = plan.replacements if plan else {}
+    if set(replacements) - {finding.finding_id for finding in findings}:
+        raise InvalidTransformation("Replacement plan contains an unknown finding.")
     cursor = 0
     preview_cursor = 0
     chunks: list[str] = []
@@ -63,15 +75,19 @@ def transform_text(source: str, findings: Sequence[TransformFinding]) -> Transfo
         if finding.action == DecisionAction.LABEL:
             if not finding.label:
                 raise InvalidTransformation("A Label decision has no group label.")
-            replacement = finding.label
+            replacement = replacements.get(finding.finding_id, finding.label)
         elif finding.action == DecisionAction.REDACT:
-            replacement = "[REDACTED]"
+            replacement = replacements.get(finding.finding_id, "[REDACTED]")
         elif finding.action in (DecisionAction.KEEP, None):
             replacement = source[span.start : span.end]
             if finding.action is None:
                 unresolved.append(finding.finding_id)
         else:
             raise InvalidTransformation("Unsupported review decision.")
+        if finding.finding_id in replacements and any(c in replacement for c in "\n\r\t\0"):
+            raise InvalidTransformation(
+                "Replacement strings cannot contain line or cell boundaries."
+            )
         chunks.append(replacement)
         mappings.append(
             SpanMapping(

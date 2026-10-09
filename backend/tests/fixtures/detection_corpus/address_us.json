@@ -1,0 +1,41 @@
+{
+  "license": "CC0-1.0",
+  "author": "OpenAnonymi synthetic validation",
+  "rule_id": "address.us",
+  "rows": [
+    {
+      "text": "😀 42 Maple Road, Brookvale CA 90210",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 35,
+          "category": "address",
+          "rule_id": "address.us"
+        }
+      ]
+    },
+    {
+      "text": "😀 42 Maple Rd Apt 3, Brookvale CA 90210-1234",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 44,
+          "category": "address",
+          "rule_id": "address.us"
+        }
+      ]
+    },
+    {
+      "text": "90210",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "42 Maple Road ZZ 90210",
+      "region": "US",
+      "expected": []
+    }
+  ]
+}

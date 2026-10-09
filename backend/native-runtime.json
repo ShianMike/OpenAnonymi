@@ -1,0 +1,23 @@
+{
+  "pillow": {
+    "version": "12.3.0",
+    "source": "locked PyPI sdist from uv.lock",
+    "source_sha256": "3b8182a766685eaa002637e28b4ec8d6b18819a0c71f579bf0dbaa5830297cce",
+    "build": "uv sync --locked --no-binary-package pillow"
+  },
+  "libtiff": {
+    "version": "4.7.2",
+    "source": "https://download.osgeo.org/libtiff/tiff-4.7.2.tar.gz",
+    "source_sha256": "672bd7d10aee4606171afb864f3570b83340f6a33e2c186dc0512f7145ffdf6a",
+    "release_changes": "https://libtiff.gitlab.io/libtiff/releases/v4.7.2.html",
+    "build": "official source, shared library, tools/tests/contrib/docs excluded"
+  },
+  "pypdfium2": {
+    "version": "5.14.0",
+    "pdfium_version": "156.0.8076.0",
+    "source": "locked official PyPI wheels from uv.lock",
+    "release": "https://github.com/pypdfium2-team/pypdfium2/releases/tag/5.14.0"
+  },
+  "other_pillow_native_libraries": "Debian packages; exact installed versions and linked hashes recorded by the container verification gate",
+  "native_patch_status_certified": false
+}

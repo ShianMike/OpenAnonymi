@@ -9,6 +9,7 @@ export function GlassCheckbox({
   description,
   checked,
   disabled,
+  disabledReason,
   onCheckedChange,
 }: {
   id?: string
@@ -16,12 +17,13 @@ export function GlassCheckbox({
   description?: string
   checked: boolean
   disabled?: boolean
+  disabledReason?: string
   onCheckedChange: (checked: boolean) => void
 }) {
   const generatedId = useId()
   const controlId = id ?? generatedId
   return (
-    <div className="glass-checkbox-row" data-disabled={disabled || undefined}>
+    <div className="glass-checkbox-row" data-disabled={disabled || undefined} title={disabled ? disabledReason : undefined}>
       <Checkbox.Root
         id={controlId}
         className="glass-checkbox-control"
@@ -29,7 +31,7 @@ export function GlassCheckbox({
         disabled={disabled}
         onCheckedChange={(value) => onCheckedChange(value === true)}
         aria-labelledby={`${controlId}-label`}
-        aria-describedby={description ? `${controlId}-description` : undefined}
+        aria-describedby={disabled && disabledReason ? `${controlId}-disabled-reason` : description ? `${controlId}-description` : undefined}
       >
         <Checkbox.Indicator className="glass-checkbox-indicator">
           <Check size={14} strokeWidth={2.5} aria-hidden="true" />
@@ -38,6 +40,7 @@ export function GlassCheckbox({
       <label htmlFor={controlId}>
         <span id={`${controlId}-label`}>{label}</span>
         {description && <small id={`${controlId}-description`}>{description}</small>}
+        {disabled && disabledReason && <span className="sr-only" id={`${controlId}-disabled-reason`}>{disabledReason}</span>}
       </label>
     </div>
   )

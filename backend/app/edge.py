@@ -1,20 +1,21 @@
-"""Proxy-facing HTTP behavior: client address, body limit, response headers and access logs.
+"""Proxy-facing HTTPS redirects, client addresses, body limits, headers and access logs.
 
-Nothing in this module reads or logs request bodies, query strings, cookies, or any header
-other than X-Forwarded-For and Content-Length.
+Host and the proxy protocol select an allowed HTTPS redirect; paths and queries are
+preserved in that response. Access logs contain route templates, never request bodies,
+query strings, credentials or cookies. The body limiter counts bytes without logging them.
 """
 
 import ipaddress
 import json
 import logging
-import re
 import time
 from collections.abc import Iterable
+from urllib.parse import quote, urlsplit
 
-from starlette.datastructures import MutableHeaders
+from starlette.datastructures import URL, MutableHeaders
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import RedirectResponse, Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.contracts import ErrorResponse
@@ -23,9 +24,22 @@ ACCESS_LOGGER = logging.getLogger("app.access")
 # The largest legitimate request is an 8 MiB import plus multipart framing.
 MAX_REQUEST_BYTES = 9 * 1024 * 1024
 TOO_LARGE_MESSAGE = "The request exceeds the 9 MiB upload limit."
-_UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 _QUIET_PATHS = ("/api/v1/health/live", "/api/v1/health/ready")
 _API_POLICY = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+_HTTP_METHODS = frozenset(
+    ("GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH")
+)
+_DOCS_PATHS = ("/docs", "/docs/oauth2-redirect", "/redoc")
+# Published Cloudflare origin proxy networks, verified October 6, 2026:
+# https://www.cloudflare.com/ips-v4 and https://www.cloudflare.com/ips-v6
+_CLOUDFLARE_NETWORKS = tuple(ipaddress.ip_network(value) for value in (
+    "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
+    "141.101.64.0/18", "108.162.192.0/18", "190.93.240.0/20", "188.114.96.0/20",
+    "197.234.240.0/22", "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13",
+    "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22", "2400:cb00::/32",
+    "2606:4700::/32", "2803:f800::/32", "2405:b500::/32", "2405:8100::/32",
+    "2a06:98c0::/29", "2c0f:f248::/32",
+))
 
 
 def _parse_address(value: str) -> str | None:
@@ -78,15 +92,64 @@ def scope_client_address(scope: Scope, trusted_hops: int) -> str:
         if name == b"x-forwarded-for"
     ]
     client = scope.get("client")
-    return client_address(forwarded, client[0] if client else None, trusted_hops)
+    address = client_address(forwarded, client[0] if client else None, trusted_hops)
+    parsed = _parse_address(address)
+    # Heroku appends its actual incoming peer to X-Forwarded-For. Only that
+    # calibrated trusted hop may establish that Cloudflare supplied this header;
+    # a direct-origin visitor cannot confer trust with forged forwarded entries.
+    if trusted_hops > 0 and parsed and any(
+        ipaddress.ip_address(parsed) in network for network in _CLOUDFLARE_NETWORKS
+    ):
+        connecting = [value.decode("latin-1") for name, value in scope.get("headers", ())
+                      if name == b"cf-connecting-ip"]
+        if len(connecting) == 1:
+            visitor = _parse_address(connecting[0])
+            if visitor:
+                return visitor
+    return address
 
 
 def loggable_path(scope: Scope) -> str:
-    """Prefer the route template; otherwise replace identifiers. Never include a query."""
+    """Only log server-defined route templates, never an unmatched request path."""
     template = getattr(scope.get("route"), "path", None)
     if isinstance(template, str):
         return template
-    return _UUID.sub("{id}", scope.get("path", ""))[:120]
+    return "[unmatched]"
+
+
+class ContentFreeErrorsMiddleware:
+    """Keep unexpected exception text out of responses and the server traceback log."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        started = False
+
+        async def recording_send(message: Message) -> None:
+            nonlocal started
+            if message["type"] == "http.response.start":
+                started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive, recording_send)
+        except Exception:  # noqa: BLE001 -- exception values may contain private content
+            # An exception can carry parser content, SQL parameters or credentials.
+            # No exception value or traceback is logged, even in development.
+            logging.getLogger("app.errors").error("Request failed; internal error.")
+            if started:
+                raise RuntimeError("Response interrupted; internal error.") from None
+            body = ErrorResponse(
+                code="internal_error", message="The request could not be completed."
+            )
+            response = Response(
+                body.model_dump_json(), status_code=500, media_type="application/json"
+            )
+            await response(scope, receive, send)
 
 
 class RequestTooLarge(HTTPException):
@@ -152,6 +215,52 @@ async def request_too_large_handler(_request: Request, _exc: Exception) -> Respo
     )
 
 
+class HttpsRedirectMiddleware:
+    """Redirect HTTP before any body or credentials are read behind the host proxy.
+
+    The configured proxy must overwrite X-Forwarded-Proto. Host destinations come
+    only from configured HTTPS origins, never Forwarded or X-Forwarded-Host.
+    """
+
+    def __init__(self, app: ASGIApp, *, allowed_origins: list[str]) -> None:
+        self.app = app
+        self.hosts = {
+            urlsplit(origin).netloc.lower(): urlsplit(origin).netloc
+            for origin in allowed_origins if urlsplit(origin).scheme == "https"
+        }
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope.get("scheme") == "https":
+            await self.app(scope, receive, send)
+            return
+        protocols = [value.strip().lower() for name, value in scope.get("headers", ())
+                     if name == b"x-forwarded-proto"]
+        if protocols == [b"https"]:
+            await self.app(scope, receive, send)
+            return
+        # Docker's liveness check is local and has no router header. No other
+        # route, method or network peer receives this exception.
+        client = scope.get("client")
+        if (not protocols and scope.get("method") in ("GET", "HEAD")
+                and scope.get("path") == "/api/v1/health/live" and client
+                and client[0] in ("127.0.0.1", "::1")):
+            await self.app(scope, receive, send)
+            return
+        hosts = [value.decode("latin-1").lower() for name, value in scope.get("headers", ())
+                 if name == b"host"]
+        host = hosts[0].removesuffix(":80") if len(hosts) == 1 else ""
+        destination = self.hosts.get(host)
+        if destination is None:
+            response = Response(status_code=400, headers={"Cache-Control": "no-store"})
+        else:
+            raw_path = scope.get("raw_path")
+            path = raw_path.decode("ascii") if raw_path is not None else quote(scope["path"], safe="/")
+            target = URL(scope=scope).replace(scheme="https", netloc=destination, path=path)
+            response = RedirectResponse(str(target), status_code=307,
+                                        headers={"Cache-Control": "no-store"})
+        await response(scope, receive, send)
+
+
 class SecurityHeadersMiddleware:
     """Hardening headers on every response, including CORS preflights and early errors.
 
@@ -160,6 +269,7 @@ class SecurityHeadersMiddleware:
 
     def __init__(self, app: ASGIApp, *, strict_transport: bool) -> None:
         self.app = app
+        self.strict_transport = strict_transport
         self.headers = [
             ("x-content-type-options", "nosniff"),
             ("referrer-policy", "no-referrer"),
@@ -168,15 +278,18 @@ class SecurityHeadersMiddleware:
             ("cross-origin-resource-policy", "same-origin"),
         ]
         if strict_transport:
-            self.headers.append(("strict-transport-security", "max-age=63072000; includeSubDomains"))
+            self.headers.append(
+                ("strict-transport-security", "max-age=63072000; includeSubDomains")
+            )
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
         path = scope.get("path", "")
-        # Interactive docs exist only outside production and load their own scripts.
-        policy = not path.startswith(("/docs", "/redoc"))
+        # Only actual development docs need their own scripts. Disabled production
+        # docs and arbitrary paths beginning with /docs or /redoc keep the API policy.
+        policy = self.strict_transport or path not in _DOCS_PATHS
 
         async def send_with_headers(message: Message) -> None:
             if message["type"] == "http.response.start":
@@ -217,10 +330,13 @@ class AccessLogMiddleware:
         finally:
             path = scope.get("path", "")
             if not (status < 400 and path in _QUIET_PATHS):
+                method = scope.get("method", "")
+                if method not in _HTTP_METHODS:
+                    method = "[unsupported]"
                 ACCESS_LOGGER.info(
                     '%s "%s %s" %d %dms',
                     scope_client_address(scope, self.trusted_proxy_hops),
-                    scope.get("method", "-"),
+                    method,
                     loggable_path(scope),
                     status,
                     round((time.perf_counter() - started) * 1000),

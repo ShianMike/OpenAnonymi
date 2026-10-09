@@ -1,15 +1,10 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-
-const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
-const subscribe = (listener: () => void) => {
-  reducedMotion.addEventListener('change', listener)
-  return () => reducedMotion.removeEventListener('change', listener)
-}
+import { useEffect, useRef, useState } from 'react'
+import { useDisplayPreferences } from '../appearance/useDisplayPreferences'
 
 export function useLandingMotion() {
   const root = useRef<HTMLDivElement>(null)
   const [paused, setPaused] = useState(false)
-  const reduced = useSyncExternalStore(subscribe, () => reducedMotion.matches)
+  const { reducedMotion: reduced } = useDisplayPreferences()
 
   useEffect(() => {
     const element = root.current

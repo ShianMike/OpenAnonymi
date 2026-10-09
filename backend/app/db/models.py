@@ -16,7 +16,9 @@ from sqlalchemy import (
     event,
     func,
     inspect,
+    text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQLUUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.orm import Session as OrmSession
@@ -45,6 +47,19 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
     created_at: Mapped[datetime] = timestamp_column()
     disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    second_factor_reenroll_required: Mapped[bool] = mapped_column(
+        nullable=False, server_default="false"
+    )
+    notification_emails: Mapped[str] = mapped_column(
+        String(9), nullable=False, server_default="off"
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "notification_emails IN ('off', 'immediate')", name="valid_notification_emails"
+        ),
+    )
 
 
 class Workspace(Base):
@@ -58,11 +73,18 @@ class Workspace(Base):
         Integer, nullable=False, server_default="90"
     )
     settings_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    require_second_factor: Mapped[bool] = mapped_column(nullable=False, server_default="false")
+    approval_policy: Mapped[str] = mapped_column(
+        String(12), nullable=False, server_default="owner_choice"
+    )
 
     __table_args__ = (
         CheckConstraint("content_retention_days > 0", name="positive_content_retention"),
         CheckConstraint("activity_retention_days > 0", name="positive_activity_retention"),
         CheckConstraint("settings_version > 0", name="positive_workspace_settings_version"),
+        CheckConstraint(
+            "approval_policy IN ('owner_choice', 'always')", name="valid_approval_policy"
+        ),
     )
 
 
@@ -96,8 +118,19 @@ class Session(Base):
     created_at: Mapped[datetime] = timestamp_column()
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_seen_at: Mapped[datetime] = timestamp_column()
+    device_label: Mapped[str] = mapped_column(
+        String(100), nullable=False, server_default="Unknown browser · Unknown system"
+    )
+    auth_method: Mapped[str] = mapped_column(String(24), nullable=False, server_default="password")
 
-    __table_args__ = (Index("ix_sessions_user_expiry", "user_id", "expires_at"),)
+    __table_args__ = (
+        Index("ix_sessions_user_expiry", "user_id", "expires_at"),
+        CheckConstraint(
+            "auth_method IN ('password', 'password_totp', 'password_backup_code', 'enrollment')",
+            name="session_auth_method",
+        ),
+    )
 
 
 class RecoveryToken(Base):
@@ -129,9 +162,15 @@ class Document(Base):
         String(300), nullable=False, server_default="email,phone"
     )
     phone_region: Mapped[str] = mapped_column(String(2), nullable=False, server_default="US")
+    language: Mapped[str] = mapped_column(String(2), nullable=False, server_default="en")
     preset_id: Mapped[UUID | None] = mapped_column(PostgreSQLUUID(as_uuid=True))
     preset_version: Mapped[int | None] = mapped_column(Integer)
     preferred_action: Mapped[str] = mapped_column(String(8), nullable=False, server_default="label")
+    category_defaults: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    csv_delimiter: Mapped[str | None] = mapped_column(String(1))
+    csv_has_header: Mapped[bool | None] = mapped_column()
     created_at: Mapped[datetime] = timestamp_column()
     updated_at: Mapped[datetime] = timestamp_column()
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -165,7 +204,17 @@ class Document(Base):
             name="valid_document_preset_snapshot",
         ),
         CheckConstraint("preferred_action IN ('label', 'redact')", name="valid_preferred_action"),
+        CheckConstraint(
+            "jsonb_typeof(category_defaults)='object' AND octet_length(category_defaults::text)<=8192",
+            name="bounded_category_defaults",
+        ),
         CheckConstraint("expires_at > created_at", name="expiry_after_creation"),
+        CheckConstraint(
+            "(csv_delimiter IS NULL AND csv_has_header IS NULL) OR "
+            "(csv_delimiter IS NOT NULL AND csv_has_header IS NOT NULL "
+            "AND csv_delimiter IN (',',';',E'\\t','|'))",
+            name="csv_settings_pair",
+        ),
         CheckConstraint(
             "(title_ciphertext IS NULL AND title_key_id IS NULL) OR "
             "(title_ciphertext IS NOT NULL AND title_key_id IS NOT NULL)",
@@ -221,7 +270,7 @@ class EntityGroup(Base):
         ),
         UniqueConstraint("document_id", "label", name="uq_entity_groups_document_label"),
         CheckConstraint(
-            "category IN ('person', 'organization', 'address', 'identifier', 'custom', 'email', 'phone', 'location')",
+            "category IN ('person', 'organization', 'address', 'identifier', 'custom', 'email', 'phone', 'location', 'date', 'url', 'secret', 'national_id')",
             name="valid_category",
         ),
     )
@@ -252,6 +301,7 @@ class ScanRun(Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     match_count: Mapped[int | None] = mapped_column(Integer)
+    dropped_suggestions: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     failure_code: Mapped[str | None] = mapped_column(String(40))
     started_at: Mapped[datetime] = timestamp_column()
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -270,6 +320,7 @@ class ScanRun(Base):
         ),
         CheckConstraint("settings_version > 0", name="positive_scan_settings_version"),
         CheckConstraint("attempt_count > 0", name="positive_scan_attempt_count"),
+        CheckConstraint("dropped_suggestions >= 0", name="nonnegative_dropped_suggestions"),
         CheckConstraint(
             "match_count IS NULL OR match_count >= 0", name="nonnegative_scan_match_count"
         ),
@@ -291,6 +342,7 @@ class Finding(Base):
     origin: Mapped[str] = mapped_column(String(16), nullable=False)
     rule_id: Mapped[str | None] = mapped_column(String(80))
     rule_version: Mapped[str | None] = mapped_column(String(30))
+    date_format: Mapped[str | None] = mapped_column(String(80))
     reason: Mapped[str | None] = mapped_column(String(200))
     scan_run_id: Mapped[UUID | None] = mapped_column(PostgreSQLUUID(as_uuid=True))
     start_offset: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -325,7 +377,7 @@ class Finding(Base):
             name="automatic_finding_metadata",
         ),
         CheckConstraint(
-            "category IN ('person', 'organization', 'address', 'identifier', 'custom', 'email', 'phone', 'location')",
+            "category IN ('person', 'organization', 'address', 'identifier', 'custom', 'email', 'phone', 'location', 'date', 'url', 'secret', 'national_id')",
             name="valid_category",
         ),
         Index("ix_findings_revision", "source_revision_id", "start_offset"),
@@ -341,6 +393,8 @@ class Decision(Base):
         primary_key=True,
     )
     action: Mapped[str] = mapped_column(String(12), nullable=False)
+    style: Mapped[str] = mapped_column(String(16), nullable=False, server_default="token")
+    style_option: Mapped[str | None] = mapped_column(String(24))
     keep_reason: Mapped[str | None] = mapped_column(String(32))
     decided_by: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
@@ -350,6 +404,14 @@ class Decision(Base):
 
     __table_args__ = (
         CheckConstraint("action IN ('label', 'redact', 'keep')", name="valid_action"),
+        CheckConstraint(
+            "(action='label' AND style IN ('token','stand_in','date_shift')) OR (action='redact' AND style IN ('token','partial_mask','generalize')) OR (action='keep' AND style='token')",
+            name="valid_action_style",
+        ),
+        CheckConstraint(
+            "(style IN ('token','stand_in','date_shift') AND style_option IS NULL) OR (style='partial_mask' AND style_option IS NOT NULL AND style_option IN ('full','last4','first_letters','email_domain','email_first','url_host','secret_prefix')) OR (style='generalize' AND style_option IS NOT NULL AND style_option IN ('month_year','year','age_band'))",
+            name="valid_style_option",
+        ),
         CheckConstraint(
             "(action = 'keep' AND keep_reason IS NOT NULL) OR "
             "(action <> 'keep' AND keep_reason IS NULL)",
@@ -411,7 +473,9 @@ class ExportEvent(Base):
             ["review_completions.document_id", "review_completions.id"],
             ondelete="CASCADE",
         ),
-        CheckConstraint("format IN ('copy', 'txt')", name="valid_format"),
+        CheckConstraint(
+            "format IN ('copy','txt','docx','csv','pdf','report')", name="valid_format"
+        ),
     )
 
 
@@ -428,13 +492,33 @@ class Preset(Base):
     categories: Mapped[str] = mapped_column(String(300), nullable=False)
     phone_region: Mapped[str] = mapped_column(String(2), nullable=False)
     preferred_action: Mapped[str] = mapped_column(String(8), nullable=False, server_default="label")
+    category_defaults: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
     version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    column_rules_ciphertext: Mapped[bytes | None] = mapped_column(LargeBinary)
+    column_rules_key_id: Mapped[str | None] = mapped_column(String(80))
     is_default: Mapped[bool] = mapped_column(nullable=False, server_default="false")
     created_at: Mapped[datetime] = timestamp_column()
 
     __table_args__ = (
         UniqueConstraint("workspace_id", "name", name="uq_presets_workspace_name"),
+        Index(
+            "uq_presets_workspace_default",
+            "workspace_id",
+            unique=True,
+            postgresql_where=text("is_default"),
+        ),
         CheckConstraint("version > 0", name="positive_version"),
+        CheckConstraint(
+            "(column_rules_ciphertext IS NULL AND column_rules_key_id IS NULL) OR "
+            "(column_rules_ciphertext IS NOT NULL AND column_rules_key_id IS NOT NULL)",
+            name="column_rules_encryption_pair",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(category_defaults)='object' AND octet_length(category_defaults::text)<=8192",
+            name="bounded_category_defaults",
+        ),
         CheckConstraint("preferred_action IN ('label', 'redact')", name="valid_preferred_action"),
     )
 
@@ -455,8 +539,26 @@ class AuditEvent(Base):
     event_code: Mapped[str] = mapped_column(String(40), nullable=False)
     outcome: Mapped[str] = mapped_column(String(16), nullable=False)
     occurred_at: Mapped[datetime] = timestamp_column()
+    decision_changes: Mapped[list] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    decision_change_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    decision_version: Mapped[int | None] = mapped_column(Integer)
 
-    __table_args__ = (Index("ix_audit_events_workspace_time", "workspace_id", "occurred_at"),)
+    __table_args__ = (
+        Index("ix_audit_events_workspace_time", "workspace_id", "occurred_at"),
+        CheckConstraint(
+            "jsonb_typeof(decision_changes)='array' AND octet_length(decision_changes::text)<=262144",
+            name="bounded_audit_decision_changes",
+        ),
+        CheckConstraint(
+            "decision_change_count>=0 AND decision_change_count>=jsonb_array_length(decision_changes) AND jsonb_array_length(decision_changes)<=256",
+            name="valid_audit_change_count",
+        ),
+        CheckConstraint(
+            "decision_version IS NULL OR decision_version>=0", name="valid_audit_decision_version"
+        ),
+    )
 
 
 class ImmutableSourceRevision(RuntimeError):

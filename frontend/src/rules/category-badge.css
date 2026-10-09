@@ -1,0 +1,6 @@
+.category-kind { display: inline-flex; align-items: center; gap: 5px; color: var(--tone-body); }
+.category-kind[data-category='date'] { color: var(--category-date, #d6c39f); }
+.category-kind[data-category='url'] { color: var(--category-url, #a9cee0); }
+.category-kind[data-category='secret'] { color: var(--category-secret, #e5b6b8); }
+.category-kind[data-category='national_id'] { color: var(--category-id, #c5b9e0); }
+[data-theme='light'] .category-kind { --category-date: #6d5329; --category-url: #28596f; --category-secret: #803d44; --category-id: #634c83; }

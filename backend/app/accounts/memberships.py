@@ -2,19 +2,24 @@
 
 import hashlib
 import secrets
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select, update
+from sqlalchemy import exists, func, select, update
 from sqlalchemy.orm import Session
 
 from app.accounts.access import require_administrator
+from app.accounts.email_rules import creation_email, lookup_forms
 from app.accounts.recovery import RecoveryMailer
-from app.accounts.security import hash_password, normalize_email
+from app.accounts.second_factor import FactorError
+from app.accounts.security import hash_password
+from app.config import Settings
 from app.contracts import WorkspaceRole
 from app.db.models import Membership, RecoveryToken, User, Workspace
 from app.db.models import Session as StoredSession
+from app.db.second_factor import AuthChallenge, UserSecondFactor
 from app.workspace.activity import record_event
 
 
@@ -52,15 +57,49 @@ class WorkspaceRecord:
     content_retention_days: int
     activity_retention_days: int
     settings_version: int
+    require_second_factor: bool
+    members_without_second_factor: int
+    approval_policy: str
+    active_member_count: int
 
 
-def _workspace_record(workspace: Workspace) -> WorkspaceRecord:
+def _workspace_record(session: Session, workspace: Workspace) -> WorkspaceRecord:
     return WorkspaceRecord(
         workspace.id,
         workspace.name,
         workspace.content_retention_days,
         workspace.activity_retention_days,
         workspace.settings_version,
+        workspace.require_second_factor,
+        session.scalar(
+            select(func.count())
+            .select_from(Membership)
+            .join(User, User.id == Membership.user_id)
+            .where(
+                Membership.workspace_id == workspace.id,
+                Membership.revoked_at.is_(None),
+                User.disabled_at.is_(None),
+                ~exists(
+                    select(UserSecondFactor.user_id).where(
+                        UserSecondFactor.user_id == Membership.user_id,
+                        UserSecondFactor.status == "active",
+                    )
+                ),
+            )
+        )
+        or 0,
+        workspace.approval_policy,
+        session.scalar(
+            select(func.count())
+            .select_from(Membership)
+            .join(User, User.id == Membership.user_id)
+            .where(
+                Membership.workspace_id == workspace.id,
+                Membership.revoked_at.is_(None),
+                User.disabled_at.is_(None),
+            )
+        )
+        or 0,
     )
 
 
@@ -114,7 +153,7 @@ def get_workspace_settings(
     session: Session, *, workspace_id: UUID, actor_id: UUID
 ) -> WorkspaceRecord:
     return _workspace_record(
-        require_administrator(session, workspace_id=workspace_id, actor_id=actor_id)
+        session, require_administrator(session, workspace_id=workspace_id, actor_id=actor_id)
     )
 
 
@@ -126,15 +165,42 @@ def update_workspace_settings(
     expected_version: int,
     content_retention_days: int,
     activity_retention_days: int,
+    require_second_factor: bool | None = None,
+    approval_policy: str | None = None,
+    reauthorize: Callable[[], object] | None = None,
 ) -> WorkspaceRecord:
     if not 1 <= content_retention_days <= 30 or not 1 <= activity_retention_days <= 365:
         raise ValueError("Choose valid retention periods.")
+    if approval_policy is not None and approval_policy not in {"owner_choice", "always"}:
+        raise ValueError("Choose a supported approval policy.")
     with session.begin():
         workspace = require_administrator(
             session, workspace_id=workspace_id, actor_id=actor_id, lock=True
         )
+        if reauthorize is not None:
+            reauthorize()
         if workspace.settings_version != expected_version:
             raise WorkspaceVersionConflict(workspace.settings_version)
+        if require_second_factor is True:
+            # Serialize the factor check with self-service disable and resets.
+            # NO KEY UPDATE remains compatible with activity's foreign-key reads.
+            session.scalar(
+                select(User.id).where(User.id == actor_id).with_for_update(key_share=True)
+            )
+        if require_second_factor is True and not session.scalar(
+            select(UserSecondFactor.user_id).where(
+                UserSecondFactor.user_id == actor_id, UserSecondFactor.status == "active"
+            )
+        ):
+            raise FactorError(
+                422,
+                "enable_second_factor_first",
+                "Enable two-step verification on your account first.",
+            )
+        if require_second_factor is not None:
+            workspace.require_second_factor = require_second_factor
+        if approval_policy is not None:
+            workspace.approval_policy = approval_policy
         workspace.content_retention_days = content_retention_days
         workspace.activity_retention_days = activity_retention_days
         workspace.settings_version += 1
@@ -147,7 +213,9 @@ def update_workspace_settings(
             now=datetime.now(UTC),
         )
         session.flush()
-        result = _workspace_record(workspace)
+        result = _workspace_record(session, workspace)
+        if reauthorize is not None:
+            reauthorize()
     return result
 
 
@@ -158,9 +226,12 @@ def change_member_role(
     actor_id: UUID,
     user_id: UUID,
     role: WorkspaceRole,
+    reauthorize: Callable[[], object] | None = None,
 ) -> MemberRecord:
     with session.begin():
         require_administrator(session, workspace_id=workspace_id, actor_id=actor_id, lock=True)
+        if reauthorize is not None:
+            reauthorize()
         membership, user = _target(session, workspace_id, user_id)
         if membership.revoked_at is not None:
             raise MemberNotFound("Member not found.")
@@ -178,26 +249,38 @@ def change_member_role(
             )
         session.flush()
         result = _member_record(membership, user)
+        if reauthorize is not None:
+            reauthorize()
     return result
 
 
 def revoke_member(
-    session: Session, *, workspace_id: UUID, actor_id: UUID, user_id: UUID, now: datetime
+    session: Session, *, workspace_id: UUID, actor_id: UUID, user_id: UUID, now: datetime,
+    reauthorize: Callable[[], object] | None = None,
+    before_commit: Callable[[MemberRecord], object] | None = None,
 ) -> MemberRecord:
     with session.begin():
         require_administrator(session, workspace_id=workspace_id, actor_id=actor_id, lock=True)
+        if reauthorize is not None:
+            reauthorize()
         membership, user = _target(session, workspace_id, user_id)
+        session.scalar(select(User.id).where(User.id == user_id).with_for_update(key_share=True))
         if membership.revoked_at is None:
             if membership.role == WorkspaceRole.ADMINISTRATOR:
                 _ensure_other_administrator(session, workspace_id, user_id)
             membership.revoked_at = now
             from app.team_review.comments import revoke_member_handoffs
 
-            revoke_member_handoffs(session, workspace_id, user_id, now)
+            revoke_member_handoffs(session, workspace_id, user_id, now, actor_id=actor_id)
             session.execute(
                 update(StoredSession)
                 .where(StoredSession.user_id == user_id, StoredSession.revoked_at.is_(None))
                 .values(revoked_at=now)
+            )
+            session.execute(
+                update(AuthChallenge)
+                .where(AuthChallenge.user_id == user_id, AuthChallenge.consumed_at.is_(None))
+                .values(consumed_at=now)
             )
             record_event(
                 session,
@@ -209,14 +292,21 @@ def revoke_member(
             )
         session.flush()
         result = _member_record(membership, user)
+        if before_commit is not None:
+            before_commit(result)
+        if reauthorize is not None:
+            reauthorize()
     return result
 
 
 def restore_member(
-    session: Session, *, workspace_id: UUID, actor_id: UUID, user_id: UUID
+    session: Session, *, workspace_id: UUID, actor_id: UUID, user_id: UUID,
+    reauthorize: Callable[[], object] | None = None,
 ) -> MemberRecord:
     with session.begin():
         require_administrator(session, workspace_id=workspace_id, actor_id=actor_id, lock=True)
+        if reauthorize is not None:
+            reauthorize()
         membership, user = _target(session, workspace_id, user_id)
         if user.disabled_at is not None:
             raise MemberNotFound("Member not found.")
@@ -232,6 +322,8 @@ def restore_member(
             )
         session.flush()
         result = _member_record(membership, user)
+        if reauthorize is not None:
+            reauthorize()
     return result
 
 
@@ -243,14 +335,18 @@ def invite_member(
     email: str,
     role: WorkspaceRole,
     mailer: RecoveryMailer,
+    settings: Settings,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ) -> MemberRecord:
-    normalized = normalize_email(email)
+    normalized = creation_email(email, settings)
     unknown_password_hash = hash_password(secrets.token_urlsafe(32))
     code = secrets.token_urlsafe(24)
     with session.begin():
         require_administrator(session, workspace_id=workspace_id, actor_id=actor_id, lock=True)
-        if session.scalar(select(User).where(User.email == normalized)) is not None:
+        if reauthorize is not None:
+            reauthorize()
+        if session.scalar(select(User).where(User.email.in_(lookup_forms(email)))) is not None:
             raise MemberExists("This account already exists. Manage its membership separately.")
         user = User(
             id=uuid4(),
@@ -275,7 +371,6 @@ def invite_member(
         session.flush()
         session.add_all([membership, token])
         session.flush()
-        mailer.send_invitation_code(user.email, code)
         record_event(
             session,
             workspace_id=workspace_id,
@@ -285,4 +380,12 @@ def invite_member(
             now=now,
         )
         result = _member_record(membership, user)
+        session.flush()
+        if reauthorize is not None:
+            reauthorize()
+        mailer.send_invitation_code(user.email, code)
+        if reauthorize is not None:
+            # SMTP cannot be rolled back; a denial here invalidates its token
+            # by rolling back all account, membership and recovery rows.
+            reauthorize()
     return result

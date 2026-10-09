@@ -1,0 +1,49 @@
+{
+  "license": "CC0-1.0",
+  "author": "OpenAnonymi synthetic validation",
+  "rule_id": "national_id.us_ssn",
+  "rows": [
+    {
+      "text": "😀 123-45-6789",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 13,
+          "category": "national_id",
+          "rule_id": "national_id.us_ssn"
+        }
+      ]
+    },
+    {
+      "text": "000-45-6789",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "666-45-6789",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "900-45-6789",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "123-00-6789",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "123-45-0000",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "123456789",
+      "region": "US",
+      "expected": []
+    }
+  ]
+}

@@ -5,6 +5,7 @@ export const phoneRegions = [
   ['CA', 'Canada'],
   ['AU', 'Australia'],
   ['IN', 'India'],
+  ['SG', 'Singapore'],
+  ['MY', 'Malaysia'],
 ] as const
 export const regionName = (code: string) => phoneRegions.find(([value]) => value === code)?.[1] ?? code
-

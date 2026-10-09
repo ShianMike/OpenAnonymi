@@ -8,6 +8,9 @@ function finding(id: string, start: number, end: number): ReviewFinding {
     category: 'person',
     origin: 'manual',
     action: null,
+    style: 'token',
+    style_option: null,
+    date_format: null,
     group_id: null,
     label: null,
     keep_reason: null,
@@ -57,5 +60,13 @@ describe('inline review text', () => {
     expect(result.map((part) => part.findings[0].finding_id)).toEqual(['first', 'second'])
     expect(segmentText('untouched', [])[0].text).toBe('untouched')
     expect(segmentText('', [])).toEqual([])
+  })
+
+  it('keeps input precedence for unsorted nested spans and removes ended marks at a shared boundary', () => {
+    const marks = [finding('inner', 3, 5), finding('outer', 0, 8), finding('next', 5, 7)]
+    const result = segmentText('abcdefgh', marks.map(item => ({ span: item.span, finding: item })))
+    expect(result.map(part => [part.text, part.findings.map(item => item.finding_id)])).toEqual([
+      ['abc', ['outer']], ['de', ['inner', 'outer']], ['fg', ['outer', 'next']], ['h', ['outer']],
+    ])
   })
 })

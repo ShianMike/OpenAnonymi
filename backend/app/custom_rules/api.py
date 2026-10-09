@@ -15,6 +15,7 @@ from app.accounts.access import (
     owned_document,
 )
 from app.accounts.api import current_identity, mutation_identity
+from app.accounts.response_boundary import protected_json_response
 from app.accounts.security import SessionIdentity
 from app.contracts import ConflictResponse, ErrorResponse
 from app.custom_rules.contracts import (
@@ -34,6 +35,8 @@ from app.custom_rules.service import (
     refresh_snapshot,
     save_rule,
     snapshot_state,
+    validate_rule_view,
+    validate_snapshot_view,
     workspace_rules,
 )
 from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedContentError
@@ -75,6 +78,30 @@ def create_custom_rules_router(engine: Engine) -> APIRouter:
         503: {"model": ErrorResponse},
     }
 
+    def protect(view, request, identity, authorize, *, status_code=200):
+        def current(current_actor):
+            with Session(engine) as session:
+                authorize(session, current_actor.user_id)
+
+        return protected_json_response(view, request, identity, current, status_code=status_code)
+
+    def rule_response(view, request, identity, workspace_id, *, status_code=200):
+        return protect(
+            view,
+            request,
+            identity,
+            lambda session, actor: validate_rule_view(session, workspace_id, actor, view),
+            status_code=status_code,
+        )
+
+    def snapshot_response(view, request, identity, document_id):
+        return protect(
+            view,
+            request,
+            identity,
+            lambda session, actor: validate_snapshot_view(session, document_id, actor, view),
+        )
+
     @router.get("/workspaces/{workspace_id}/rules", response_model=list[RuleView], responses=errors)
     def list_route(
         workspace_id: UUID,
@@ -84,9 +111,10 @@ def create_custom_rules_router(engine: Engine) -> APIRouter:
         def operation():
             with Session(engine) as session:
                 active_workspace(session, workspace_id, identity.user_id)
-                return workspace_rules(
+                view = workspace_rules(
                     session, workspace_id, KeyRing.from_settings(request.app.state.settings)
                 )
+            return rule_response(view, request, identity, workspace_id)
 
         return guarded(operation)
 
@@ -104,14 +132,16 @@ def create_custom_rules_router(engine: Engine) -> APIRouter:
     ):
         def operation():
             with Session(engine) as session:
-                return save_rule(
+                view = save_rule(
                     session,
                     workspace_id=workspace_id,
                     actor_id=identity.user_id,
                     keys=KeyRing.from_settings(request.app.state.settings),
                     now=datetime.now(UTC),
                     body=body,
+                    reauthorize=lambda: current_identity(request),
                 )
+            return rule_response(view, request, identity, workspace_id, status_code=201)
 
         return guarded(operation)
 
@@ -127,7 +157,7 @@ def create_custom_rules_router(engine: Engine) -> APIRouter:
     ):
         def operation():
             with Session(engine) as session:
-                return save_rule(
+                view = save_rule(
                     session,
                     workspace_id=workspace_id,
                     actor_id=identity.user_id,
@@ -136,7 +166,9 @@ def create_custom_rules_router(engine: Engine) -> APIRouter:
                     body=RuleInput(**body.model_dump(exclude={"expected_version"})),
                     rule_id=rule_id,
                     expected_version=body.expected_version,
+                    reauthorize=lambda: current_identity(request),
                 )
+            return rule_response(view, request, identity, workspace_id)
 
         return guarded(operation)
 
@@ -146,18 +178,25 @@ def create_custom_rules_router(engine: Engine) -> APIRouter:
     def test_route(
         workspace_id: UUID,
         body: RuleTestInput,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ):
         def operation():
             with Session(engine) as session:
                 active_workspace(session, workspace_id, identity.user_id)
             spans = matches(body.text, body.rule, limit=100)
-            return RuleTestView(
+            view = RuleTestView(
                 matches=[
                     RuleTestMatch(span=span, text=body.text[span.start : span.end])
                     for span in spans
                 ],
                 match_count=len(spans),
+            )
+            return protect(
+                view,
+                request,
+                identity,
+                lambda session, actor: active_workspace(session, workspace_id, actor),
             )
 
         return guarded(operation)
@@ -171,9 +210,10 @@ def create_custom_rules_router(engine: Engine) -> APIRouter:
         def operation():
             with Session(engine) as session:
                 document = owned_document(session, document_id, identity.user_id, datetime.now(UTC))
-                return snapshot_state(
+                view = snapshot_state(
                     session, document, KeyRing.from_settings(request.app.state.settings)
                 )
+            return snapshot_response(view, request, identity, document_id)
 
         return guarded(operation)
 
@@ -186,14 +226,16 @@ def create_custom_rules_router(engine: Engine) -> APIRouter:
     ):
         def operation():
             with Session(engine) as session:
-                return refresh_snapshot(
+                view = refresh_snapshot(
                     session,
                     document_id,
                     identity.user_id,
                     body.expected,
                     datetime.now(UTC),
                     KeyRing.from_settings(request.app.state.settings),
+                    reauthorize=lambda: current_identity(request),
                 )
+            return snapshot_response(view, request, identity, document_id)
 
         return guarded(operation)
 

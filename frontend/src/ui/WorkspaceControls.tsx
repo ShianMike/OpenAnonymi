@@ -1,8 +1,17 @@
-import type { ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { CheckCircle2, AlertCircle, X } from 'lucide-react'
+import { CheckCircle2, AlertCircle, RefreshCw, X } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
 import './workspace-controls.css'
+
+export function RefreshButton({ label, pending = false, disabled = false, onClick }: {
+  label: string; pending?: boolean; disabled?: boolean; onClick: () => void
+}) {
+  return <button type="button" className="refresh-button" aria-label={label} aria-busy={pending}
+    disabled={disabled || pending} onClick={onClick}>
+    <RefreshCw size={16} aria-hidden="true" />{pending ? 'Refreshing…' : 'Refresh'}
+  </button>
+}
 
 
 export function PanelHeading({
@@ -28,28 +37,38 @@ export function PanelHeading({
 }
 
 export function ChoiceSwitch({
+  id,
   label,
   description,
   checked,
   disabled,
+  disabledReason,
   onChange,
 }: {
+  id?: string
   label: string
   description?: string
   checked: boolean
   disabled?: boolean
+  disabledReason?: string
   onChange: (value: boolean) => void
 }) {
+  const generatedId = useId()
+  const controlId = id ?? generatedId
+  const help = disabled && disabledReason ? disabledReason : description
   return (
-    <label className="choice-switch">
+    <label className="choice-switch" title={disabled ? disabledReason : undefined}>
       <span>
         <strong>{label}</strong>
-        {description && <small>{description}</small>}
+        {description && <small id={`${controlId}-description`}>{description}</small>}
+        {disabled && disabledReason && <span className="sr-only" id={`${controlId}-disabled-reason`}>{disabledReason}</span>}
       </span>
       <input
         type="checkbox"
+        id={controlId}
         role="switch"
         aria-label={label}
+        aria-describedby={help ? `${controlId}-${disabled && disabledReason ? 'disabled-reason' : 'description'}` : undefined}
         checked={checked}
         disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
@@ -75,19 +94,21 @@ export function DialogFrame({
   busy,
   children,
   onCloseAutoFocus,
+  className = '',
 }: {
   title: string
   description: string
   busy?: boolean
   children: ReactNode
   onCloseAutoFocus?: (event: Event) => void
+  className?: string
 }) {
   return (
     <Dialog.Portal>
       <Dialog.Overlay className="workspace-dialog-overlay" />
       <Dialog.Content
         aria-busy={busy}
-        className="workspace-dialog"
+        className={`workspace-dialog ${className}`}
         onCloseAutoFocus={onCloseAutoFocus}
         onInteractOutside={(event) => event.preventDefault()}
         onEscapeKeyDown={(event) => {

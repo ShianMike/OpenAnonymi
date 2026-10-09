@@ -1,7 +1,8 @@
-import { Check, CheckCircle2, Monitor, Moon, Palette, Sun } from 'lucide-react'
+import { Check, CheckCircle2, Monitor, Moon, Palette, Sun, Settings2 } from 'lucide-react'
 import { PageHeader } from '../ui/PageHeader'
 import { useAppearance } from './useAppearance'
 import { ThemePreview } from './ThemePreview'
+import { useDisplayPreferences } from './useDisplayPreferences'
 import './preferences.css'
 
 const choices = [
@@ -13,19 +14,20 @@ const choices = [
 export function PreferencesPage() {
   const { preference, theme, saved, setAppearance } = useAppearance()
   const ActiveIcon = theme === 'light' ? Sun : Moon
+  const display = useDisplayPreferences()
   return (
     <section className="preferences-page" aria-labelledby="preferences-title">
       <PageHeader
         title="Preferences"
         titleId="preferences-title"
-        description="Make a little space for your own style."
+        description="Choose how the app looks and feels on this device."
       />
       <section className="appearance-panel" aria-labelledby="appearance-title">
         <header className="appearance-heading">
           <span className="appearance-icon"><Palette size={21} strokeWidth={1.6} aria-hidden="true" /></span>
           <div>
             <h2 id="appearance-title">Appearance</h2>
-            <p>Choose the light you work in.</p>
+            <p>Choose a color theme.</p>
           </div>
           <span className="appearance-current">
             <ActiveIcon size={14} aria-hidden="true" /> {theme === 'light' ? 'Light' : 'Dark'} mode
@@ -54,15 +56,51 @@ export function PreferencesPage() {
             </label>
           ))}
         </fieldset>
-        <footer className="appearance-footer">
-          <p role="status" aria-live="polite">
-            <CheckCircle2 size={15} aria-hidden="true" />
-            {saved ? 'Changes apply instantly and are saved on this device.' : 'Applied for this visit. Your browser is not allowing saved preferences.'}
-          </p>
-          <span>{preference === 'system' ? `Your device is currently using ${theme} mode.` : 'Your space, your preference.'}</span>
-        </footer>
       </section>
-      <p className="preferences-note">A softer canvas. The same care for your content.</p>
+      <section className="appearance-panel display-panel" aria-labelledby="display-title">
+        <header className="appearance-heading">
+          <span className="appearance-icon"><Settings2 size={21} aria-hidden="true" /></span>
+          <div><h2 id="display-title">Reading and motion</h2><p>Adjust the app to suit the way you work.</p></div>
+        </header>
+        <div className="display-choice-groups">
+          <fieldset><legend className="sr-only">Spacing</legend>
+            <div className="display-setting-copy"><h3>Spacing</h3><p>Choose how much room sits between controls.</p></div>
+            <div className="display-options">
+            {(['comfortable', 'compact'] as const).map(value => <label key={value} className="display-choice">
+              <input type="radio" name="density" aria-label={value === 'comfortable' ? 'Comfortable' : 'Compact'} checked={display.density === value}
+                onChange={() => display.setDisplayPreference('density', value)} />
+              <span><strong>{value === 'comfortable' ? 'Comfortable' : 'Compact'}</strong>
+                <small>{value === 'comfortable' ? 'Room between controls and findings' : 'Closer rows with the same touch targets'}</small></span>
+            </label>)}
+            </div>
+          </fieldset>
+          <fieldset><legend className="sr-only">Text size</legend>
+            <div className="display-setting-copy"><h3>Text size</h3><p>Make text easier to read throughout the app.</p></div>
+            <div className="display-options">
+            {(['standard', 'large'] as const).map(value => <label key={value} className="display-choice">
+              <input type="radio" name="font-size" aria-label={value === 'standard' ? 'Standard' : 'Large'} checked={display.fontSize === value}
+                onChange={() => display.setDisplayPreference('fontSize', value)} />
+              <span><strong>{value === 'standard' ? 'Standard' : 'Large'}</strong>
+                <small>{value === 'standard' ? 'Default text size' : 'Larger text throughout the workspace'}</small></span>
+            </label>)}
+            </div>
+          </fieldset>
+          <fieldset><legend className="sr-only">Motion</legend>
+            <div className="display-setting-copy"><h3>Motion</h3><p>Reduce decorative animations and transitions.</p></div>
+            <div className="display-options">
+            {(['system', 'reduced'] as const).map(value => <label key={value} className="display-choice">
+              <input type="radio" name="motion" aria-label={value === 'system' ? 'Follow device' : 'Reduce motion'} checked={display.motion === value}
+                onChange={() => display.setDisplayPreference('motion', value)} />
+              <span><strong>{value === 'system' ? 'Follow device' : 'Reduce motion'}</strong>
+                <small>{value === 'system' ? 'Honor your device’s reduced motion setting' : 'Pause decorative motion and transitions'}</small></span>
+            </label>)}
+            </div>
+          </fieldset>
+        </div>
+      </section>
+      <p className="preferences-note" role="status"><CheckCircle2 size={16} aria-hidden="true" />
+        {saved && display.saved ? 'Changes apply immediately and are saved on this device.' : 'Applied for this visit. Your browser is not allowing saved preferences.'}
+      </p>
     </section>
   )
 }

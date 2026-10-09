@@ -41,7 +41,7 @@ export function createReviewSourceActions({
     try {
       const saved = await saveDraftSource(documentId, state.saved.version, text, csrfToken)
       await onSaved(saved, text)
-      setNotice('Draft saved as a new source revision. Review it again before export.')
+      setNotice(saved.structure === 'simplified' ? 'This edit changed the Word layout; the Word download will use plain paragraphs. Review this new revision again before export.' : 'Draft saved as a new source revision. Review it again before export.')
     } catch (cause) {
       if (cause instanceof ApiConflictError) {
         setConflict(true)

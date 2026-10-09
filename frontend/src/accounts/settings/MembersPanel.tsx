@@ -17,13 +17,14 @@ export function MembersPanel({
   onChanged: (member: MemberView) => void
 }) {
   const [notice, setNotice] = useState<string | null>(null)
+  const activeCount = members.filter(member => !member.revoked_at && !member.disabled_at).length
   return (
     <div className="members-panel workspace-panel">
       <div className="members-panel-heading">
         <PanelHeading
           icon={Users}
           title="People in your workspace"
-          description={`${members.filter((member) => !member.revoked_at && !member.disabled_at).length} active members · Everyone reviews their own documents.`}
+          description={`${activeCount} active member${activeCount === 1 ? '' : 's'} · Everyone reviews their own documents.`}
         />
         <InviteDialog
           workspaceId={workspaceId}
@@ -81,6 +82,7 @@ export function MembersPanel({
                 <MemberDialog
                   member={member}
                   workspaceId={workspaceId}
+                  workspaceName={session.memberships.find(item => item.workspace_id === workspaceId)?.workspace_name || 'this workspace'}
                   csrfToken={session.csrf_token}
                   onChanged={(updated) => {
                     onChanged(updated)

@@ -1,15 +1,25 @@
-import { PrivacyGlyph } from './PrivacyGlyph'
+import { Check, FileText } from 'lucide-react'
+import { Brand } from '../ui/Brand'
+import { demoOutput, examples } from './demoModel'
 
 export function PrivacyOrbit() {
   return (
     <div className="privacy-orbit landing-loop-scene" aria-hidden="true">
-      <div className="privacy-orbit-track privacy-orbit-track-outer" />
-      <div className="privacy-orbit-track privacy-orbit-track-inner" />
-      <div className="privacy-orbit-center"><PrivacyGlyph kind="fingerprint" size={78} /></div>
-      <div className="privacy-orbit-satellite"><PrivacyGlyph kind="document" size={39} /></div>
-      <div className="privacy-orbit-satellite"><PrivacyGlyph kind="scan" size={39} /></div>
-      <div className="privacy-orbit-satellite"><PrivacyGlyph kind="shield" size={39} /></div>
-      <span className="privacy-orbit-note">Your review.<br /><strong>Your call.</strong></span>
+      <div className="privacy-document privacy-document-source">
+        <div><FileText size={16} /><span>Original</span></div>
+        <strong>{examples[0].title}</strong>
+        <p>{demoOutput(examples[0].parts, {})}</p>
+      </div>
+      <div className="privacy-orbit-hub">
+        <div className="privacy-orbit-track privacy-orbit-track-outer" />
+        <div className="privacy-orbit-track privacy-orbit-track-inner" />
+        <div className="privacy-orbit-center"><Brand compact /></div>
+      </div>
+      <div className="privacy-document privacy-document-output">
+        <div><Check size={16} /><span>Reviewed</span></div>
+        <strong>{examples[0].title}</strong>
+        <p>{demoOutput(examples[0].parts, { person: 'label', email: 'redact', phone: 'keep' })}</p>
+      </div>
     </div>
   )
 }

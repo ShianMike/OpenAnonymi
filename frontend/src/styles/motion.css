@@ -1,0 +1,116 @@
+:root {
+  --motion-fast: 140ms;
+  --motion-ui: 220ms;
+  --motion-page: 280ms;
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes ui-enter {
+  from { opacity: 0; translate: 0 8px; }
+  to { opacity: 1; translate: none; }
+}
+@keyframes ui-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes ui-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes ui-pop-in {
+  from { opacity: 0; translate: 0 var(--motion-offset, 8px); scale: 0.98; }
+  to { opacity: 1; translate: none; scale: none; }
+}
+@keyframes ui-pop-out {
+  from { opacity: 1; translate: none; scale: none; }
+  to { opacity: 0; translate: 0 var(--motion-offset, 8px); scale: 0.98; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-motion='reduced']) {
+    .app-shell #main-content > section {
+      animation: ui-enter var(--motion-page) var(--motion-ease);
+    }
+    .app-shell #main-content [role='tabpanel']:not([hidden]):not([data-state='inactive']) {
+      animation: ui-enter var(--motion-ui) var(--motion-ease);
+    }
+
+    :is(.glass-select-menu, .topbar-account-menu, .document-action-menu, .activity-summary-breakdown) {
+      --motion-offset: -6px;
+      transform-origin: var(--radix-select-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin, var(--radix-popover-content-transform-origin, top center)));
+    }
+    :is(.glass-select-menu, .topbar-account-menu, .document-action-menu, .activity-summary-breakdown)[data-side='top'] {
+      --motion-offset: 6px;
+    }
+    :is(.glass-select-menu, .topbar-account-menu, .document-action-menu, .activity-summary-breakdown,
+        .workspace-dialog, .auth-dialog, .source-reload-dialog, .retention-dialog, .document-delete-dialog, .finding-popover, .global-search-dialog)[data-state='open'] {
+      animation: ui-pop-in var(--motion-ui) var(--motion-ease);
+    }
+    :is(.glass-select-menu, .topbar-account-menu, .document-action-menu, .activity-summary-breakdown,
+        .workspace-dialog, .auth-dialog, .source-reload-dialog, .retention-dialog, .document-delete-dialog, .finding-popover, .global-search-dialog)[data-state='closed'] {
+      animation: ui-pop-out var(--motion-fast) ease-in;
+      pointer-events: none;
+    }
+    :is(.workspace-dialog-overlay, .auth-dialog-overlay, .source-reload-overlay, .retention-overlay, .document-delete-overlay, .global-search-overlay)[data-state='open'] {
+      animation: ui-fade-in var(--motion-ui) ease-out;
+    }
+    :is(.workspace-dialog-overlay, .auth-dialog-overlay, .source-reload-overlay, .retention-overlay, .document-delete-overlay, .global-search-overlay)[data-state='closed'] {
+      animation: ui-fade-out var(--motion-fast) ease-in;
+    }
+
+    .branch-children {
+      transition: grid-template-rows var(--motion-ui) var(--motion-ease), opacity var(--motion-fast) ease-out, margin var(--motion-ui) var(--motion-ease);
+    }
+    :is(.glass-select-chevron, .branch-heading > svg:last-child, .topbar-profile > svg:last-child, .activity-summary-trigger > svg:last-child) {
+      transition: transform var(--motion-ui) var(--motion-ease);
+    }
+    .topbar-profile[data-state='open'] > svg:last-child { transform: rotate(180deg); }
+
+    :is(.glass-select-option, .topbar-account-menu [role='menuitem'], .document-action-menu [role='menuitem'],
+        .search-results a, .refresh-button, .quiet-button, .button-primary, [role='tab']) {
+      transition: background-color var(--motion-fast) ease-out, color var(--motion-fast) ease-out, border-color var(--motion-fast) ease-out, scale var(--motion-fast) var(--motion-ease);
+    }
+    :is(.refresh-button, .quiet-button, .button-primary):active:not(:disabled) { scale: 0.98; }
+    :is(.inline-notice, .review-feedback, .search-error) { animation: ui-fade-in var(--motion-ui) ease-out; }
+
+    .disabled-reason-tooltip {
+      opacity: 0;
+      translate: 0 4px;
+      transition: opacity var(--motion-fast) ease-out, translate var(--motion-fast) var(--motion-ease), visibility var(--motion-fast);
+    }
+    .disabled-reason:is(:hover, :focus-visible, :focus-within) .disabled-reason-tooltip {
+      opacity: 1;
+      translate: none;
+    }
+
+    /* Older browsers keep native disclosures; no fixed height can cut off their content. */
+    @supports selector(::details-content) and (interpolate-size: allow-keywords) and (transition-behavior: allow-discrete) {
+      :is(.app-shell, [role='dialog'], [role='alertdialog']) details { interpolate-size: allow-keywords; }
+      :is(.app-shell, [role='dialog'], [role='alertdialog']) details::details-content {
+        height: 0;
+        opacity: 0;
+        overflow: clip;
+        transition: height var(--motion-ui) var(--motion-ease), opacity var(--motion-fast) ease-out, content-visibility var(--motion-ui) allow-discrete;
+      }
+      :is(.app-shell, [role='dialog'], [role='alertdialog']) details[open]::details-content {
+        height: auto;
+        opacity: 1;
+      }
+    }
+
+    @media (max-width: 900px) {
+      @supports (transition-behavior: allow-discrete) {
+        .app-sidebar {
+          translate: -100% 0;
+          opacity: 0;
+          transition: translate var(--motion-ui) var(--motion-ease), opacity var(--motion-fast) ease-out, display var(--motion-ui) allow-discrete;
+        }
+        .app-sidebar.is-open { translate: none; opacity: 1; }
+        @starting-style {
+          .app-sidebar.is-open { translate: -100% 0; opacity: 0; }
+        }
+      }
+      .nav-scrim { animation: ui-fade-in var(--motion-fast) ease-out; }
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "license": "CC0-1.0",
+  "author": "OpenAnonymi synthetic validation",
+  "rule_id": "identifier.payment_checksum",
+  "rows": [
+    {
+      "text": "😀 4111 1111 1111 1111",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 21,
+          "category": "identifier",
+          "rule_id": "identifier.payment_checksum"
+        }
+      ]
+    },
+    {
+      "text": "😀 5555-5555-5555-4444",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 21,
+          "category": "identifier",
+          "rule_id": "identifier.payment_checksum"
+        }
+      ]
+    },
+    {
+      "text": "4111 1111 1111 1112",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "1111 1111 1111 1111",
+      "region": "US",
+      "expected": []
+    }
+  ]
+}

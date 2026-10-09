@@ -37,21 +37,24 @@ export function HandoffPanel({ review, session }: { review: ReviewController; se
     if (!saved) return
     setPending(true); setError(null)
     try {
-      await saveHandoff(saved.version.document_id, saved.version, revoke ? null : reviewer || null, required, session.csrf_token)
+      await saveHandoff(saved.version.document_id, saved.version, revoke ? null : reviewer || null,
+        handoff?.approval_policy === 'always' || required, session.csrf_token)
       setOpen(false); await review.reloadSaved()
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Handoff could not be saved.'); if (cause instanceof ApiConflictError) void review.reloadSaved() }
     finally { setPending(false) }
   }
   return <section id="review-handoff" tabIndex={-1} className="team-panel workspace-panel" aria-label="Team review handoff">
-    <PanelHeading icon={saved.can_edit ? UsersRound : UserRoundCheck} title={saved.can_edit ? 'Team review' : 'Assigned to you'}
-      description={saved.can_edit ? 'Another set of eyes, when you need it.' : 'Review the source, decide findings and discuss details.'} />
+    <div className="team-heading"><PanelHeading icon={saved.can_edit ? UsersRound : UserRoundCheck} title={saved.can_edit ? 'Team review' : 'Assigned to you'}
+      description={saved.can_edit ? 'Ask a teammate for a second look.' : 'Read the text, make choices and discuss details.'} />
+      {saved.can_edit && handoff && <span className="team-policy">{handoff.require_approval ? 'Required' : 'Optional'}</span>}
+    </div>
     {review.handoff.error && <InlineNotice error>{review.handoff.error}<button type="button" onClick={review.handoff.retry}>Retry handoff</button></InlineNotice>}
     {!handoff && !review.handoff.error && <p role="status" className="field-note">Checking review access…</p>}
     {handoff && <>
-      {saved.can_edit && <p className="team-assignee">{handoff.reviewer_email ?? 'No reviewer assigned'}
+      {saved.can_edit && handoff.reviewer_id && <p className="team-assignee">{handoff.reviewer_email ?? 'Assigned reviewer'}
         {handoff.reviewer_id && !handoff.reviewer_active && <span className="field-note">Access no longer active</span>}
       </p>}
-      <p className="field-note">{handoff.require_approval ? saved.can_edit ? 'Independent approval is required before copying or downloading.' : 'Your approval is required before the owner can copy or download.' : saved.can_edit ? 'Second approval is optional.' : 'Your independent approval is optional. The owner handles exports.'}</p>
+      <p className="field-note">{handoff.require_approval ? saved.can_edit ? 'A teammate must approve this version before you can copy or download it.' : 'Your approval is required before the owner can copy or download.' : saved.can_edit ? handoff.reviewer_id ? 'You can share after confirming; teammate approval is optional.' : 'You can finish this review yourself, or invite a teammate to check it.' : 'Your approval is optional. The owner handles copying and downloading.'}</p>
       {handoff.approved_at && <p className="team-approved" role="status"><CheckCircle2 size={16} aria-hidden="true" /> This exact version is independently approved.</p>}
       {saved.can_edit ? <Dialog.Root open={open} onOpenChange={(next) => {
         if (pending) return
@@ -59,17 +62,21 @@ export function HandoffPanel({ review, session }: { review: ReviewController; se
         setOpen(next)
       }}>
         <Dialog.Trigger asChild><button type="button" disabled={blocked}>Manage reviewer</button></Dialog.Trigger>
-        <DialogFrame title="Share this review with a teammate" description="The chosen teammate can read the protected source, decide findings, comment and approve. You control source revisions, deletion and exports." busy={pending}>
+        <DialogFrame title="Ask a teammate to review" description="This teammate can read the original private text, make choices, comment and approve. You control text edits, deletion, copying and downloading." busy={pending}>
           {members === null && !error && <LoadingState label="Loading active teammates…" compact />}
           {members && <form onSubmit={(event) => { event.preventDefault(); void save() }} className="team-form">
             <label htmlFor="review-teammate">Reviewer</label>
             <GlassSelect id="review-teammate" value={reviewer} onValueChange={setReviewer} disabled={pending}>
-              <option value="">No reviewer · Revoke access</option>
+              <option value="">No reviewer · Remove access</option>
               {members.map((member) => <option key={member.user_id} value={member.user_id}>{member.email}</option>)}
             </GlassSelect>
             {members.length === 0 && <p className="field-note">No active teammates available. An administrator can add members in Settings.</p>}
-            <ChoiceSwitch label="Require independent approval" description="Export stays locked until the assigned teammate approves the current confirmed version." checked={required} disabled={pending} onChange={setRequired} />
-            <p className="field-note">Changing the handoff invalidates the current confirmation and approval. Revoking access keeps required approval locked until you assign another reviewer or explicitly turn it off.</p>
+            <ChoiceSwitch label="Require teammate approval" description={handoff.approval_policy === 'always'
+              ? 'Your workspace requires a teammate’s approval for every copy and download.'
+              : 'Copying and downloading stay locked until this teammate approves the confirmed version.'}
+              checked={handoff.approval_policy === 'always' || required}
+              disabled={pending || handoff.approval_policy === 'always'} onChange={setRequired} />
+            <p className="field-note">Changing these options resets confirmation and approval. If approval is required, removing the reviewer keeps sharing locked until you assign someone else{handoff.approval_policy === 'always' ? '.' : ' or turn off required approval.'}</p>
             <button type="submit" disabled={pending}>{pending ? 'Saving…' : reviewer ? 'Grant review access' : 'Save review access'}</button>
           </form>}
           {error && <InlineNotice error>{error}</InlineNotice>}

@@ -1,0 +1,51 @@
+{
+  "license": "CC0-1.0",
+  "author": "OpenAnonymi synthetic validation",
+  "rule_id": "national_id.my_mykad",
+  "rows": [
+    {
+      "text": "😀 000229-01-1234",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 16,
+          "category": "national_id",
+          "rule_id": "national_id.my_mykad"
+        }
+      ]
+    },
+    {
+      "text": "😀 901231-71-1234",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 16,
+          "category": "national_id",
+          "rule_id": "national_id.my_mykad"
+        }
+      ]
+    },
+    {
+      "text": "990229-01-1234",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "901231-00-1234",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "900431-01-1234",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "901231011234",
+      "region": "US",
+      "expected": []
+    }
+  ]
+}

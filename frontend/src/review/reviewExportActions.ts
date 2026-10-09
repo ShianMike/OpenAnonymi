@@ -2,15 +2,16 @@ import type { Dispatch, SetStateAction } from 'react'
 import {
   ApiConflictError,
   confirmReview,
-  downloadReviewedTxt,
+  downloadReviewedFile,
+  downloadReviewedCsv,
+  type CsvVariant,
   getCopyPayload,
   getReviewSummary,
   recordCopySuccess,
   type SessionView,
   type ReviewSummaryView,
-  type VersionRef,
 } from '../api/client'
-import { messageFrom, sameVersion, type DraftState } from './reviewState'
+import { messageFrom, sameVersion, type DraftState, type ReviewedDownload } from './reviewState'
 
 type Update<T> = Dispatch<SetStateAction<T>>
 type ExportContext = {
@@ -28,7 +29,7 @@ type ExportContext = {
   setSummary: Update<ReviewSummaryView | null>
   setConflict: Update<boolean>
   setExportPending: Update<boolean>
-  setPreparedDownload: Update<{ url: string; filename: string; version: VersionRef } | null>
+  setPreparedDownload: Update<ReviewedDownload | null>
 }
 
 /** Completion and export share the server's version-bound review contract. */
@@ -115,30 +116,36 @@ export function createReviewExportActions({
     }
   }
 
-  async function downloadReviewedOutput() {
+  async function downloadReviewedOutput(format: ReviewedDownload['format'] = 'txt', variant: CsvVariant = 'spreadsheet_safe') {
     if (!documentId || state.kind !== 'ready' || !canExport) return
     setExportPending(true)
     setError(null)
     setNotice(null)
     try {
-      const file = await downloadReviewedTxt(
+      const csv = format === 'csv' ? await downloadReviewedCsv(documentId, state.saved.version, crypto.randomUUID(), session.csrf_token, variant) : null
+      const file = csv?.file ?? await downloadReviewedFile(
         documentId,
         state.saved.version,
         crypto.randomUUID(),
         session.csrf_token,
+        format as Exclude<ReviewedDownload['format'], 'csv'>,
       )
       setState({ kind: 'ready', saved: { ...state.saved, status: 'exported' } })
       setPreparedDownload({
         url: URL.createObjectURL(file),
-        filename: `reviewed-${documentId}.txt`,
+        filename: format === 'report' ? `redaction-report-${documentId}.json` : `reviewed-${documentId}.${format}`,
         version: state.saved.version,
+        format,
+        variant: format === 'csv' ? variant : undefined,
+        prefixed: csv?.prefixed,
       })
-      setNotice('Reviewed TXT generated. Use the save link to download it.')
+      const label = { txt: 'Reviewed TXT', docx: 'Reviewed Word file', pdf: 'Reviewed PDF', report: 'Redaction report', csv: 'Reviewed CSV' }[format]
+      setNotice(format === 'csv' ? `Reviewed ${variant === 'spreadsheet_safe' ? 'spreadsheet-safe' : 'unmodified'} CSV generated. ${csv?.prefixed ?? 0} cells prefixed. Use the save link to download it.` : `${label} generated. Use the save link to download it.`)
       try {
         const result = await getReviewSummary(documentId)
         if (sameVersion(result.version, state.saved.version)) setSummary(result)
       } catch {
-        setError('TXT generated, but the review summary could not be refreshed.')
+        setError('Output generated, but the review summary could not be refreshed.')
       }
     } catch (cause: unknown) {
       if (cause instanceof ApiConflictError) setConflict(true)

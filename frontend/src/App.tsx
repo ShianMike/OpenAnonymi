@@ -1,27 +1,33 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import { matchPath, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { ChevronRight, LogOut, Menu, X } from 'lucide-react'
-import { SignInPage } from './accounts/SignInPage'
-import { SettingsPage } from './accounts/SettingsPage'
-import { NewReviewPage } from './review/NewReviewPage'
-import { ActivityPage } from './workspace/ActivityPage'
-import { OverviewPage } from './workspace/OverviewPage'
-import { RulesPage } from './workspace/RulesPage'
-import { HistoryPage } from './workspace/HistoryPage'
+import { Link, matchPath, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { SignOutDialog } from './accounts/SignOutDialog'
 import { ApiRequestError, getSession, signOut, type SessionView } from './api/client'
 import { Sidebar } from './shell/Sidebar'
+import { Topbar } from './shell/Topbar'
 import { pages } from './shell/navigation'
 import { useAppearance } from './appearance/useAppearance'
+import { useDisplayPreferences } from './appearance/useDisplayPreferences'
 import { authDestination } from './accounts/authNavigation'
 import { LoadingScreen } from './loading/LoadingScreen'
 import { RouteLoading } from './loading/RouteLoading'
 import { PageLoadBoundary } from './loading/PageLoadBoundary'
 import { LoadingFailure } from './loading/LoadingFailure'
+import { SESSION_ENDED_EVENT, matchesSessionScope, reportEndedScope, setSessionScope } from './api/sessionEvents'
+import { protectReviewCacheLifecycle } from './api/reviewCache'
 import './App.css'
 
+const SignInPage = lazy(() => import('./accounts/SignInPage').then((module) => ({ default: module.SignInPage })))
+const SettingsPage = lazy(() => import('./accounts/SettingsPage').then((module) => ({ default: module.SettingsPage })))
+const MembersPage = lazy(() => import('./accounts/MembersPage').then((module) => ({ default: module.MembersPage })))
+const NewReviewPage = lazy(() => import('./review/NewReviewPage').then((module) => ({ default: module.NewReviewPage })))
+const ActivityPage = lazy(() => import('./workspace/ActivityPage').then((module) => ({ default: module.ActivityPage })))
+const OverviewPage = lazy(() => import('./workspace/OverviewPage').then((module) => ({ default: module.OverviewPage })))
+const RulesPage = lazy(() => import('./workspace/RulesPage').then((module) => ({ default: module.RulesPage })))
+const HistoryPage = lazy(() => import('./workspace/HistoryPage').then((module) => ({ default: module.HistoryPage })))
 const EditDraftPage = lazy(() =>
   import('./review/EditDraftPage').then((module) => ({ default: module.EditDraftPage })),
 )
+const NotificationsPage = lazy(() => import('./notifications/NotificationsPage').then((module) => ({ default: module.NotificationsPage })))
 const DocumentsPage = lazy(() =>
   import('./workspace/DocumentsPage').then((module) => ({ default: module.DocumentsPage })),
 )
@@ -46,6 +52,8 @@ type Authentication =
 
 function App() {
   useAppearance()
+  useDisplayPreferences()
+  useEffect(protectReviewCacheLifecycle, [])
   useEffect(() => { document.getElementById('startup-loading')?.remove() }, [])
   const { pathname, search } = useLocation()
   const navigate = useNavigate()
@@ -58,10 +66,37 @@ function App() {
   const [signInNotice, setSignInNotice] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
-  const signOutStayRef = useRef<HTMLButtonElement>(null)
+  const accountButtonRef = useRef<HTMLButtonElement>(null)
   const navRef = useRef<HTMLElement>(null)
   const mainRef = useRef<HTMLElement>(null)
   const previousPathRef = useRef(pathname)
+  const authenticationScope = authentication.kind === 'signed-in' ? authentication.session.csrf_token : ''
+  const sessionExpires = authentication.kind === 'signed-in' ? authentication.session.expires_at : ''
+  useEffect(() => {
+    if (!authenticationScope || !sessionExpires) return
+    const remaining = Date.parse(sessionExpires) - Date.now()
+    if (!Number.isFinite(remaining)) return
+    const timer = setTimeout(() => reportEndedScope(authenticationScope), Math.max(0, remaining))
+    return () => clearTimeout(timer)
+  }, [authenticationScope, sessionExpires])
+
+  useEffect(() => {
+    const scope = authenticationScope
+    setSessionScope(scope)
+    function sessionEnded(event: Event) {
+      if (!matchesSessionScope(event, scope)) return
+      setAuthentication((current) => {
+        if (current.kind !== 'signed-in' || current.session.csrf_token !== scope) return current
+        return { kind: 'signed-out' }
+      })
+      setSignInNotice('Your session has ended. Sign in again to continue.')
+      setUnsavedPage(false)
+      setSignOutConfirm(false)
+      setMenuOpen(false)
+    }
+    window.addEventListener(SESSION_ENDED_EVENT, sessionEnded)
+    return () => { window.removeEventListener(SESSION_ENDED_EVENT, sessionEnded) }
+  }, [authenticationScope])
 
   const activePage = pages.find((page) => page.path === pathname)
   const pageTitle =
@@ -83,24 +118,23 @@ function App() {
     if (menuOpen) navRef.current?.querySelector('a')?.focus()
   }, [menuOpen])
 
-  useEffect(() => {
-    if (signOutConfirm) signOutStayRef.current?.focus()
-  }, [signOutConfirm])
-
   const handleUnsavedChange = useCallback((dirty: boolean) => {
     setUnsavedPage(dirty)
-    if (!dirty) setSignOutConfirm(false)
   }, [])
 
   useEffect(() => {
     const controller = new AbortController()
     getSession(controller.signal)
       .then((session) => {
-        if (!controller.signal.aborted) setAuthentication({ kind: 'signed-in', session })
+        if (!controller.signal.aborted) {
+          setSessionScope(session.csrf_token)
+          setAuthentication({ kind: 'signed-in', session })
+        }
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return
         if (error instanceof ApiRequestError && error.status === 401) {
+          setSessionScope('')
           setAuthentication({ kind: 'signed-out' })
         } else {
           setAuthentication({
@@ -112,25 +146,45 @@ function App() {
     return () => controller.abort()
   }, [sessionAttempt])
 
-  async function handleSignOut() {
-    if (authentication.kind !== 'signed-in') return
-    if (unsavedPage) {
-      setSignOutConfirm(true)
-      return
+  const signedIn = authentication.kind === 'signed-in'
+  useEffect(() => {
+    if (!signedIn || !authenticationScope) return
+    const scope = authenticationScope
+    const controller = new AbortController()
+    function refreshSession() {
+      if (document.visibilityState !== 'visible') return
+      getSession(controller.signal).then((session) => {
+        if (!controller.signal.aborted) setAuthentication((current) =>
+          current.kind === 'signed-in' && current.session.csrf_token === scope &&
+          current.session.user_id === session.user_id && session.csrf_token === scope
+            ? { kind: 'signed-in', session } : current)
+      }).catch(() => { /* The next authenticated action reports a session failure. */ })
     }
-    await performSignOut()
+    refreshSession()
+    document.addEventListener('visibilitychange', refreshSession)
+    window.addEventListener('focus', refreshSession)
+    return () => { controller.abort(); document.removeEventListener('visibilitychange', refreshSession); window.removeEventListener('focus', refreshSession) }
+  }, [pathname, signedIn, authenticationScope])
+
+  function handleSignOut() {
+    if (authentication.kind !== 'signed-in' || signOutPending) return
+    setSignOutError(null)
+    setSignOutConfirm(true)
   }
 
   async function performSignOut() {
-    if (authentication.kind !== 'signed-in') return
-    setSignOutConfirm(false)
+    if (authentication.kind !== 'signed-in' || signOutPending) return
     setSignOutPending(true)
     setSignOutError(null)
     try {
       await signOut(authentication.session.csrf_token)
+      setSignOutConfirm(false)
+      setUnsavedPage(false)
+      setSessionScope('')
       setAuthentication({ kind: 'signed-out' })
     } catch (error: unknown) {
-      setSignOutError(error instanceof Error ? error.message : 'Sign-out failed. Try again.')
+      setSignOutError(error instanceof ApiRequestError && error.status < 500 ? error.message
+        : 'We couldn’t confirm sign-out. Check your connection and try again.')
     } finally {
       setSignOutPending(false)
     }
@@ -157,7 +211,7 @@ function App() {
   }
   if (authentication.kind === 'checking') {
     return (
-      <LoadingScreen label="Checking your session…" description="Checking access before opening your workspace." shape="cards" />
+      <LoadingScreen label="Checking your session…" description="Checking access before opening your workspace." />
     )
   }
   if (authentication.kind === 'error') {
@@ -179,7 +233,7 @@ function App() {
       return (
         <PageLoadBoundary key={pathname} fullScreen><Suspense
           fallback={
-            <LoadingScreen label="Opening the page…" description="Preparing your next step." shape="cards" />
+            <LoadingScreen label="Opening the page…" description="Preparing your next step." />
           }
         >
           <NotFoundPage signedOut />
@@ -187,22 +241,19 @@ function App() {
       )
     }
     return (
-      <SignInPage
+      <PageLoadBoundary key={pathname} fullScreen><Suspense fallback={<LoadingScreen label="Opening sign in…" description="Preparing secure access to your workspace." />}><SignInPage
         key={pathname}
         initialMode={pathname === '/sign-up' ? 'sign-up' : 'sign-in'}
         notice={signInNotice}
         onSignedIn={(session, creatingAccount) => {
+          setSessionScope(session.csrf_token)
           setSignInNotice(null)
           setAuthentication({ kind: 'signed-in', session })
           if (authRoute) navigate(authDestination(search, creatingAccount), { replace: true })
         }}
-      />
+      /></Suspense></PageLoadBoundary>
     )
   }
-  const currentWorkspace =
-    authentication.session.memberships.length === 1 ? authentication.session.memberships[0] : null
-  const workspaceLabel =
-    currentWorkspace?.workspace_name ?? `${authentication.session.memberships.length} workspaces`
   return (
     <div className="app app-shell">
       <a className="skip-link" href="#main-content">
@@ -229,64 +280,22 @@ function App() {
         />
       )}
       <div className="app-workarea">
-        <header className="app-topbar">
-          <button
-            className="menu-toggle icon-button"
-            type="button"
-            ref={menuButtonRef}
-            aria-label={menuOpen ? 'Close navigation' : 'Open navigation'}
-            aria-controls="app-sidebar"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((value) => !value)}
-          >
-            {menuOpen ? <X size={19} aria-hidden="true" /> : <Menu size={19} aria-hidden="true" />}
-          </button>
-          <div className="breadcrumbs" aria-label="Current page">
-            <span>{workspaceLabel}</span>
-            <ChevronRight size={15} aria-hidden="true" />
-            <strong>{pageTitle}</strong>
-          </div>
-          <div className="topbar-account">
-            <span title={authentication.session.email}>{authentication.session.email}</span>
-            <button
-              className="text-button"
-              type="button"
-              aria-label="Sign out"
-              onClick={handleSignOut}
-              disabled={signOutPending}
-            >
-              <LogOut size={16} aria-hidden="true" />
-              {signOutPending ? 'Signing out…' : 'Sign out'}
-            </button>
-          </div>
-        </header>
-        {signOutError && (
-          <p role="alert" className="topbar-alert">
-            {signOutError}
-          </p>
-        )}
-        {signOutConfirm && (
-          <div className="signout-confirm surface-panel" role="alert">
-            <strong>Unsaved changes</strong>
-            <p>Signing out will discard your unsaved text and settings.</p>
-            <button
-              ref={signOutStayRef}
-              type="button"
-              onClick={() => {
-                setSignOutConfirm(false)
-                requestAnimationFrame(() =>
-                  document.querySelector<HTMLElement>('#source-text, #source-file, #saved-source')?.focus(),
-                )
-              }}
-            >
-              Stay and keep editing
-            </button>{' '}
-            <button type="button" disabled={signOutPending} onClick={() => void performSignOut()}>
-              Discard edits and sign out
-            </button>
-          </div>
-        )}
+        <Topbar session={authentication.session} title={pageTitle} menuOpen={menuOpen}
+          menuButtonRef={menuButtonRef} accountButtonRef={accountButtonRef}
+          onMenuToggle={() => setMenuOpen((value) => !value)} onSignOut={handleSignOut} signOutPending={signOutPending} />
+        <SignOutDialog
+          open={signOutConfirm}
+          pending={signOutPending}
+          unsaved={unsavedPage}
+          error={signOutError}
+          onStay={() => { setSignOutConfirm(false); setSignOutError(null) }}
+          restoreFocus={() => accountButtonRef.current?.focus()}
+          onConfirm={() => void performSignOut()}
+        />
         <main id="main-content" ref={mainRef} tabIndex={-1}>
+          {authentication.session.second_factor_setup_required && <div className="security-requirement" role="status">
+            A workspace requires two-step verification. <Link to="/settings?section=security">Set up your authenticator</Link>
+          </div>}
           <PageLoadBoundary key={pathname}><Suspense fallback={<RouteLoading pathname={pathname} title={pageTitle} />}>
             <Routes>
               <Route path="/" element={<OverviewPage session={authentication.session} />} />
@@ -296,15 +305,17 @@ function App() {
                   <NewReviewPage session={authentication.session} onUnsavedChange={handleUnsavedChange} />
                 }
               />
-              <Route path="/documents" element={<DocumentsPage session={authentication.session} />} />
+              <Route path="/documents" element={<DocumentsPage key={new URLSearchParams(search).get('workspace')} session={authentication.session} />} />
+              <Route path="/notifications" element={<NotificationsPage key={authentication.session.user_id} session={authentication.session} />} />
               <Route path="/continue" element={<ContinueReviewPage session={authentication.session} />} />
-              <Route path="/activity" element={<ActivityPage session={authentication.session} />} />
-              <Route path="/rules" element={<RulesPage session={authentication.session} />} />
+              <Route path="/activity" element={<ActivityPage key={new URLSearchParams(search).get('workspace')} session={authentication.session} />} />
+              <Route path="/members" element={<MembersPage session={authentication.session} />} />
+              <Route path="/rules" element={<RulesPage key={new URLSearchParams(search).get('workspace')} session={authentication.session} />} />
               <Route path="/preferences" element={<PreferencesPage />} />
               <Route
                 path="/documents/:documentId/edit"
                 element={
-                  <EditDraftPage session={authentication.session} onUnsavedChange={handleUnsavedChange} />
+                  <EditDraftPage key={`${authentication.session.csrf_token}:${pathname}`} session={authentication.session} onUnsavedChange={handleUnsavedChange} />
                 }
               />
               <Route
@@ -316,7 +327,10 @@ function App() {
                 element={
                   <SettingsPage
                     session={authentication.session}
+                    onSessionChanged={(session) => { setSessionScope(session.csrf_token); setAuthentication({ kind: 'signed-in', session }) }}
+                    onSignedOut={() => { setSessionScope(''); setSignInNotice('Session signed out. Sign in again to continue.'); setAuthentication({ kind: 'signed-out' }) }}
                     onPasswordChanged={() => {
+                      setSessionScope('')
                       setSignInNotice('Password changed. Sign in again with your new password.')
                       setAuthentication({ kind: 'signed-out' })
                     }}

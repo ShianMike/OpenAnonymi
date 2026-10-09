@@ -1,60 +1,43 @@
 import { SlidersHorizontal, ChevronDown } from 'lucide-react'
 import { GlassSelect } from '../ui/GlassSelect'
-import { GlassCheckbox } from '../ui/GlassCheckbox'
+import { DetectionControls } from '../detection/DetectionControls'
 import type { ReviewController } from './useReviewController'
 import { ReviewRules } from '../rules/ReviewRules'
 import '../rules/rules.css'
-import { extraDetection } from '../detection/categories'
+import { extras } from '../detection/categories'
+import { phoneRegions } from '../ui/phoneRegions'
 
 export function ReviewSettings({ review, csrf }: { review: ReviewController; csrf: string }) {
   if (review.state.kind !== 'ready') return null
   const disabled = review.actionPending
+  const categories = [...(review.emailEnabled ? ['email' as const] : []), ...(review.phoneEnabled ? ['phone' as const] : []), ...review.extraCategories]
   return (
     <details className="review-settings" id="review-suggestion-settings">
       <summary>
         <span>
           <SlidersHorizontal size={18} strokeWidth={1.6} aria-hidden="true" />
-          <strong>Suggestion settings</strong>
+          <strong>What to look for</strong><small className="review-settings-count">{categories.length}</small>
         </span>
         <ChevronDown size={16} aria-hidden="true" />
       </summary>
       <div className="review-settings-body">
-        <p>Choose the details to look for. Saving changes starts a fresh review.</p>
+        <p>Change these only if you need to. Saving resets suggestions and confirmation; check the text again afterward.</p>
         <div className="review-setting-choices">
-          <GlassCheckbox
-            id="review-email"
-            label="Email addresses"
-            description="Personal and work emails"
-            checked={review.emailEnabled}
-            disabled={disabled}
-            onCheckedChange={(checked) => {
-              review.setEmailEnabled(checked)
+          <DetectionControls prefix="review" variant="checkbox" disabled={disabled}
+            disabledReason="Wait for the current review changes to finish saving."
+            categories={categories}
+            onChange={(categories) => {
+              review.setEmailEnabled(categories.includes('email'))
+              review.setPhoneEnabled(categories.includes('phone'))
+              review.setExtraCategories(extras(categories))
               review.setConfirmedPreview(false)
               review.setPreparedDownload(null)
-            }}
-          />
-          <GlassCheckbox
-            id="review-phone"
-            label="Phone numbers"
-            description="Numbers in your chosen region"
-            checked={review.phoneEnabled}
-            disabled={disabled}
-            onCheckedChange={(checked) => {
-              review.setPhoneEnabled(checked)
-              review.setConfirmedPreview(false)
-              review.setPreparedDownload(null)
-            }}
-          />
+            }} />
         </div>
         <div className="review-settings-footer">
-          <div className="review-setting-choices">{extraDetection.map((choice) => <GlassCheckbox key={choice.category}
-            id={`review-${choice.category}`} label={choice.label} description={choice.description}
-            checked={review.extraCategories.includes(choice.category)} disabled={disabled}
-            onCheckedChange={(checked) => { review.setExtraCategories((current) => checked ? [...current, choice.category]
-              : current.filter((category) => category !== choice.category)); review.setConfirmedPreview(false); review.setPreparedDownload(null) }} />)}</div>
           <div>
             <label className="field-label" htmlFor="scan-phone-region">
-              Phone region
+              {review.extraCategories.includes('date') ? 'Phone and date region' : 'Phone region'}
             </label>
             <GlassSelect
               id="scan-phone-region"
@@ -66,23 +49,19 @@ export function ReviewSettings({ review, csrf }: { review: ReviewController; csr
                 review.setPreparedDownload(null)
               }}
             >
-              <option value="PH">Philippines</option>
-              <option value="US">United States</option>
-              <option value="GB">United Kingdom</option>
-              <option value="CA">Canada</option>
-              <option value="AU">Australia</option>
-              <option value="IN">India</option>
+              {phoneRegions.map(([code, label]) => <option key={code} value={code}>{label}</option>)}
             </GlassSelect>
           </div>
           <button
             type="button"
+            className="button-primary"
             onClick={() => void review.saveSettings()}
             disabled={!review.settingsDirty || review.dirty || disabled || review.conflict}
           >
             {review.settingsPending ? 'Saving settings…' : 'Save suggestion settings'}
           </button>
         </div>
-        <ReviewRules review={review} csrf={csrf} />
+        <details className="review-advanced-rules"><summary>Advanced workspace rules <ChevronDown size={14} aria-hidden="true" /></summary><ReviewRules review={review} csrf={csrf} /></details>
       </div>
     </details>
   )

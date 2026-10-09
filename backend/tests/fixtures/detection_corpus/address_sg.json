@@ -1,0 +1,41 @@
+{
+  "license": "CC0-1.0",
+  "author": "OpenAnonymi synthetic validation",
+  "rule_id": "address.sg",
+  "rows": [
+    {
+      "text": "😀 Blk 123 River Road #02-01, Singapore 123456",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 45,
+          "category": "address",
+          "rule_id": "address.sg"
+        }
+      ]
+    },
+    {
+      "text": "😀 12 River Road, Singapore 833456",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 33,
+          "category": "address",
+          "rule_id": "address.sg"
+        }
+      ]
+    },
+    {
+      "text": "123456",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "Blk 123 River Road, Singapore 993456",
+      "region": "US",
+      "expected": []
+    }
+  ]
+}

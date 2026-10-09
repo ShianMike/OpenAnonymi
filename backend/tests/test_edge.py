@@ -1,16 +1,15 @@
-"""Proxy-facing behavior that needs no database: client address, cookies, headers, limits."""
+"""Proxy behavior, including trusted-address budgets on real PostgreSQL."""
 
 import logging
 
 from cryptography.fernet import Fernet
+from fastapi import Response
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 
-from app.accounts import api as accounts_api
-from app.accounts.api import _session_cookie
-from app.accounts.security import InvalidCredentials
+from app.accounts.api import clear_session_cookie, set_session_cookie
 from app.config import Settings
-from app.edge import MAX_REQUEST_BYTES, attempt_key, client_address
+from app.edge import MAX_REQUEST_BYTES, attempt_key, client_address, scope_client_address
 from app.factory import create_app
 
 ORIGIN = "https://review.example.invalid"
@@ -31,6 +30,7 @@ def _settings(**overrides) -> Settings:
 def _production(**overrides) -> Settings:
     return _settings(
         environment="production",
+        attempt_subject_key=Fernet.generate_key().decode(),
         active_key_id="synthetic",
         content_keys={"synthetic": Fernet.generate_key().decode()},
         **overrides,
@@ -63,10 +63,33 @@ def test_attempt_key_groups_ipv6_subscriber_prefixes():
     assert attempt_key("testclient") == "testclient"
 
 
+def test_cloudflare_visitor_address_requires_a_verified_proxy_peer():
+    def address(forwarded, connecting, hops=1, peer="10.0.0.5"):
+        return scope_client_address({"client": (peer, 443), "headers":
+            [(b"x-forwarded-for", forwarded.encode())]
+            + [(b"cf-connecting-ip", value.encode()) for value in connecting]}, hops)
+
+    assert address("203.0.113.9, 172.64.10.1", ["198.51.100.7"]) == "198.51.100.7"
+    assert address("172.64.10.1", ["198.51.100.7"]) == "198.51.100.7"
+    assert address("2606:4700::1", ["2001:db8::7"]) == "2001:db8::7"
+    assert address("::ffff:172.64.10.1", ["::ffff:198.51.100.7"]) == "198.51.100.7"
+    # Direct-origin requests cannot trust a forged Cloudflare header or leftmost IP.
+    assert address("172.64.10.1, 198.51.100.9", ["203.0.113.7"]) == "198.51.100.9"
+    assert address("198.51.100.9", ["203.0.113.7"]) == "198.51.100.9"
+    assert address("172.64.10.1", ["198.51.100.7"], hops=0) == "10.0.0.5"
+    assert address("172.64.10.1", ["198.51.100.7"], hops=2) == "10.0.0.5"
+    assert address("172.64.10.1", [], peer="testclient") == "172.64.10.1"
+    assert address("172.64.10.1", ["bad-address"]) == "172.64.10.1"
+    assert address("172.64.10.1", ["198.51.100.7, 203.0.113.7"]) == "172.64.10.1"
+    assert address("172.64.10.1", ["198.51.100.7", "203.0.113.7"]) == "172.64.10.1"
+
+
 def test_production_session_cookie_is_cross_site_and_cleared_with_the_same_attributes():
     settings = _production()
-    issued = _session_cookie("synthetic-token", max_age=43200, settings=settings)
-    cleared = _session_cookie("", max_age=0, settings=settings)
+    issuing, clearing = Response(), Response()
+    set_session_cookie(issuing, "synthetic-token", settings)
+    clear_session_cookie(clearing, settings)
+    issued, cleared = issuing.headers["set-cookie"], clearing.headers["set-cookie"]
     assert issued == (
         "openanonymi_session=synthetic-token; Max-Age=43200; Path=/api/v1; "
         "HttpOnly; Secure; SameSite=None; Partitioned"
@@ -77,33 +100,53 @@ def test_production_session_cookie_is_cross_site_and_cleared_with_the_same_attri
 
 
 def test_development_session_cookie_stays_lax_for_plain_http():
-    issued = _session_cookie("synthetic-token", max_age=43200, settings=_settings())
+    response = Response()
+    set_session_cookie(response, "synthetic-token", _settings())
+    issued = response.headers["set-cookie"]
     assert issued.endswith("HttpOnly; SameSite=Lax")
     assert "Secure" not in issued and "Partitioned" not in issued
 
 
-def test_attempt_limits_use_the_trusted_forwarded_address(monkeypatch):
-    def reject(*_args, **_kwargs):
-        raise InvalidCredentials("Email or password was not accepted.")
-
-    monkeypatch.setattr(accounts_api, "sign_in", reject)
+def test_attempt_limits_use_the_trusted_forwarded_address(intake_site):
+    owner, _, engine, _, _ = intake_site
+    values = owner.app.state.settings.model_dump()
+    values["allowed_origins"] = [ORIGIN]
     body = {"email": "member@example.invalid", "password": "synthetic-password"}
 
     def attempt(client: TestClient, forwarded: str) -> int:
         headers = {"Origin": ORIGIN, "X-Forwarded-For": forwarded}
         return client.post("/api/v1/auth/sign-in", json=body, headers=headers).status_code
 
-    trusted = TestClient(_app(_settings(trusted_proxy_hops=1)))
+    trusted = TestClient(
+        create_app(Settings(**{**values, "trusted_proxy_hops": 1}, _env_file=None), engine=engine)
+    )
     assert [attempt(trusted, "203.0.113.1, 198.51.100.7") for _ in range(8)] == [401] * 8
     # A rotated client-supplied entry does not buy new attempts for the same client.
     assert attempt(trusted, "203.0.113.2, 198.51.100.7") == 429
     # A different client behind the same proxy keeps its own budget.
     assert attempt(trusted, "198.51.100.8") == 401
 
-    untrusted = TestClient(_app(_settings()))
+    untrusted = TestClient(create_app(Settings(**values, _env_file=None), engine=engine))
     assert [attempt(untrusted, f"198.51.100.{n}") for n in range(8)] == [401] * 8
     # Without trusted hops a forged header is ignored entirely.
     assert attempt(untrusted, "198.51.100.99") == 429
+
+
+def test_cloudflare_attempt_limits_follow_visitors_across_edge_addresses(intake_site):
+    owner, _, engine, _, _ = intake_site
+    values = owner.app.state.settings.model_dump()
+    values.update(allowed_origins=[ORIGIN], trusted_proxy_hops=1)
+    client = TestClient(create_app(Settings(**values, _env_file=None), engine=engine))
+
+    def attempt(visitor, edge):
+        return client.post("/api/v1/auth/sign-in", json={
+            "email": "member@example.invalid", "password": "synthetic-password",
+        }, headers={"Origin": ORIGIN, "X-Forwarded-For": f"203.0.113.1, {visitor}, {edge}",
+                    "CF-Connecting-IP": visitor}).status_code
+
+    assert [attempt("198.51.100.70", "172.64.10.1") for _ in range(8)] == [401] * 8
+    assert attempt("198.51.100.70", "104.16.10.1") == 429
+    assert attempt("198.51.100.71", "172.64.10.1") == 401
 
 
 def test_security_headers_cors_and_cache_policy():
@@ -119,7 +162,10 @@ def test_security_headers_cors_and_cache_policy():
     )
     foreign = client.options(
         "/api/v1/auth/sign-in",
-        headers={"Origin": "https://other.example.invalid", "Access-Control-Request-Method": "POST"},
+        headers={
+            "Origin": "https://other.example.invalid",
+            "Access-Control-Request-Method": "POST",
+        },
     )
     assert meta.status_code == 200
     assert meta.headers["access-control-allow-origin"] == ORIGIN
@@ -191,7 +237,7 @@ def test_access_log_records_route_templates_without_identifiers_or_queries(caplo
         and '"GET /api/v1/documents/{document_id}/source" 401' in line
         for line in lines
     )
-    assert any('"GET /api/v1/unknown/{id}" 404' in line for line in lines)
+    assert any('"GET [unmatched]" 404' in line for line in lines)
     assert not any("/health/live" in line for line in lines)
     joined = "\n".join(lines)
     assert DOCUMENT_ID not in joined

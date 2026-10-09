@@ -4,24 +4,32 @@ import {
   FilePlus2,
   ScanLine,
   SlidersHorizontal,
+  ShieldCheck,
   Users,
   type LucideIcon,
 } from 'lucide-react'
 import type { ActivityView, DocumentIndexView } from '../../api/client'
 import { eventName } from '../events'
+import { pageWindow } from '../../ui/pagination'
 
 export type ActivityEntry = ActivityView['own_events'][number]
 export type ActivityFilter = 'all' | 'reviews' | 'outputs' | 'workspace'
 export type DocumentMap = Record<string, DocumentIndexView>
 
+export const ACTIVITY_PAGE_SIZE = 6
+export function activityWindow(total: number, requestedPage: number) {
+  return pageWindow(total, requestedPage, ACTIVITY_PAGE_SIZE)
+}
+
 export function eventGroup(code: string): Exclude<ActivityFilter, 'all'> {
   if (code.startsWith('output_')) return 'outputs'
-  if (/^(workspace_|member_|preset_)/.test(code)) return 'workspace'
+  if (/^(workspace_|member_|preset_|second_factor_|backup_codes_|device_|other_devices_)/.test(code)) return 'workspace'
   return 'reviews'
 }
 
 export function eventIcon(code: string): LucideIcon {
   if (code.startsWith('output_')) return Download
+  if (/^(second_factor_|backup_codes_|device_|other_devices_)/.test(code)) return ShieldCheck
   if (code.startsWith('member_')) return Users
   if (/^(workspace_|preset_)/.test(code)) return SlidersHorizontal
   if (code.startsWith('scan_')) return ScanLine
@@ -61,7 +69,6 @@ export function dayLabel(value: string, asOf: string): string {
   yesterday.setDate(yesterday.getDate() - 1)
   if (dayKey(value) === dayKey(yesterday.toISOString())) return 'Yesterday'
   return new Date(value).toLocaleDateString(undefined, {
-    weekday: 'long',
     month: 'short',
     day: 'numeric',
     ...(new Date(value).getFullYear() !== new Date(asOf).getFullYear() ? { year: 'numeric' as const } : {}),

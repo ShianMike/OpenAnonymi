@@ -1,0 +1,94 @@
+name: Scheduled content cleanup
+
+on:
+  # app/maintenance/schedule.py: SCHEDULE_INTERVAL_HOURS=6; CLEANUP_OVERDUE_AFTER=7h.
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: maintenance
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Run bounded cleanup passes
+        env:
+          OPENANONYMI_MAINTENANCE_TOKEN: ${{ secrets.OPENANONYMI_MAINTENANCE_TOKEN }}
+          OPENANONYMI_API_BASE: ${{ vars.OPENANONYMI_API_BASE }}
+        shell: bash
+        run: |
+          set -eu
+          if [ -z "${OPENANONYMI_MAINTENANCE_TOKEN:-}" ] || [ -z "${OPENANONYMI_API_BASE:-}" ]; then
+            printf '::notice::Cleanup skipped: configure the maintenance secret and API base variable.\n'
+            exit 0
+          fi
+          job_started="$(date -u +%s)"
+          SECONDS=0
+          for ((call=1; call<=10; call++)); do
+            retry=0
+            while :; do
+              remaining=$((340 - SECONDS))
+              if [ "$remaining" -le 0 ]; then
+                printf '::error::Cleanup exceeded the bounded job time.\n'
+                exit 1
+              fi
+              maximum=75
+              if [ "$remaining" -lt "$maximum" ]; then maximum=$remaining; fi
+              status=000
+              if reply="$(curl --silent --show-error --max-time "$maximum" \
+                --request POST "${OPENANONYMI_API_BASE%/}/maintenance/cleanup" \
+                --header "Authorization: Bearer $OPENANONYMI_MAINTENANCE_TOKEN" \
+                --write-out '\n%{http_code}')"; then
+                status="${reply##*$'\n'}"
+              fi
+              case "$status" in
+                200) break ;;
+                401|404)
+                  printf '::error::Maintenance endpoint rejected its configuration (%s).\n' "$status"
+                  exit 1 ;;
+                429)
+                  printf '::notice::Maintenance budget exhausted; the next scheduled run will retry.\n'
+                  exit 0 ;;
+                000|5??)
+                  if [ "$retry" -ge 3 ]; then
+                    printf '::error::Maintenance did not respond after the bounded retries.\n'
+                    exit 1
+                  fi
+                  retry=$((retry + 1))
+                  sleep 15 ;;
+                *)
+                  printf '::error::Unexpected maintenance status (%s).\n' "$status"
+                  exit 1 ;;
+              esac
+            done
+            body="${reply%$'\n'*}"
+            started="$(printf '%s' "$body" | sed -n 's/.*"started_at"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+            finished="$(printf '%s' "$body" | sed -n 's/.*"finished_at"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+            if [ -z "$started" ] || [ -z "$finished" ]; then
+              printf '::error::Maintenance returned no run times.\n'
+              exit 1
+            fi
+            if ! started_epoch="$(date -u -d "$started" +%s)" || ! finished_epoch="$(date -u -d "$finished" +%s)"; then
+              printf '::error::Maintenance returned invalid run times.\n'
+              exit 1
+            fi
+            if [ "$started_epoch" -lt "$((job_started - 120))" ] || [ "$finished_epoch" -lt "$started_epoch" ]; then
+              printf '::error::Maintenance returned a stale or backwards run.\n'
+              exit 1
+            fi
+            printf 'Cleanup pass %s finished with fresh run times.\n' "$call"
+            if printf '%s' "$body" | grep -Eq '"more_remaining"[[:space:]]*:[[:space:]]*false([[:space:]]*[,}]|[[:space:]]*$)'; then
+              exit 0
+            fi
+            if ! printf '%s' "$body" | grep -Eq '"more_remaining"[[:space:]]*:[[:space:]]*true([[:space:]]*[,}]|[[:space:]]*$)'; then
+              printf '::error::Maintenance returned an invalid continuation flag.\n'
+              exit 1
+            fi
+          done
+          printf '::notice::Ten passes completed; remaining content will be retried next run.\n'

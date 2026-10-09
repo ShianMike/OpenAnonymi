@@ -3,29 +3,49 @@
 .keyboard-review .choice-switch { flex: 1; min-width: min(250px, 100%); gap: 18px; }
 .keyboard-review .choice-switch small { font-size: .75rem; }
 .keyboard-guide-button { display: flex; align-items: center; gap: 8px; min-height: 44px; border: 0; border-radius: 10px; background: var(--surface-subtle); color: var(--text); padding: 10px 14px; font-size: .8rem; }
-.keyboard-shortcut-list { display: grid; gap: 15px; margin-block: 26px; }
-.keyboard-shortcut-list > div { padding-bottom: 14px; border-bottom: 1px solid var(--line); }
-.keyboard-shortcut-list > div:last-child { border: 0; padding-bottom: 0; }
-.keyboard-shortcut-list dt { display: flex; align-items: center; gap: 13px; }
-.keyboard-shortcut-list kbd { display: grid; place-items: center; min-width: 33px; min-height: 33px; border-radius: 8px; background: var(--surface-subtle); box-shadow: inset 0 -2px var(--line); font: inherit; font-size: .8rem; color: var(--blue-strong); }
-.keyboard-shortcut-list strong { font-weight: 500; }
-.keyboard-shortcut-list dd { margin: 5px 0 0 46px; font-size: .8rem; color: var(--muted); }
+.workspace-dialog:has(.keyboard-guide-body) { display: flex; flex-direction: column; width: 640px; padding: 0; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 20px; background: var(--surface); }
+.workspace-dialog:has(.keyboard-guide-body) > h2 { flex: none; margin: 24px 80px 8px 24px; font-size: 1.35rem; font-weight: 600; }
+.workspace-dialog:has(.keyboard-guide-body) > p { flex: none; margin: 0 24px 20px; }
+.keyboard-guide-body { min-height: 0; padding: 0 24px 20px; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.keyboard-guide-body h3 { margin: 0 0 12px; font-size: .85rem; font-weight: 600; color: var(--muted); }
+.keyboard-shortcut-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.keyboard-shortcut-list > div { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-subtle); }
+.keyboard-shortcut-list dt { display: flex; align-items: center; gap: 10px; }
+.keyboard-shortcut-list kbd, .keyboard-guide-footer kbd { display: inline-grid; place-items: center; flex: none; min-width: 28px; min-height: 28px; padding: 0 5px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); font: inherit; font-size: .78rem; color: var(--blue-strong); }
+.keyboard-shortcut-list strong { font-size: .85rem; font-weight: 600; }
+.keyboard-shortcut-list dd { margin: 6px 0 0 38px; font-size: .78rem; color: var(--muted); line-height: 1.55; }
+.keyboard-shortcut-more { margin: 16px 0 0; padding: 12px 0 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; }
+.keyboard-shortcut-more summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; font-size: .85rem; font-weight: 550; }
+.keyboard-shortcut-more summary > svg { flex: none; color: var(--muted); }
+.keyboard-shortcut-more[open] summary > svg { transform: rotate(180deg); }
+.keyboard-shortcut-more > p { margin: 4px 0 14px; font-size: .8rem; color: var(--muted); }
+.keyboard-guide-footer { flex: none; padding: 14px 24px; border-top: 1px solid var(--line); background: var(--surface-subtle); }
+.keyboard-guide-footer > span { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; color: var(--muted); font-size: .78rem; }
+.keyboard-guide-footer kbd { min-width: 24px; min-height: 24px; }
+.keyboard-guide-footer kbd + kbd { margin-left: 8px; }
+.keyboard-guide-footer p { margin: 10px 0 0; color: var(--muted); font-size: .78rem; line-height: 1.6; }
 .keyboard-keep-value { overflow-wrap: anywhere; white-space: pre-wrap; background: var(--surface-subtle); padding: 18px; border-radius: 12px; margin-block: 22px; }
 .keyboard-keep-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
 .keyboard-keep-actions button { min-height: 44px; border: 0; border-radius: 10px; padding: 11px 16px; }
 .keyboard-keep-actions button:first-child { background: var(--surface-subtle); color: var(--text); }
-.keyboard-review--compact { margin: 0; padding: 0; gap: 10px; border-radius: 0; background: transparent; }
+.keyboard-review--compact { max-width: 100%; flex-wrap: nowrap; margin: 0; padding: 4px; gap: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-subtle); }
 .keyboard-review--compact .keyboard-review-icon { display: none; }
-.keyboard-review--compact .choice-switch:has(input[type='checkbox']) { flex: 0 1 auto; min-width: 0; gap: 10px; padding: 0; }
-.keyboard-review--compact .choice-switch strong { font-size: .76rem; }
-.keyboard-review--compact .choice-switch small { font-size: .68rem; }
-.keyboard-review--compact .keyboard-guide-button { width: 36px; min-height: 36px; padding: 8px; flex-shrink: 0; background: var(--tone-wash); }
-.keyboard-review--compact .keyboard-guide-button > span { display: none; }
+.keyboard-review--compact .choice-switch:has(input[type='checkbox']) { flex: 1 1 auto; min-width: 0; min-height: 44px; gap: 12px; padding: 4px 8px; }
+.keyboard-review--compact .choice-switch > span { min-width: 0; gap: 2px; }
+.keyboard-review--compact .choice-switch strong { font-size: .8rem; font-weight: 550; }
+.keyboard-review--compact .choice-switch small { font-size: .73rem; }
+.keyboard-review--compact .keyboard-guide-button { flex: none; min-height: 44px; margin: 0; padding: 10px; background: transparent; }
 @media (max-width: 600px) {
   .keyboard-review { padding: 16px; gap: 12px; }
   .keyboard-review-icon { display: none; }
-  .keyboard-guide-button { width: 100%; justify-content: center; }
-  .keyboard-review--compact { width: 100%; padding: 0; justify-content: space-between; }
-  .keyboard-review--compact .choice-switch:has(input[type='checkbox']) { flex: 1; min-height: 44px; }
-  .keyboard-review--compact .keyboard-guide-button { width: 44px; min-height: 44px; }
+  .keyboard-guide-button { justify-content: center; }
+  .keyboard-review--compact { width: 100%; padding: 4px; justify-content: space-between; }
+  .workspace-dialog:has(.keyboard-guide-body) > h2 { margin: 20px 72px 8px 16px; }
+  .workspace-dialog:has(.keyboard-guide-body) > p { margin: 0 16px 16px; }
+  .keyboard-guide-body { padding: 0 16px 16px; }
+  .keyboard-shortcut-list { grid-template-columns: minmax(0, 1fr); }
+  .keyboard-guide-footer { padding: 12px 16px; }
+}
+@media (forced-colors: active) {
+  .workspace-dialog:has(.keyboard-guide-body), .keyboard-review--compact, .keyboard-shortcut-list > div, .keyboard-shortcut-list kbd, .keyboard-guide-footer kbd { border-color: CanvasText; }
 }

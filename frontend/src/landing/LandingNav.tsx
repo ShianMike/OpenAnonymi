@@ -10,9 +10,9 @@ export function LandingNav({ signedIn }: { signedIn: boolean }) {
       <div className="landing-nav-inner">
         <Link className="landing-brand" to="/welcome" aria-label="OpenAnonymi home"><Brand /></Link>
         <nav className="landing-section-links" aria-label="Explore OpenAnonymi">
-          <a href="#how-it-works">The process</a>
-          <a href="#try-review">Try it out</a>
-          <a href="#questions">A few questions</a>
+          <a href="#try-review">Try the demo</a>
+          <a href="#how-it-works">How it works</a>
+          <a href="#questions">Questions</a>
         </nav>
         <div className="landing-nav-actions">
           <button type="button" className="landing-theme-button" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}

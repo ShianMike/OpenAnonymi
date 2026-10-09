@@ -1,19 +1,21 @@
 import { useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as AlertDialog from '@radix-ui/react-alert-dialog'
-import { ArrowUpRight, UserMinus, UserRoundCheck } from 'lucide-react'
+import { ArrowUpRight, ChevronDown, ShieldCheck, UserMinus, UserRoundCheck } from 'lucide-react'
 import { changeMemberRole, restoreMember, revokeMember, type MemberView } from '../../api/client'
-import { GlassSelect } from '../../ui/GlassSelect'
 import { DialogFrame, InlineNotice } from '../../ui/WorkspaceControls'
+import { ResetFactorDialog } from './ResetFactorDialog'
 
 export function MemberDialog({
   member,
   workspaceId,
+  workspaceName,
   csrfToken,
   onChanged,
 }: {
   member: MemberView
   workspaceId: string
+  workspaceName: string
   csrfToken: string
   onChanged: (value: MemberView) => void
 }) {
@@ -23,6 +25,8 @@ export function MemberDialog({
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const revoked = member.revoked_at !== null
+  const initials = member.email.split('@')[0].split(/[._+-]/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase()
+  const roleFormId = `member-role-${member.user_id}`
   async function run(action: () => Promise<MemberView>) {
     if (pending) return
     setPending(true)
@@ -54,43 +58,30 @@ export function MemberDialog({
           Manage <ArrowUpRight size={15} aria-hidden="true" />
         </button>
       </Dialog.Trigger>
-      <DialogFrame title="Manage membership" description={member.email} busy={pending}>
+      <DialogFrame className="member-dialog" title="Manage membership" description={`Access and role in ${workspaceName}.`} busy={pending}>
+        <div className="member-dialog-identity">
+          <span className="member-avatar" aria-hidden="true">{initials}</span>
+          <div><strong>{member.email}</strong><span>{member.disabled_at ? 'Account disabled' : revoked ? 'Access revoked' : 'Active member'}</span></div>
+        </div>
         {!revoked && (
           <form
+            id={roleFormId}
             onSubmit={(event) => {
               event.preventDefault()
               void run(() => changeMemberRole(workspaceId, member.user_id, role, csrfToken))
             }}
           >
-            <div>
-              <label className="field-label" htmlFor={`role-${member.user_id}`}>
-                Workspace role
+            <fieldset className="member-role-options" disabled={pending}>
+              <legend>Workspace role</legend>
+              <label><input type="radio" aria-label="Member" name={roleFormId} value="member" checked={role === 'member'} onChange={() => setRole('member')} />
+                <span><UserRoundCheck size={19} aria-hidden="true" /><strong>Member</strong><small>Review their documents and reviews shared with them.</small></span>
               </label>
-              <GlassSelect
-                id={`role-${member.user_id}`}
-                value={role}
-                onValueChange={(value) => setRole(value as MemberView['role'])}
-                disabled={pending}
-              >
-                <option value="member" data-description="Review and export their own documents.">
-                  Member
-                </option>
-                <option value="administrator" data-description="Manage members, rules and retention.">
-                  Administrator
-                </option>
-              </GlassSelect>
-            </div>
+              <label><input type="radio" aria-label="Administrator" name={roleFormId} value="administrator" checked={role === 'administrator'} onChange={() => setRole('administrator')} />
+                <span><ShieldCheck size={19} aria-hidden="true" /><strong>Administrator</strong><small>Also manage members, rules, and retention.</small></span>
+              </label>
+            </fieldset>
+            <p className="member-role-note">Document access follows ownership and review assignments for both roles.</p>
             {!confirm && error && <InlineNotice error>{error}</InlineNotice>}
-            <div className="dialog-actions">
-              <Dialog.Close asChild>
-                <button type="button" className="quiet-button" disabled={pending}>
-                  Cancel
-                </button>
-              </Dialog.Close>
-              <button type="submit" disabled={pending || role === member.role}>
-                {pending ? 'Saving…' : 'Save role'}
-              </button>
-            </div>
           </form>
         )}
         {revoked ? (
@@ -108,6 +99,8 @@ export function MemberDialog({
             </button>
           </div>
         ) : (
+          <details className="member-advanced-actions">
+            <summary><span><ShieldCheck size={17} aria-hidden="true" />Access and recovery</span><ChevronDown size={16} aria-hidden="true" /></summary>
           <div className="member-access-section">
             <h3>Revoke workspace access</h3>
             <p>Ends active sessions. Saved reviews are retained, and access can be restored later.</p>
@@ -152,7 +145,14 @@ export function MemberDialog({
               </AlertDialog.Portal>
             </AlertDialog.Root>
           </div>
+          {!member.disabled_at && <ResetFactorDialog member={member} workspaceId={workspaceId} csrfToken={csrfToken}
+            onReset={() => { setOpen(false); onChanged(member) }} />}
+          </details>
         )}
+        <div className="dialog-actions">
+          <Dialog.Close asChild><button type="button" className="quiet-button" disabled={pending}>{role === member.role ? 'Done' : 'Cancel'}</button></Dialog.Close>
+          {!revoked && <button type="submit" form={roleFormId} disabled={pending || role === member.role}>{pending ? 'Saving…' : 'Save role'}</button>}
+        </div>
       </DialogFrame>
     </Dialog.Root>
   )

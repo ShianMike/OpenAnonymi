@@ -10,6 +10,24 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .local-dev/
+*.private.*
+*.dump
+*.sql
+*.sqlite*
+*.pem
+*.key
+reports/
+
+# Internal build notes and browser-capture tools are retained locally only.
+docs/privacy-review-build/
+scripts/*
+!scripts/run_backend_shard.py
+!scripts/verify_frontend_config.py
+!scripts/verify_container_runtime.py
+!scripts/check_public_repository.py
+.vercelignore
+render.yaml
+frontend/vercel.json
 
 # Frontend output
 node_modules/
@@ -23,3 +41,4 @@ coverage/
 Thumbs.db
 
 Privacy-Review-System-AI-Agent-Guide.md
+Privacy-Review-System-Expansion-2-AI-Agent-Guide.md

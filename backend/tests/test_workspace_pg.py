@@ -277,10 +277,10 @@ def test_delete_and_expiry_deny_content_then_purge_protected_rows(intake_site):
     with Session(engine) as session:
         assert (
             session.scalar(select(SourceRevision).where(SourceRevision.document_id == document_id))
-            is not None
+            is None
         )
     purged = purge_unavailable_content(engine, now=datetime.now(UTC))
-    assert purged.documents_purged == 1
+    assert purged.documents_purged == 0
     assert purge_unavailable_content(engine, now=datetime.now(UTC)).documents_purged == 0
     with Session(engine) as session:
         document = session.get(Document, UUID(document_id))

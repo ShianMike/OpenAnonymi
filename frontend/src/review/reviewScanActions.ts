@@ -7,14 +7,14 @@ import type { ProtectedDraftController } from '../recovery/useProtectedDraft'
 type Update<T> = Dispatch<SetStateAction<T>>
 type Download = { url: string; filename: string; version: VersionRef } | null
 
-export function createReviewScanActions({ documentId, state, dirty, settingsDirty, selectedCategories, phoneRegion,
-  csrf, recovery, refreshPreview, setScanPending, setError, setNotice, setScan, setUndoCount, setSummary,
+export function createReviewScanActions({ documentId, state, dirty, settingsDirty, selectedCategories, phoneRegion, language,
+  csrf, recovery, refreshPreview, setScanPending, setError, setNotice, setScan, setSummary,
   setConfirmedPreview, setPreparedDownload, setState, setFindings, setConflict, setSettingsPending, setPreview, setPreviewError }: {
   documentId: string | undefined; state: DraftState; dirty: boolean; settingsDirty: boolean;
-  selectedCategories: FindingCategory[]; phoneRegion: string; csrf: string; recovery: ProtectedDraftController;
+  selectedCategories: FindingCategory[]; phoneRegion: string; language: string; csrf: string; recovery: ProtectedDraftController;
   refreshPreview: (id: string, version: VersionRef) => Promise<void>;
   setScanPending: Update<boolean>; setError: Update<string | null>; setNotice: Update<string | null>;
-  setScan: Update<ScanView | null>; setUndoCount: Update<number>; setSummary: Update<ReviewSummaryView | null>;
+  setScan: Update<ScanView | null>; setSummary: Update<ReviewSummaryView | null>;
   setConfirmedPreview: Update<boolean>; setPreparedDownload: Update<Download>; setState: Update<DraftState>;
   setFindings: Update<FindingsView | null>; setConflict: Update<boolean>; setSettingsPending: Update<boolean>;
   setPreview: Update<PreviewView | null>; setPreviewError: Update<string | null>;
@@ -34,7 +34,6 @@ export function createReviewScanActions({ documentId, state, dirty, settingsDirt
     try {
       const result = await startScan(documentId, state.saved.version, csrf)
       setScan(result)
-      setUndoCount(0)
       if (result.status === 'completed') {
         setSummary(null)
         setConfirmedPreview(false)
@@ -50,10 +49,10 @@ export function createReviewScanActions({ documentId, state, dirty, settingsDirt
         setNotice(
           result.match_count === 0
             ? null
-            : 'Suggestions are unresolved. Review every occurrence before export.',
+            : 'Suggestions are ready. Choose what to change in each highlighted detail.',
         )
       } else {
-        setNotice('A scan is in progress. Refresh its status shortly.')
+        setNotice('The check is running. Refresh to see its progress.')
       }
       try {
         setFindings(await getFindings(documentId))
@@ -84,6 +83,7 @@ export function createReviewScanActions({ documentId, state, dirty, settingsDirt
         selectedCategories,
         phoneRegion,
         csrf,
+        language,
       )
       setState({
         kind: 'ready',
@@ -93,6 +93,7 @@ export function createReviewScanActions({ documentId, state, dirty, settingsDirt
           status: 'draft',
           categories: selectedCategories,
           phone_region: phoneRegion,
+          language,
         },
       })
       setScan({
@@ -100,6 +101,7 @@ export function createReviewScanActions({ documentId, state, dirty, settingsDirt
         status: 'not_started',
         attempt_count: 0,
         match_count: null,
+        dropped_suggestions: 0,
         failure_code: null,
         suggestions: [],
       })
@@ -113,9 +115,8 @@ export function createReviewScanActions({ documentId, state, dirty, settingsDirt
         setError('Settings were saved, but findings could not be refreshed. Reload the draft.')
       }
       await refreshPreview(documentId, updated.version)
-      setUndoCount(0)
       await recovery.clear().catch(() => undefined)
-      setNotice('Suggestion settings saved. Run a fresh scan before review.')
+      setNotice('Your options are saved. Find suggestions again before confirming.')
     } catch (cause: unknown) {
       if (cause instanceof ApiConflictError) setConflict(true)
       setError(messageFrom(cause))
@@ -148,7 +149,6 @@ export function createReviewScanActions({ documentId, state, dirty, settingsDirt
       setSummary(null)
       setConfirmedPreview(false)
       setPreparedDownload(null)
-      setUndoCount(0)
       setError(null)
       if (latest.status === 'ready' || latest.status === 'exported') {
         try {

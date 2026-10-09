@@ -1,4 +1,9 @@
-import type { SourceView, SourceSpan, VersionRef } from '../api/client'
+import type { SourceView, SourceSpan, VersionRef, StyleChoice, ReviewedFormat } from '../api/client'
+
+export type ReviewedDownload = {
+  url: string; filename: string; version: VersionRef;
+  format: ReviewedFormat; variant?: 'spreadsheet_safe' | 'unmodified'; prefixed?: number;
+}
 
 export type DraftState =
   | { kind: 'loading' }
@@ -8,6 +13,8 @@ export type DraftState =
 export type GroupConfirmation = {
   findingId: string
   action: 'label' | 'redact' | 'keep'
+  choice?: StyleChoice
+  keepReason?: 'false_match' | 'intended_disclosure'
   affectedIds: string[]
   spans: SourceSpan[]
   version: VersionRef

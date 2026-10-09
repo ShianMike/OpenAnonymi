@@ -1,154 +1,61 @@
 .finding-popover {
   z-index: 40;
-  width: min(350px, calc(100vw - 32px));
-  max-width: var(--radix-popover-content-available-width);
-  max-height: var(--radix-popover-content-available-height);
-  overflow-y: auto;
-  padding: 18px;
-  border: 1px solid var(--tone-line, #66796b70);
-  border-radius: 20px;
-  color: var(--text);
-  background: linear-gradient(145deg, var(--tone-surface-glass, #2b352fef), var(--tone-surface-glass, #1e2823f7));
-  backdrop-filter: blur(24px);
-  box-shadow:
-    0 16px 48px var(--tone-shadow-deep, #00000060),
-    inset 0 1px 0 #ffffff0b;
-  overscroll-behavior: contain;
-}
-.finding-popover-heading {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  width: min(440px, calc(100vw - 32px));
+  max-height: min(680px, calc(100svh - 32px));
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 16px 48px var(--tone-shadow-deep, #00000060);
 }
-.finding-kind {
-  font-size: 0.74rem;
-  color: var(--tone-body, #b9cec0);
-  text-transform: capitalize;
+.finding-popover-header {
+  flex-shrink: 0;
+  padding: 12px 18px 16px;
+  border-bottom: 1px solid var(--line);
 }
-.finding-popover h3 {
-  margin: 2px 0 8px;
-  font-size: 1.05rem;
-  font-weight: 550;
-  overflow-wrap: anywhere;
-  max-height: 100px;
-  overflow-y: auto;
-}
-.finding-popover p {
-  margin: 0;
-  font-size: 0.8rem;
-  line-height: 1.6;
-}
-.finding-popover-reason {
-  color: var(--muted);
-}
-.finding-popover-actions {
-  display: grid;
-  gap: 5px;
-  margin: 16px 0;
-}
+.finding-popover-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.finding-popover-heading .quiet-icon { width: 44px; min-height: 44px; flex-shrink: 0; }
+.finding-popover h3 { margin: 0 0 6px; font-size: 1.05rem; font-weight: 600; overflow-wrap: anywhere; max-height: 90px; overflow-y: auto; }
+.finding-popover p { margin: 0; font-size: .8rem; line-height: 1.6; }
+.finding-popover-reason { color: var(--muted); }
+.finding-popover-actions { display: grid; gap: 8px; }
 .finding-popover-actions > button {
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
-  min-height: 58px;
-  padding: 10px;
+  min-height: 62px;
+  padding: 10px 12px;
   margin: 0;
   text-align: left;
-  border: 1px solid transparent;
-  border-radius: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
   color: var(--text);
-  background: var(--tone-wash, #ffffff04);
+  background: transparent;
   box-shadow: none;
 }
-.finding-popover-actions > button:hover {
-  background: var(--tone-wash-strong, #ffffff09);
-}
-.finding-popover-actions > button[aria-pressed='true'] {
-  border-color: var(--tone-line, #91b99f60);
-  background: var(--tone-accent-wash, #b4e6cc0c);
-}
-.finding-popover-action-icon {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  flex-shrink: 0;
-  border-radius: 10px;
-  color: var(--tone-body, #c1d8c9);
-  background: var(--tone-wash, #ffffff08);
-}
-.finding-popover-actions button > span:nth-child(2) {
-  flex: 1;
-  min-width: 0;
-}
-.finding-popover-actions strong {
-  display: block;
-  font-size: 0.85rem;
-  font-weight: 550;
-}
-.finding-popover-actions small {
-  display: block;
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 0.73rem;
-  font-weight: 400;
-}
-.finding-popover .field-label {
-  display: block;
-  margin: 0 0 7px;
-  font-size: 0.77rem;
-  font-weight: 500;
-}
-.finding-popover .finding-popover-footnote {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--tone-hairline, #ffffff0a);
-  color: var(--tone-body, #b0c3b7);
-  font-size: 0.74rem;
-}
-.finding-popover .finding-popover-feedback,
-.finding-popover .finding-popover-error {
-  margin-top: 12px;
-}
-.finding-popover-error {
-  color: var(--danger);
-}
-.finding-popover-arrow {
-  fill: var(--tone-muted, #263229);
-}
+.finding-popover-actions > button:hover { background: var(--surface-subtle); }
+.finding-popover-actions > button[aria-pressed='true'] { border-color: var(--blue); background: var(--blue-tint); }
+.finding-popover-action-icon { display: grid; place-items: center; width: 30px; height: 30px; flex-shrink: 0; color: var(--muted); }
+.finding-popover-actions button > span:nth-child(2) { flex: 1; min-width: 0; }
+.finding-popover-actions strong { display: block; font-size: .86rem; font-weight: 600; }
+.finding-popover-actions small { display: block; margin-top: 2px; color: var(--muted); font-size: .75rem; font-weight: 400; }
+.finding-popover .field-label { display: block; margin: 0; font-size: .78rem; font-weight: 550; }
+.finding-popover .finding-popover-footnote { color: var(--muted); font-size: .73rem; text-align: center; }
+.finding-popover-error { color: var(--danger); }
 @media (max-width: 700px), (max-height: 700px) {
-  .finding-popover {
-    padding: 14px;
-    border-radius: 17px;
-    scroll-padding: 14px;
-  }
-  .finding-popover-actions {
-    margin: 12px 0;
-  }
-  .finding-popover-actions > button {
-    min-height: 50px;
-    padding: 8px;
-    gap: 9px;
-  }
-  .finding-popover-action-icon {
-    width: 30px;
-    height: 30px;
-    border-radius: 9px;
-  }
-  .finding-popover .finding-popover-footnote {
-    margin-top: 10px;
-    padding-top: 10px;
-  }
+  .finding-popover-header { padding-inline: 14px; padding-bottom: 12px; }
+  .finding-popover-actions > button { min-height: 54px; padding: 8px; gap: 8px; }
 }
 @media (forced-colors: active) {
-  .finding-popover {
-    border-color: CanvasText;
-    background: Canvas;
-    color: CanvasText;
-  }
-  .finding-popover-actions > button[aria-pressed='true'] {
-    border-color: Highlight;
-  }
+  .finding-popover { border-color: CanvasText; background: Canvas; color: CanvasText; }
+  .finding-popover-actions > button { border-color: ButtonText; }
+  .finding-popover-actions > button[aria-pressed='true'] { border-color: Highlight; }
 }

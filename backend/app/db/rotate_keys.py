@@ -9,10 +9,15 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.config import ConfigurationError, Settings, load_settings
+from app.db.column_rules import DocumentColumnRules
 from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedContentError, ProtectedValue
 from app.db.custom_rules import RuleVersion
-from app.db.models import Document, SourceRevision
+from app.db.email_verification import PendingRegistration
+from app.db.models import Document, Preset, SourceRevision
 from app.db.recovery import RecoverySnapshot
+from app.db.replacement_secrets import DocumentReplacementSecret
+from app.db.second_factor import UserSecondFactor
+from app.db.source_structures import SourceStructure
 from app.db.team_review import FindingComment
 
 BATCH_SIZE = 100
@@ -65,8 +70,13 @@ def rotate_recovery(session: Session, keys: KeyRing) -> int:
 
 
 def rotate_rules(session: Session, keys: KeyRing) -> int:
-    rows = session.scalars(select(RuleVersion).where(RuleVersion.payload_key_id != keys.active_key_id)
-        .order_by(RuleVersion.rule_id, RuleVersion.version).limit(BATCH_SIZE).with_for_update()).all()
+    rows = session.scalars(
+        select(RuleVersion)
+        .where(RuleVersion.payload_key_id != keys.active_key_id)
+        .order_by(RuleVersion.rule_id, RuleVersion.version)
+        .limit(BATCH_SIZE)
+        .with_for_update()
+    ).all()
     for row in rows:
         rotated = keys.rotate_text(ProtectedValue(row.payload_ciphertext, row.payload_key_id))
         row.payload_ciphertext, row.payload_key_id = rotated.ciphertext, rotated.key_id
@@ -74,17 +84,123 @@ def rotate_rules(session: Session, keys: KeyRing) -> int:
 
 
 def rotate_comments(session: Session, keys: KeyRing) -> int:
-    rows = session.scalars(select(FindingComment).where(FindingComment.text_key_id != keys.active_key_id)
-        .order_by(FindingComment.id).limit(BATCH_SIZE).with_for_update()).all()
+    rows = session.scalars(
+        select(FindingComment)
+        .where(FindingComment.text_key_id != keys.active_key_id)
+        .order_by(FindingComment.id)
+        .limit(BATCH_SIZE)
+        .with_for_update()
+    ).all()
     for row in rows:
         protected = keys.rotate_text(ProtectedValue(row.text_ciphertext, row.text_key_id))
         row.text_ciphertext, row.text_key_id = protected.ciphertext, protected.key_id
     return len(rows)
 
 
+def rotate_pending_registrations(session: Session, keys: KeyRing) -> int:
+    rows = session.scalars(
+        select(PendingRegistration)
+        .where(PendingRegistration.key_id != keys.active_key_id)
+        .order_by(PendingRegistration.id)
+        .limit(BATCH_SIZE)
+        .with_for_update()
+    ).all()
+    for row in rows:
+        rotated = keys.rotate_text(ProtectedValue(row.workspace_name_ciphertext, row.key_id))
+        row.workspace_name_ciphertext, row.key_id = rotated.ciphertext, rotated.key_id
+    return len(rows)
+
+
+def rotate_second_factors(session: Session, keys: KeyRing) -> int:
+    rows = session.scalars(
+        select(UserSecondFactor)
+        .where(UserSecondFactor.key_id != keys.active_key_id)
+        .order_by(UserSecondFactor.user_id)
+        .limit(BATCH_SIZE)
+        .with_for_update()
+    ).all()
+    for row in rows:
+        rotated = keys.rotate_text(ProtectedValue(row.secret_ciphertext, row.key_id))
+        row.secret_ciphertext, row.key_id = rotated.ciphertext, rotated.key_id
+    return len(rows)
+
+
+def rotate_replacement_secrets(session: Session, keys: KeyRing) -> int:
+    rows = session.scalars(
+        select(DocumentReplacementSecret)
+        .where(DocumentReplacementSecret.key_id != keys.active_key_id)
+        .order_by(DocumentReplacementSecret.document_id)
+        .limit(BATCH_SIZE)
+        .with_for_update()
+    ).all()
+    for row in rows:
+        rotated = keys.rotate_text(ProtectedValue(row.secret_ciphertext, row.key_id))
+        row.secret_ciphertext, row.key_id = rotated.ciphertext, rotated.key_id
+    return len(rows)
+
+
+def rotate_source_structures(session: Session, keys: KeyRing) -> int:
+    rows = session.scalars(
+        select(SourceStructure)
+        .where(SourceStructure.key_id != keys.active_key_id)
+        .order_by(SourceStructure.revision_id)
+        .limit(BATCH_SIZE)
+        .with_for_update()
+    ).all()
+    for row in rows:
+        rotated = keys.rotate_text(ProtectedValue(row.layout_ciphertext, row.key_id))
+        row.layout_ciphertext, row.key_id = rotated.ciphertext, rotated.key_id
+    return len(rows)
+
+
+def rotate_column_rules(session: Session, keys: KeyRing) -> int:
+    rows = session.scalars(
+        select(DocumentColumnRules)
+        .where(DocumentColumnRules.key_id != keys.active_key_id)
+        .order_by(DocumentColumnRules.document_id, DocumentColumnRules.settings_version)
+        .limit(BATCH_SIZE)
+        .with_for_update()
+    ).all()
+    for row in rows:
+        rotated = keys.rotate_text(ProtectedValue(row.rules_ciphertext, row.key_id))
+        row.rules_ciphertext, row.key_id = rotated.ciphertext, rotated.key_id
+    return len(rows)
+
+
+def rotate_preset_columns(session: Session, keys: KeyRing) -> int:
+    rows = session.scalars(
+        select(Preset)
+        .where(
+            Preset.column_rules_ciphertext.is_not(None),
+            Preset.column_rules_key_id != keys.active_key_id,
+        )
+        .order_by(Preset.id)
+        .limit(BATCH_SIZE)
+        .with_for_update()
+    ).all()
+    for row in rows:
+        rotated = keys.rotate_text(
+            ProtectedValue(row.column_rules_ciphertext, row.column_rules_key_id)
+        )
+        row.column_rules_ciphertext, row.column_rules_key_id = rotated.ciphertext, rotated.key_id
+    return len(rows)
+
+
 def rotate_database(settings: Settings, keys: KeyRing) -> dict[str, int]:
     engine = create_engine(settings.database_url, pool_pre_ping=True, hide_parameters=True)
-    totals = {"titles": 0, "source revisions": 0, "working drafts": 0, "rules": 0, "comments": 0}
+    totals = {
+        "titles": 0,
+        "source revisions": 0,
+        "working drafts": 0,
+        "rules": 0,
+        "comments": 0,
+        "pending registrations": 0,
+        "authenticator secrets": 0,
+        "replacement secrets": 0,
+        "source structures": 0,
+        "column rules": 0,
+        "preset column rules": 0,
+    }
     try:
         for label, rotate_batch in (
             ("titles", rotate_documents),
@@ -92,10 +208,20 @@ def rotate_database(settings: Settings, keys: KeyRing) -> dict[str, int]:
             ("working drafts", rotate_recovery),
             ("rules", rotate_rules),
             ("comments", rotate_comments),
+            ("pending registrations", rotate_pending_registrations),
+            ("authenticator secrets", rotate_second_factors),
+            ("replacement secrets", rotate_replacement_secrets),
+            ("source structures", rotate_source_structures),
+            ("column rules", rotate_column_rules),
+            ("preset column rules", rotate_preset_columns),
         ):
             while True:
                 with Session(engine) as session:
-                    if label == "source revisions":
+                    if label in (
+                        "source revisions",
+                        "source structures",
+                        "column rules",
+                    ):
                         session.info["allow_source_key_rotation"] = True
                         session.execute(text("SET LOCAL openanonymi.key_rotation = 'on'"))
                     count = rotate_batch(session, keys)
@@ -120,7 +246,13 @@ def main() -> None:
     print(
         f"Rotated {totals['titles']} titles, {totals['source revisions']} source revisions "
         f", {totals['working drafts']} working drafts, {totals['rules']} rule versions "
-        f"and {totals['comments']} finding comments."
+        f", {totals['comments']} finding comments "
+        f", {totals['pending registrations']} pending registrations "
+        f", {totals['authenticator secrets']} authenticator secrets "
+        f", {totals['replacement secrets']} replacement secrets "
+        f", {totals['source structures']} source structures "
+        f", {totals['column rules']} column rule snapshots "
+        f"and {totals['preset column rules']} preset column rules."
     )
 
 

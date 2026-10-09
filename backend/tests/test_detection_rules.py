@@ -52,3 +52,18 @@ def test_email_punctuation_boundaries_and_malformed_local_part():
         "a.b+tag@example.co.uk",
         "x@example.invalid",
     ]
+
+
+def test_markdown_email_wrappers_and_log_assignments_preserve_exact_spans():
+    source = (
+        "😀 Prepared by (`maya.ellison@example.com`)\n"
+        "**billing@example.com** and *billing@example.com*\n"
+        "```text\nuser=jordan.avery@example.net\n```\n"
+        "![image](portrait@2x.png) bad..dots@example.com"
+    )
+    found = detect_suggestions(source, {FindingCategory.EMAIL}, "PH")
+    assert [source[item.span.start:item.span.end] for item in found] == [
+        "maya.ellison@example.com", "billing@example.com", "billing@example.com",
+        "jordan.avery@example.net",
+    ]
+    assert found[0].span.start == source.index("maya.ellison@example.com")

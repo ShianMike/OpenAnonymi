@@ -1,0 +1,46 @@
+{
+  "license": "CC0-1.0",
+  "author": "OpenAnonymi synthetic validation",
+  "rule_id": "identifier.ipv4",
+  "rows": [
+    {
+      "text": "😀 192.0.2.8",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 11,
+          "category": "identifier",
+          "rule_id": "identifier.ipv4"
+        }
+      ]
+    },
+    {
+      "text": "😀 198.51.100.7",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 14,
+          "category": "identifier",
+          "rule_id": "identifier.ipv4"
+        }
+      ]
+    },
+    {
+      "text": "999.1.1.1",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "1.2.3",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "123.456.78.90",
+      "region": "US",
+      "expected": []
+    }
+  ]
+}

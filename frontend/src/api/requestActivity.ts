@@ -1,3 +1,6 @@
+import { bindResponseScope, getSessionScope, requestSessionScope } from './sessionEvents'
+import { reviewCache } from './reviewCache'
+
 export type RequestActivity = { id: number; label: string; startedAt: number }
 const listeners = new Set<() => void>()
 let sequence = 0
@@ -61,8 +64,11 @@ export async function trackedRequest<T>(input: RequestInfo | URL, init: RequestI
   const path = requestPath(url)
   if (path.includes('/health/') || path.endsWith('/meta')) return consume(await fetch(input, init))
   const id = ++sequence
+  const scope = requestSessionScope(init)
   const method = init?.method ?? (input instanceof Request ? input.method : 'GET')
+  const mutation = !['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())
+  if (mutation && scope === getSessionScope()) reviewCache.clear()
   publish([...snapshot, { id, label: requestLabel(path, method.toUpperCase()), startedAt: Date.now() }])
-  try { return await consume(await fetch(input, init)) }
-  finally { publish(snapshot.filter(item => item.id !== id)) }
+  try { const response = await fetch(input, init); bindResponseScope(response, scope); return await consume(response) }
+  finally { if (mutation && scope === getSessionScope()) reviewCache.clear(); publish(snapshot.filter(item => item.id !== id)) }
 }

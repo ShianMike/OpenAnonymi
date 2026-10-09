@@ -1,0 +1,51 @@
+{
+  "license": "CC0-1.0",
+  "author": "OpenAnonymi synthetic validation",
+  "rule_id": "national_id.uk_nino",
+  "rows": [
+    {
+      "text": "😀 AB 12 34 56 C",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 15,
+          "category": "national_id",
+          "rule_id": "national_id.uk_nino"
+        }
+      ]
+    },
+    {
+      "text": "😀 AB123456A",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 11,
+          "category": "national_id",
+          "rule_id": "national_id.uk_nino"
+        }
+      ]
+    },
+    {
+      "text": "BG123456A",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "QQ123456A",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "AB123456E",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "AB123456",
+      "region": "US",
+      "expected": []
+    }
+  ]
+}

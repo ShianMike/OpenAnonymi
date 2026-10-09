@@ -1,18 +1,26 @@
 """Authorized rule storage with document-specific settings snapshots."""
 
-from datetime import datetime
+from collections.abc import Callable
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.accounts.access import active_workspace, owned_document, require_administrator
+from app.accounts.access import (
+    active_workspace,
+    owned_document,
+    refresh_document_access,
+    refresh_workspace_access,
+    require_administrator,
+)
 from app.contracts import DocumentStatus
 from app.custom_rules.contracts import RuleInput, RuleSnapshotView, RuleView
 from app.db.crypto import KeyRing, ProtectedValue
 from app.db.custom_rules import DocumentRuleSnapshot, RuleVersion, WorkspaceRule
 from app.db.models import Document
 from app.db.repository import VersionConflict, _version
+from app.errors import ApiError
 from app.lifecycle import require_transition
 from app.workspace.activity import record_event
 
@@ -60,9 +68,11 @@ def save_rule(
     body: RuleInput,
     rule_id: UUID | None = None,
     expected_version: int | None = None,
+    reauthorize: Callable[[], object] | None = None,
 ) -> RuleView:
     with session.begin():
         require_administrator(session, workspace_id=workspace_id, actor_id=actor_id, lock=True)
+        refresh_workspace_access(session, workspace_id, actor_id, reauthorize, administrator=True)
         row = session.get(WorkspaceRule, rule_id) if rule_id else None
         if rule_id and (row is None or row.workspace_id != workspace_id):
             raise RuleNotFound()
@@ -112,7 +122,10 @@ def save_rule(
             event_code="workspace_rule_saved",
             now=now,
         )
-        return rule_view(row, version, keys)
+        result = rule_view(row, version, keys)
+        session.flush()
+        refresh_workspace_access(session, workspace_id, actor_id, reauthorize, administrator=True)
+        return result
 
 
 def snapshot_rules(session: Session, document: Document):
@@ -180,16 +193,29 @@ def snapshot_state(session: Session, document: Document, keys: KeyRing) -> RuleS
 
 
 def refresh_snapshot(
-    session: Session, document_id: UUID, actor_id: UUID, expected, now: datetime, keys: KeyRing
+    session: Session,
+    document_id: UUID,
+    actor_id: UUID,
+    expected,
+    now: datetime,
+    keys: KeyRing,
+    *,
+    reauthorize: Callable[[], object] | None = None,
 ) -> RuleSnapshotView:
     with session.begin():
         document = owned_document(session, document_id, actor_id, now, lock=True)
+        refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
         active_workspace(session, document.workspace_id, actor_id)
         if _version(document) != expected:
             raise VersionConflict(_version(document))
         if not snapshot_state(session, document, keys).update_available:
-            return snapshot_state(session, document, keys)
+            result = snapshot_state(session, document, keys)
+            refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
+            return result
         document.settings_version += 1
+        from app.groups.undo_store import clear_document
+
+        clear_document(session, document.id)
         document.decision_version += 1
         if document.status != DocumentStatus.DRAFT:
             require_transition(DocumentStatus(document.status), DocumentStatus.DRAFT)
@@ -205,4 +231,56 @@ def refresh_snapshot(
             event_code="scan_settings_changed",
             now=now,
         )
-        return snapshot_state(session, document, keys)
+        result = snapshot_state(session, document, keys)
+        session.flush()
+        refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
+        return result
+
+
+def validate_rule_view(session, workspace_id, actor_id, view):
+    """Check current membership and versions after private rule serialization."""
+    active_workspace(session, workspace_id, actor_id)
+    items = view if isinstance(view, list) else [view]
+    statement = select(WorkspaceRule.id, WorkspaceRule.version).where(
+        WorkspaceRule.workspace_id == workspace_id
+    )
+    if not isinstance(view, list):
+        statement = statement.where(WorkspaceRule.id == view.id)
+    current = set(session.execute(statement).all())
+    if current != {(item.id, item.version) for item in items}:
+        raise ApiError(409, "rules_changed", "Rules changed. Reload before continuing.")
+    active_workspace(session, workspace_id, actor_id)
+
+
+def validate_snapshot_view(session, document_id, actor_id, view):
+    """A saved document snapshot remains readable only with its current version."""
+    document = owned_document(session, document_id, actor_id, datetime.now(UTC))
+    active_workspace(session, document.workspace_id, actor_id)
+    saved = set(
+        session.execute(
+            select(
+                DocumentRuleSnapshot.rule_id,
+                DocumentRuleSnapshot.rule_version,
+            ).where(
+                DocumentRuleSnapshot.document_id == document_id,
+                DocumentRuleSnapshot.settings_version == document.settings_version,
+            )
+        ).all()
+    )
+    latest = set(
+        session.execute(
+            select(WorkspaceRule.id, WorkspaceRule.version).where(
+                WorkspaceRule.workspace_id == document.workspace_id,
+                WorkspaceRule.enabled.is_(True),
+            )
+        ).all()
+    )
+    session.expire(document)
+    document = owned_document(session, document_id, actor_id, datetime.now(UTC))
+    active_workspace(session, document.workspace_id, actor_id)
+    if (
+        _version(document) != view.version
+        or saved != {(rule.id, rule.version) for rule in view.rules}
+        or (saved != latest) != view.update_available
+    ):
+        raise ApiError(409, "rules_changed", "Review rules changed. Reload before continuing.")

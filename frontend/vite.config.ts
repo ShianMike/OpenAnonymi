@@ -5,13 +5,12 @@ const DEFAULT_API_BASE = '/api/v1'
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
 
 /**
- * Every VITE_* value is compiled into public JavaScript. Only the API base URL is allowed,
- * plus the VITE_VERCEL_* build metadata Vercel exposes automatically, so database URLs,
- * keys or SMTP settings can never be bundled by mistake.
+ * Only the API base URL is explicitly compiled into public JavaScript. Other user-supplied
+ * VITE_* variables fail the build; provider observability metadata is discarded below.
  */
 function apiBaseFrom(env: Record<string, string>, onVercel: boolean): string {
   const unexpected = Object.keys(env).filter(
-    (key) => key !== 'VITE_API_BASE_URL' && !key.startsWith('VITE_VERCEL_'),
+    (key) => key !== 'VITE_API_BASE_URL',
   )
   if (unexpected.length > 0) {
     throw new Error(`Only VITE_API_BASE_URL may use the VITE_ prefix. Remove: ${unexpected.join(', ')}.`)
@@ -25,7 +24,9 @@ function apiBaseFrom(env: Record<string, string>, onVercel: boolean): string {
   }
   if (raw.startsWith('/') && !raw.startsWith('//')) {
     const path = raw.replace(/\/+$/, '')
-    if (!path.endsWith('/api/v1')) throw new Error('VITE_API_BASE_URL must end with /api/v1.')
+    if (onVercel || path !== DEFAULT_API_BASE) {
+      throw new Error('Vercel requires an absolute HTTPS API URL; local paths must be /api/v1.')
+    }
     return path
   }
   let url: URL
@@ -40,13 +41,13 @@ function apiBaseFrom(env: Record<string, string>, onVercel: boolean): string {
     throw new Error('VITE_API_BASE_URL must not contain credentials, a query or a fragment.')
   }
   const path = url.pathname.replace(/\/+$/, '')
-  if (!path.endsWith('/api/v1')) throw new Error('VITE_API_BASE_URL must end with /api/v1.')
+  if (path !== DEFAULT_API_BASE) throw new Error('VITE_API_BASE_URL path must be /api/v1.')
   return `${url.origin}${path}`
 }
 
 /**
  * Production builds carry a Content-Security-Policy whose connect-src names the configured
- * API origin. frame-ancestors cannot be set from a meta element; vercel.json sends it.
+ * API origin. frame-ancestors is sent by the API host's HTTP security headers.
  */
 function contentSecurityPolicy(apiBase: string): Plugin {
   const apiOrigin = apiBase.startsWith('/') ? '' : ` ${new URL(apiBase).origin}`
@@ -79,11 +80,31 @@ function contentSecurityPolicy(apiBase: string): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  const apiBase = apiBaseFrom(loadEnv(mode, process.cwd(), 'VITE_'), Boolean(process.env.VERCEL))
+  const env = loadEnv(mode, process.cwd(), 'VITE_')
+  // Vercel injects this even when automatic system-env exposure is disabled. It is never
+  // used by this static app and must not become part of its public environment.
+  if (process.env.VERCEL) delete env.VITE_VERCEL_OBSERVABILITY_CLIENT_CONFIG
+  const apiBase = apiBaseFrom(env, Boolean(process.env.VERCEL))
   return {
     plugins: [react(), contentSecurityPolicy(apiBase)],
+    // Disable Vite's implicit public-env injection. API_BASE is defined explicitly.
+    envPrefix: [],
     // Bundle the validated, normalized value rather than the raw environment string.
     define: { 'import.meta.env.VITE_API_BASE_URL': JSON.stringify(apiBase) },
+    build: {
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              { name: 'react', test: /node_modules[\\/](?:react|react-dom|scheduler)[\\/]/, priority: 40 },
+              { name: 'router', test: /node_modules[\\/]react-router(?:-dom)?[\\/]/, priority: 30 },
+              { name: 'radix', test: /node_modules[\\/]@radix-ui[\\/]/, priority: 20 },
+              { name: 'icons', test: /node_modules[\\/]lucide-react[\\/]/, priority: 10 },
+            ],
+          },
+        },
+      },
+    },
     server: {
       proxy: { '/api': 'http://127.0.0.1:8000' },
     },

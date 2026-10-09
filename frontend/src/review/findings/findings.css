@@ -120,23 +120,34 @@
 .finding-list > li {
   min-width: 0;
   padding: 0;
-  border: 1px solid transparent;
+  border: 1px solid var(--line);
   border-radius: 14px;
-  background: var(--tone-surface, #222e25);
+  background: var(--surface);
   overflow: hidden;
 }
 .finding-list > li[aria-current='true'] {
-  border-color: var(--tone-line, #94bf9f55);
-  background: var(--tone-active-surface, #273b2d);
+  border-color: var(--line-strong);
+  background: var(--blue-tint);
+}
+.finding-list.finding-list-windowed {
+  display: block;
+}
+.finding-list-windowed > li[role='listitem'] {
+  margin-bottom: 11px;
+}
+.finding-list.finding-list-windowed > .finding-list-spacer {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .finding-card-trigger {
   display: block;
   width: 100%;
-  padding: 14px;
+  padding: 16px;
   min-height: 112px;
   text-align: left;
   border: 0;
-  border-radius: 14px;
+  border-radius: 0;
   background: transparent;
   box-shadow: none;
   line-height: 1.5;
@@ -144,6 +155,7 @@
 .finding-card-trigger:hover {
   background: var(--tone-wash, #ffffff03);
 }
+.finding-card-trigger:focus-visible { outline-offset: -3px; }
 .finding-card-top {
   display: flex;
   justify-content: space-between;
@@ -154,10 +166,10 @@
   text-transform: capitalize;
 }
 .finding-state {
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   color: var(--tone-warning, #beca9f);
   background: var(--tone-warning-wash, #b8aa5710);
-  padding: 3px 6px;
+  padding: 4px 7px;
   border-radius: 5px;
 }
 .finding-state[data-action='label'],
@@ -172,8 +184,8 @@
 .finding-card-trigger > strong {
   display: block;
   margin: 10px 0 9px;
-  font-size: 0.9rem;
-  font-weight: 500;
+  font-size: 0.95rem;
+  font-weight: 600;
   color: var(--tone-text, #d6e5db);
   overflow-wrap: anywhere;
   line-height: 1.5;
@@ -183,7 +195,7 @@
   justify-content: space-between;
   gap: 8px;
   color: var(--tone-muted, #8fa596);
-  font-size: 0.69rem;
+  font-size: 0.75rem;
 }
 .finding-card-bottom > span {
   display: flex;
@@ -191,34 +203,53 @@
   gap: 4px;
   color: var(--tone-body, #b0cabc);
 }
+.finding-card-bottom > span:last-child { color: var(--text); font-weight: 550; }
 .finding-more {
   margin: 0;
-  padding: 0 14px 12px;
+  padding: 0 16px;
   border: 0;
   background: transparent;
   font-size: 0.77rem;
 }
 .finding-more summary {
-  color: var(--tone-muted, #8ca494);
-  font-size: 0.71rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.76rem;
   cursor: pointer;
+  list-style: none;
 }
+.finding-more summary::-webkit-details-marker { display: none; }
+.finding-more[open] summary > svg { transform: rotate(180deg); }
 .finding-more[open] {
   padding-bottom: 16px;
 }
 .finding-extra-actions {
   display: grid;
-  gap: 10px;
-  margin-top: 14px;
+  gap: 16px;
+  margin-top: 8px;
 }
+.finding-action-section { display: grid; gap: 8px; }
+.finding-action-section + .finding-action-section { padding-top: 16px; border-top: 1px solid var(--line); }
+.finding-action-section h4 { margin: 0; font-size: .77rem; font-weight: 600; }
+.finding-action-section p { margin: 0; }
+.finding-locate-actions { display: flex; gap: 6px; }
+.finding-locate-actions > button { flex: 1; min-width: 0; padding-inline: 6px; }
+.finding-exact-matches { display: grid; gap: 8px; }
+.finding-remove-action > button { color: var(--danger); }
 .finding-extra-actions label {
   display: block;
-  margin: 6px 0 0;
+  margin: 0;
   font-size: 0.75rem;
 }
 .finding-extra-actions button {
   margin: 0;
   width: 100%;
+  min-height: 44px;
   font-size: 0.75rem;
 }
 .finding-extra-actions > div p {
@@ -230,6 +261,10 @@
   padding: 10px;
   border: 1px solid var(--tone-line, #a5c5b040);
   border-radius: 10px;
+}
+@media (forced-colors: active) {
+  .finding-list > li { border-color: CanvasText; }
+  .finding-list > li[aria-current='true'] { border-color: Highlight; }
 }
 .findings-add {
   display: flex;
@@ -280,6 +315,10 @@
   }
   .finding-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .review-findings.review-findings-windowed {
+    max-height: 70svh;
+    overflow-y: auto;
   }
 }
 @media (max-width: 700px) {

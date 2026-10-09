@@ -1,0 +1,41 @@
+{
+  "license": "CC0-1.0",
+  "author": "OpenAnonymi synthetic validation",
+  "rule_id": "url.query_token",
+  "rows": [
+    {
+      "text": "😀 https://example.test/p?token=fictional",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 40,
+          "category": "url",
+          "rule_id": "url.query_token"
+        }
+      ]
+    },
+    {
+      "text": "😀 https://example.test/p?KEY=fictional",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 38,
+          "category": "url",
+          "rule_id": "url.query_token"
+        }
+      ]
+    },
+    {
+      "text": "example.test?token=fictional",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "https://example..test/?token=fictional",
+      "region": "US",
+      "expected": []
+    }
+  ]
+}

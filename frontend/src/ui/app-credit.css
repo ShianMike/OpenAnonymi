@@ -1,0 +1,6 @@
+.app-credit { display: grid; gap: 4px; color: var(--muted); font-size: .7rem; line-height: 1.5; }
+.app-credit a { color: inherit; text-underline-offset: 3px; }
+.app-credit a:hover { color: var(--text); }
+.app-sidebar > .app-credit { padding-bottom: max(18px, env(safe-area-inset-bottom)); }
+.landing-footer > .app-credit { grid-column: 1 / -1; padding-top: 18px; border-top: 1px solid var(--line); }
+.auth-footer .app-credit { text-align: center; }

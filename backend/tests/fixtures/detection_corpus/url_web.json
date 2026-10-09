@@ -1,0 +1,58 @@
+{
+  "license": "CC0-1.0",
+  "author": "OpenAnonymi synthetic validation",
+  "rule_id": "url.web",
+  "rows": [
+    {
+      "text": "😀 https://example.test/a_(b)",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 28,
+          "category": "url",
+          "rule_id": "url.web"
+        }
+      ]
+    },
+    {
+      "text": "😀 www.example.test/path",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 23,
+          "category": "url",
+          "rule_id": "url.web"
+        }
+      ]
+    },
+    {
+      "text": "😀 https://example.test:8443/a#part",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 34,
+          "category": "url",
+          "rule_id": "url.web"
+        }
+      ]
+    },
+    {
+      "text": "http://",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "https://example..test",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "https://example.test:99999/a",
+      "region": "US",
+      "expected": []
+    }
+  ]
+}

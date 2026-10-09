@@ -1,16 +1,28 @@
 import { API_CREDENTIALS, apiUrl } from './base'
 import { trackedRequest } from './requestActivity'
+import { reportEndedScope, reportSessionEnded } from './sessionEvents'
 import type { components } from './schema'
 
 export type ServiceMetadata = components['schemas']['ServiceMetadata']
 export type HealthResponse = components['schemas']['HealthResponse']
 export type SessionView = components['schemas']['SessionView']
+export type ChallengeView = components['schemas']['ChallengeView']
+export type EnrollmentView = components['schemas']['EnrollmentView']
+export type SecondFactorState = components['schemas']['SecondFactorState']
+export type DeviceView = components['schemas']['DeviceView']
 export type RecoveryMessage = components['schemas']['RecoveryMessage']
 export type MemberView = components['schemas']['MemberView']
 export type WorkspaceSettingsView = components['schemas']['WorkspaceSettingsView']
+export type CleanupHealthView = components['schemas']['CleanupHealthView']
 export type IntakeDefaultsView = components['schemas']['IntakeDefaultsView']
 export type SavedDraftView = components['schemas']['SavedDraftView']
 export type SourceView = components['schemas']['SourceView']
+export type CsvInfo = components['schemas']['CsvInfo']
+export type ColumnRule = components['schemas']['ColumnRule']
+export type CsvSettingsView = components['schemas']['CsvSettingsView']
+export type CsvDelimiter = CsvInfo['delimiter']
+export type CsvVariant = 'spreadsheet_safe' | 'unmodified'
+export type ColumnDecisionRequest = components['schemas']['ColumnDecisionRequest']
 export type VersionRef = components['schemas']['VersionRef']
 export type CreateDraftRequest = components['schemas']['CreateDraftRequest']
 export type ScanView = components['schemas']['ScanView']
@@ -20,6 +32,12 @@ export type PreviewView = components['schemas']['PreviewView']
 export type CompletionView = components['schemas']['CompletionView']
 export type ReviewSummaryView = components['schemas']['ReviewSummaryView']
 export type DocumentIndexView = components['schemas']['DocumentIndexView']
+export type DocumentSearchView = components['schemas']['DocumentSearchView']
+export type DocumentSearchRequest = components['schemas']['DocumentSearchRequest']
+export type DocumentPreferenceView = components['schemas']['DocumentPreferenceView']
+export type DocumentPreferenceRequest = components['schemas']['DocumentPreferenceRequest']
+export type BulkDocumentsView = components['schemas']['BulkDocumentsView']
+export type BulkDocumentsRequest = components['schemas']['BulkDocumentsRequest']
 export type OverviewView = components['schemas']['OverviewView']
 export type DeletedView = components['schemas']['DeletedView']
 export type ActivityView = components['schemas']['ActivityView']
@@ -31,6 +49,11 @@ export type ExportEventView = components['schemas']['ExportEventView']
 export type ExactMatchesView = components['schemas']['ExactMatchesView']
 export type SourceSpan = components['schemas']['SourceSpan']
 export type FindingCategory = components['schemas']['FindingCategory']
+export type RetentionView = components['schemas']['RetentionView']
+export type AdminActivityView = components['schemas']['AdminActivityView']
+export type AdminActivityRequest = components['schemas']['AdminActivityRequest']
+export type StyleChoice = components['schemas']['StyleChoice']
+export type CategoryDefault = components['schemas']['CategoryDefault']
 type ErrorResponse = components['schemas']['ErrorResponse']
 
 export class ApiRequestError extends Error {
@@ -91,18 +114,20 @@ export async function requireSuccess(response: Response): Promise<void> {
     throw new ApiConflictError(body.current_version as VersionRef, body.message)
   }
   if (isErrorResponse(body)) {
+    reportSessionEnded(response, body.code)
     throw new ApiRequestError(response.status, body.code, body.message)
   }
   throw new ApiRequestError(response.status, 'request_failed', `Request failed (${response.status}).`)
 }
 
 export async function sendJson<T>(
-  method: 'POST' | 'PATCH' | 'PUT', path: string, body?: object, csrfToken?: string,
+  method: 'POST' | 'PATCH' | 'PUT', path: string, body?: object, csrfToken?: string, signal?: AbortSignal,
 ): Promise<T> {
   return trackedRequest(apiUrl(path), {
     method,
     credentials: API_CREDENTIALS,
     cache: 'no-store',
+    signal,
     headers: {
       Accept: 'application/json',
       ...(body ? { 'Content-Type': 'application/json' } : {}),
@@ -111,6 +136,7 @@ export async function sendJson<T>(
     body: body ? JSON.stringify(body) : undefined,
   }, async (response) => {
     await requireSuccess(response)
+    if (response.status === 204) return undefined as T
     return response.json() as Promise<T>
   })
 }
@@ -144,12 +170,72 @@ export function getSession(signal?: AbortSignal): Promise<SessionView> {
   return get<SessionView>('/auth/session', signal)
 }
 
-export function signIn(email: string, password: string): Promise<SessionView> {
-  return post<SessionView>('/auth/sign-in', { email, password })
+export function getCleanupHealth(workspaceId: string, signal?: AbortSignal): Promise<CleanupHealthView> {
+  return get(`/workspaces/${encodeURIComponent(workspaceId)}/cleanup-health`, signal)
 }
 
-export function signUp(email: string, password: string, workspaceName: string): Promise<SessionView> {
-  return post<SessionView>('/auth/sign-up', { email, password, workspace_name: workspaceName })
+export function signIn(email: string, password: string): Promise<SessionView | ChallengeView> {
+  return post('/auth/sign-in', { email, password })
+}
+
+export function finishSecondFactor(code: string): Promise<SessionView> {
+  return post('/auth/sign-in/second-factor', { code })
+}
+
+export function startForcedEnrollment(): Promise<EnrollmentView> {
+  return post('/auth/sign-in/enrollment/start', {})
+}
+
+export function finishForcedEnrollment(code: string): Promise<components['schemas']['ForcedEnrollmentView']> {
+  return post('/auth/sign-in/enrollment/confirm', { code })
+}
+
+export function getSecondFactor(signal?: AbortSignal): Promise<SecondFactorState> {
+  return get('/auth/second-factor', signal)
+}
+
+export function startEnrollment(csrfToken: string): Promise<EnrollmentView> {
+  return post('/auth/second-factor/enrollment/start', {}, csrfToken)
+}
+
+export function confirmEnrollment(code: string, csrfToken: string): Promise<components['schemas']['BackupCodesView']> {
+  return post('/auth/second-factor/enrollment/confirm', { code }, csrfToken)
+}
+
+export function changeSecondFactor(password: string, code: string, disable: boolean, csrfToken: string): Promise<components['schemas']['BackupCodesView'] | void> {
+  return post(`/auth/second-factor/${disable ? 'disable' : 'backup-codes'}`, { password, code }, csrfToken)
+}
+
+export function getDevices(signal?: AbortSignal): Promise<DeviceView[]> {
+  return get('/auth/sessions', signal)
+}
+
+export function revokeDevice(id: string, csrfToken: string): Promise<void> {
+  return post(`/auth/sessions/${encodeURIComponent(id)}/revoke`, {}, csrfToken)
+}
+
+export function revokeOtherDevices(csrfToken: string): Promise<void> {
+  return post('/auth/sessions/revoke-others', {}, csrfToken)
+}
+
+export function resetMemberSecondFactor(workspaceId: string, userId: string, csrfToken: string): Promise<void> {
+  return post(`/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}/second-factor/reset`, {}, csrfToken)
+}
+
+export function signUp(email: string, password: string, workspaceName: string): Promise<components['schemas']['RegistrationMessage']> {
+  return post('/auth/sign-up', { email, password, workspace_name: workspaceName })
+}
+
+export function verifySignUp(email: string, code: string, password: string): Promise<SessionView> {
+  return post('/auth/sign-up/verify', { email, code, password })
+}
+
+export function requestEmailVerification(csrfToken: string): Promise<components['schemas']['RegistrationMessage']> {
+  return post('/auth/email-verification', {}, csrfToken)
+}
+
+export function confirmEmailVerification(code: string, csrfToken: string): Promise<void> {
+  return post('/auth/email-verification/confirm', { code }, csrfToken)
 }
 
 export async function signOut(csrfToken: string): Promise<void> {
@@ -217,6 +303,23 @@ export function getWorkspaceOverview(
   return get<OverviewView>(`/workspaces/${encodeURIComponent(workspaceId)}/overview`, signal)
 }
 
+export function searchDocuments(body: DocumentSearchRequest, csrfToken: string, signal?: AbortSignal): Promise<DocumentSearchView> {
+  return trackedRequest(apiUrl('/search/documents'), {
+    method: 'POST', credentials: API_CREDENTIALS, cache: 'no-store', signal,
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken },
+    body: JSON.stringify(body),
+  }, async (response) => { await requireSuccess(response); return response.json() })
+}
+
+export function updateDocumentPreference(documentId: string, body: DocumentPreferenceRequest, csrfToken: string): Promise<DocumentPreferenceView> {
+  return sendJson('PATCH', `/documents/${encodeURIComponent(documentId)}/preferences`, body, csrfToken)
+}
+
+export function bulkDocuments(workspaceId: string, body: BulkDocumentsRequest, csrfToken: string): Promise<BulkDocumentsView> {
+  return sendJson<BulkDocumentsView>('POST', `/workspaces/${encodeURIComponent(workspaceId)}/documents/bulk`, body, csrfToken)
+    .then((result) => { if (result.outcomes.some((item) => item.outcome === 'session_ended')) reportEndedScope(csrfToken); return result })
+}
+
 export function getWorkspaceActivity(
   workspaceId: string, signal?: AbortSignal,
 ): Promise<ActivityView> {
@@ -274,12 +377,15 @@ export function getMembers(workspaceId: string, signal?: AbortSignal): Promise<M
 
 export function updateWorkspaceSettings(
   workspaceId: string, expectedVersion: number, contentDays: number,
-  activityDays: number, csrfToken: string,
+  activityDays: number, csrfToken: string, requireSecondFactor?: boolean,
+  approvalPolicy?: 'owner_choice' | 'always',
 ): Promise<WorkspaceSettingsView> {
   return sendJson<WorkspaceSettingsView>(
     'PUT', `/workspaces/${encodeURIComponent(workspaceId)}/settings`,
     { expected_version: expectedVersion, content_retention_days: contentDays,
-      activity_retention_days: activityDays }, csrfToken,
+      activity_retention_days: activityDays,
+      ...(requireSecondFactor === undefined ? {} : { require_second_factor: requireSecondFactor }),
+      ...(approvalPolicy === undefined ? {} : { approval_policy: approvalPolicy }) }, csrfToken,
   )
 }
 
@@ -336,6 +442,9 @@ export function createPastedDraft(
 export async function createFileDraft(
   workspaceId: string, file: File, title: string, categories: string[],
   phoneRegion: string, retentionDays: number, csrfToken: string, presetId?: string,
+  language = 'en',
+  csvDelimiter: CsvDelimiter | 'auto' = 'auto', csvHeader: 'auto' | 'true' | 'false' = 'auto',
+  editedText?: string,
 ): Promise<SavedDraftView> {
   const form = new FormData()
   form.append('workspace_id', workspaceId)
@@ -343,6 +452,11 @@ export async function createFileDraft(
   form.append('title', title)
   form.append('categories', categories.join(','))
   form.append('phone_region', phoneRegion)
+  form.append('language', language)
+  form.append('csv_delimiter', csvDelimiter)
+  form.append('csv_header', csvHeader)
+  // A JSON string preserves LF/CRLF; browser multipart text fields normalize them.
+  if (editedText !== undefined) form.append('edited_text_json', JSON.stringify(editedText))
   form.append('retention_days', String(retentionDays))
   if (presetId) form.append('preset_id', presetId)
   return trackedRequest(apiUrl('/documents/from-file'), {
@@ -359,6 +473,29 @@ export async function createFileDraft(
 
 export function getDraft(documentId: string, signal?: AbortSignal): Promise<SourceView> {
   return get<SourceView>(`/documents/${encodeURIComponent(documentId)}/source`, signal)
+}
+
+export function updateCsvSettings(documentId: string, expected: number, delimiter: CsvDelimiter, hasHeader: boolean, csrf: string): Promise<CsvSettingsView> {
+  return sendJson<CsvSettingsView>('PUT', `/documents/${encodeURIComponent(documentId)}/csv-settings`,
+    { expected_settings_version: expected, delimiter, has_header: hasHeader }, csrf)
+}
+export function updateColumnRules(documentId: string, expected: number, rules: ColumnRule[], csrf: string): Promise<CsvSettingsView> {
+  return sendJson<CsvSettingsView>('PUT', `/documents/${encodeURIComponent(documentId)}/column-rules`,
+    { expected_settings_version: expected, rules }, csrf)
+}
+export function decideColumn(documentId: string, column: number, body: ColumnDecisionRequest, csrf: string): Promise<FindingsView> {
+  return post<FindingsView>(`/documents/${encodeURIComponent(documentId)}/columns/${column}/decision`, body, csrf)
+}
+export function downloadReviewedCsv(documentId: string, expected: VersionRef, eventId: string, csrf: string, variant: CsvVariant): Promise<{ file: Blob; prefixed: number }> {
+  return trackedRequest(apiUrl(`/documents/${encodeURIComponent(documentId)}/exports/csv`), {
+    method: 'POST', credentials: API_CREDENTIALS, cache: 'no-store',
+    headers: { Accept: 'text/csv', 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+    body: JSON.stringify({ expected, event_id: eventId, variant }),
+  }, async (response) => {
+    await requireSuccess(response)
+    const prefixed = Number(response.headers.get('X-CSV-Prefixed-Cells'))
+    return { file: await response.blob(), prefixed: Number.isFinite(prefixed) ? prefixed : 0 }
+  })
 }
 
 export function saveDraftSource(
@@ -384,11 +521,11 @@ export function startScan(
 
 export function updateScanSettings(
   documentId: string, expected: VersionRef, categories: FindingCategory[],
-  phoneRegion: string, csrfToken: string,
+  phoneRegion: string, csrfToken: string, language?: string,
 ): Promise<ScanSettingsView> {
   return sendJson<ScanSettingsView>(
     'PUT', `/documents/${encodeURIComponent(documentId)}/scan-settings`,
-    { expected, categories, phone_region: phoneRegion }, csrfToken,
+    { expected, categories, phone_region: phoneRegion, language }, csrfToken,
   )
 }
 
@@ -475,12 +612,19 @@ export function decideFindings(
   documentId: string, findingId: string, expected: VersionRef,
   action: 'label' | 'redact' | 'keep', keepReason: 'false_match' | 'intended_disclosure' | null,
   groupScope: boolean, affectedFindingIds: string[], csrfToken: string,
+  choice: StyleChoice = { style: 'token', style_option: null },
+  signal?: AbortSignal,
 ): Promise<FindingsView> {
-  return post<FindingsView>(
-    `/documents/${encodeURIComponent(documentId)}/findings/${encodeURIComponent(findingId)}/decision`,
+  return sendJson<FindingsView>(
+    'POST', `/documents/${encodeURIComponent(documentId)}/findings/${encodeURIComponent(findingId)}/decision`,
     { expected, action, keep_reason: keepReason, group_scope: groupScope,
-      affected_finding_ids: affectedFindingIds }, csrfToken,
+      affected_finding_ids: affectedFindingIds, ...choice }, csrfToken, signal,
   )
+}
+
+export function refreshCategoryDefaults(documentId: string, expectedDecisionVersion: number, csrfToken: string): Promise<FindingsView> {
+  return post<FindingsView>(`/documents/${encodeURIComponent(documentId)}/category-defaults/refresh`,
+    { expected_decision_version: expectedDecisionVersion }, csrfToken)
 }
 
 export function undoReviewEdit(
@@ -529,12 +673,26 @@ export function recordCopySuccess(
 export async function downloadReviewedTxt(
   documentId: string, expected: VersionRef, eventId: string, csrfToken: string,
 ): Promise<Blob> {
-  return trackedRequest(apiUrl(`/documents/${encodeURIComponent(documentId)}/exports/txt`), {
+  return downloadReviewedFile(documentId, expected, eventId, csrfToken, 'txt')
+}
+
+export type ReviewedFormat = 'txt' | 'docx' | 'csv' | 'pdf' | 'report'
+
+const reviewedMediaTypes = {
+  txt: 'text/plain', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  pdf: 'application/pdf', report: 'application/json',
+}
+
+export async function downloadReviewedFile(
+  documentId: string, expected: VersionRef, eventId: string, csrfToken: string,
+  format: Exclude<ReviewedFormat, 'csv'>,
+): Promise<Blob> {
+  return trackedRequest(apiUrl(`/documents/${encodeURIComponent(documentId)}/exports/${format}`), {
     method: 'POST',
     credentials: API_CREDENTIALS,
     cache: 'no-store',
     headers: {
-      Accept: 'text/plain',
+      Accept: reviewedMediaTypes[format],
       'Content-Type': 'application/json',
       'X-CSRF-Token': csrfToken,
     },
@@ -543,4 +701,23 @@ export async function downloadReviewedTxt(
     await requireSuccess(response)
     return response.blob()
   })
+}
+
+export function getRetention(documentId: string, signal?: AbortSignal): Promise<RetentionView> {
+  return get(`/documents/${encodeURIComponent(documentId)}/retention`, signal)
+}
+export function renewRetention(documentId: string, expiresAt: string, days: number, csrf: string): Promise<RetentionView> {
+  return sendJson('PATCH', `/documents/${encodeURIComponent(documentId)}/retention`, { expected_expires_at: expiresAt, days_from_now: days }, csrf)
+}
+export function getAdminActivity(workspaceId: string, body: AdminActivityRequest, csrf: string, signal?: AbortSignal): Promise<AdminActivityView> {
+  return trackedRequest(apiUrl(`/workspaces/${encodeURIComponent(workspaceId)}/activity/admin`), {
+    method: 'POST', credentials: API_CREDENTIALS, cache: 'no-store', signal,
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(body),
+  }, async response => { await requireSuccess(response); return response.json() })
+}
+export function downloadAdminActivity(workspaceId: string, body: AdminActivityRequest, csrf: string, signal?: AbortSignal): Promise<Blob> {
+  return trackedRequest(apiUrl(`/workspaces/${encodeURIComponent(workspaceId)}/activity/admin/csv`), {
+    method: 'POST', credentials: API_CREDENTIALS, cache: 'no-store', signal,
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(body),
+  }, async response => { await requireSuccess(response); return response.blob() })
 }

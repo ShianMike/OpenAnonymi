@@ -1,8 +1,9 @@
-import { FilePlus2, RefreshCw } from 'lucide-react'
 import { useEffect } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import * as Tabs from '@radix-ui/react-tabs'
+import { useSearchParams } from 'react-router-dom'
 import type { SessionView } from '../api/client'
 import { PageHeader } from '../ui/PageHeader'
+import { RefreshButton } from '../ui/WorkspaceControls'
 import { LoadingState } from '../loading/LoadingState'
 import { GlassSelect } from '../ui/GlassSelect'
 import { useLastReview } from './lastReview'
@@ -29,23 +30,17 @@ export function ContinueReviewPage({ session }: { session: SessionView }) {
   const queue = data.kind === 'ready' ? reviewQueue(data.items, lastId, data.checkedAt) : null
   return <section className="continue-page" aria-labelledby="continue-title">
     <PageHeader title="Continue review" titleId="continue-title"
-      description="Pick up where you left off, or review a teammate’s handoff."
-      action={<Link className="button-primary" to={`/new?workspace=${workspaceId}`}><FilePlus2 size={16} aria-hidden="true" /> New review</Link>} />
-    <div className="continue-tools">
+      description="Finish your work, or check a review shared with you."
+      action={<div className="continue-heading-tools">
       {session.memberships.length > 1 ? <div className="continue-workspace-picker">
         <label htmlFor="continue-workspace">Workspace</label>
         <GlassSelect id="continue-workspace" value={workspaceId}
           onValueChange={(value) => setParams({ workspace: value })}>
           {session.memberships.map((item) => <option key={item.workspace_id} value={item.workspace_id}>{item.workspace_name}</option>)}
         </GlassSelect>
-      </div> : <span>{membership?.workspace_name ?? 'No active workspace'} <small>· {membership?.role === 'administrator' ? 'Admin' : 'Member'}</small></span>}
-      <div>
-        <Link to={`/documents?workspace=${workspaceId}`}>All documents</Link>
-        <button type="button" className="quiet-icon" aria-label="Refresh reviews" onClick={retry} disabled={data.kind === 'loading' || (data.kind === 'ready' && data.refreshing)}>
-          <RefreshCw size={16} aria-hidden="true" />
-        </button>
-      </div>
-    </div>
+      </div> : <span className="continue-workspace-name">{membership?.workspace_name ?? 'No active workspace'}</span>}
+      <RefreshButton label="Refresh reviews" onClick={retry} disabled={data.kind === 'loading'} pending={data.kind === 'ready' && !!data.refreshing} />
+      </div>} />
     {!membership ? <p role="status">You need an active workspace membership to continue a review.</p> : <>
       {data.kind === 'loading' && <LoadingState label="Checking your available reviews…" description="Finding your unfinished work and assigned reviews." />}
       {data.kind === 'error' && <div className="continue-notice" role="alert">
@@ -55,11 +50,14 @@ export function ContinueReviewPage({ session }: { session: SessionView }) {
       {data.kind === 'ready' && queue && <>
         {data.unavailable && <p className="continue-notice" role="status">Your last review is no longer available. It may have expired or your access changed. Choose another review below.</p>}
         <LastReviewCard item={queue.last} now={data.checkedAt} workspaceId={workspaceId} />
-        <div className="continue-queues">
-          <ReviewQueueList key={`assigned.${workspaceId}`} items={queue.assigned} assigned now={data.checkedAt} workspaceId={workspaceId} />
-          <ReviewQueueList key={`own.${workspaceId}`} items={queue.unfinished} now={data.checkedAt} workspaceId={workspaceId} />
-        </div>
-        <p className="continue-footnote">Only your own reviews and reviews explicitly assigned to you appear here. Expired content cannot be reopened.</p>
+        <Tabs.Root className="continue-queues" key={workspaceId} defaultValue={queue.unfinished.length ? 'own' : 'shared'}>
+          <Tabs.List aria-label="Review queues" className="continue-queue-tabs">
+            <Tabs.Trigger value="own">Your unfinished reviews <span>{queue.unfinished.length}</span></Tabs.Trigger>
+            <Tabs.Trigger value="shared">Shared with you <span>{queue.assigned.length}</span></Tabs.Trigger>
+          </Tabs.List>
+          <Tabs.Content value="own"><ReviewQueueList key={`own.${workspaceId}`} items={queue.unfinished} now={data.checkedAt} workspaceId={workspaceId} /></Tabs.Content>
+          <Tabs.Content value="shared"><ReviewQueueList key={`assigned.${workspaceId}`} items={queue.assigned} assigned now={data.checkedAt} workspaceId={workspaceId} /></Tabs.Content>
+        </Tabs.Root>
       </>}
     </>}
   </section>

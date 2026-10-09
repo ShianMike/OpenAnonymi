@@ -1,0 +1,46 @@
+{
+  "license": "CC0-1.0",
+  "author": "OpenAnonymi synthetic validation",
+  "rule_id": "phone.libphonenumber_valid",
+  "rows": [
+    {
+      "text": "😀 650-253-2222",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 14,
+          "category": "phone",
+          "rule_id": "phone.libphonenumber_valid"
+        }
+      ]
+    },
+    {
+      "text": "😀 +44 20 8366 1177",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 18,
+          "category": "phone",
+          "rule_id": "phone.libphonenumber_valid"
+        }
+      ]
+    },
+    {
+      "text": "12345",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "000-000-0000",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "12345678901234567890",
+      "region": "US",
+      "expected": []
+    }
+  ]
+}

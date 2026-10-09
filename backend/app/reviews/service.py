@@ -1,6 +1,7 @@
 """Explicit, version-bound confirmation of one saved reviewed output."""
 
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID, uuid4
@@ -9,14 +10,14 @@ from sqlalchemy import func, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
-from app.accounts.access import owned_document, review_document
+from app.accounts.access import owned_document, refresh_document_access, review_document
 from app.contracts import DocumentStatus, VersionRef
 from app.db.crypto import KeyRing
 from app.db.models import Document, ExportEvent, ReviewCompletion, ScanRun
 from app.db.repository import VersionConflict
-from app.groups.service import _snapshot, _version
+from app.groups.service import FindingsSnapshot, _snapshot, _version
 from app.lifecycle import require_transition
-from app.transformations.service import build_current_preview
+from app.transformations.service import PreviewSnapshot, build_current_preview
 from app.workspace.activity import record_event
 
 
@@ -41,6 +42,8 @@ class ReviewSummary:
     finding_count: int
     counts_by_category: dict[str, int]
     counts_by_action: dict[str, int]
+    counts_by_action_and_style: dict[str, dict[str, int]]
+    fictional_replacements: int
 
 
 def current_completion(session: Session, document: Document) -> ReviewCompletion:
@@ -72,6 +75,7 @@ def confirm_review(
     confirmed_preview: bool,
     keys: KeyRing,
     now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ) -> CompletionSnapshot:
     if not confirmed_preview:
         raise CompletionRejected(
@@ -79,11 +83,13 @@ def confirm_review(
         )
     with Session(engine) as session, session.begin():
         document = owned_document(session, document_id, actor_id, now, lock=True)
+        refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
         version = _version(document)
         if version != expected:
             raise VersionConflict(version)
         if document.status in (DocumentStatus.READY, DocumentStatus.EXPORTED):
             completion = current_completion(session, document)
+            refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
             return CompletionSnapshot(version, completion.id, completion.confirmed_at)
         scan = session.scalar(
             select(ScanRun.id).where(
@@ -131,30 +137,76 @@ def confirm_review(
             event_code="review_completed",
             now=now,
         )
+        from app.db.team_review import ReviewHandoff
+        from app.notifications.service import notify
+        from app.team_review.service import active_reviewer, approval_policy
+
+        handoff = session.get(ReviewHandoff, document.id)
+        if (
+            handoff
+            and (handoff.require_approval or approval_policy(session, document) == "always")
+            and active_reviewer(session, document, handoff)
+        ):
+            notify(session, document, handoff.reviewer_id, actor_id, "approval_requested", now)
         session.flush()
+        refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
         return CompletionSnapshot(version, completion.id, completion.confirmed_at)
 
 
 def load_review_summary(
-    engine: Engine, *, document_id: UUID, actor_id: UUID, now: datetime
+    engine: Engine, *, document_id: UUID, actor_id: UUID, now: datetime, keys: KeyRing | None = None
 ) -> ReviewSummary:
     with Session(engine) as session, session.begin():
         document = review_document(session, document_id, actor_id, now, lock=True)
-        completion = current_completion(session, document)
-        findings = _snapshot(session, _version(document))
-        category_counts = Counter(item.category.value for item in findings.findings)
-        action_counts = Counter(item.action for item in findings.findings if item.action)
-        last_generated = session.scalar(
-            select(func.max(ExportEvent.occurred_at)).where(
-                ExportEvent.document_id == document_id,
-                ExportEvent.completion_id == completion.id,
-            )
+        return build_review_summary(session, document=document, keys=keys)
+
+
+def build_review_summary(
+    session: Session,
+    *,
+    document: Document,
+    keys: KeyRing | None,
+    findings: FindingsSnapshot | None = None,
+    preview: PreviewSnapshot | None = None,
+) -> ReviewSummary:
+    """Reuse authorized request data instead of reloading findings/source."""
+    completion = current_completion(session, document)
+    findings = findings if findings is not None else _snapshot(session, _version(document))
+    category_counts = Counter(item.category.value for item in findings.findings)
+    action_counts = Counter(item.action for item in findings.findings if item.action)
+    from app.transformations.styles import ACTION_STYLES
+
+    style_counts = {
+        action: {style: 0 for style in sorted(styles)} for action, styles in ACTION_STYLES.items()
+    }
+    for item in findings.findings:
+        if item.action:
+            style_counts[item.action][item.style] += 1
+    fictional = 0
+    if style_counts["label"]["stand_in"]:
+        if keys is None:
+            from app.db.crypto import ContentKeyUnavailable
+
+            raise ContentKeyUnavailable("Content encryption is unavailable.")
+        preview = (
+            preview
+            if preview is not None
+            else build_current_preview(session, document=document, keys=keys)
         )
-        return ReviewSummary(
-            version=_version(document),
-            confirmed_at=completion.confirmed_at,
-            last_output_generated_at=last_generated,
-            finding_count=len(findings.findings),
-            counts_by_category=dict(category_counts),
-            counts_by_action=dict(action_counts),
+        fictional = len(preview.fictional_ids)
+    last_generated = session.scalar(
+        select(func.max(ExportEvent.occurred_at)).where(
+            ExportEvent.document_id == document.id,
+            ExportEvent.completion_id == completion.id,
         )
+    )
+    return ReviewSummary(
+        version=_version(document),
+        confirmed_at=completion.confirmed_at,
+        last_output_generated_at=last_generated,
+        finding_count=len(findings.findings),
+        counts_by_category=dict(category_counts),
+        counts_by_action=dict(action_counts),
+        counts_by_action_and_style=style_counts,
+        fictional_replacements=fictional,
+    )

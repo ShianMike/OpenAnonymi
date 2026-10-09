@@ -1,6 +1,7 @@
 """Single place for content ownership and workspace administrator checks."""
 
-from datetime import datetime
+from collections.abc import Callable
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import and_, or_, select
@@ -21,6 +22,39 @@ class ContentUnavailable(RuntimeError):
 
 class WorkspaceAccessDenied(RuntimeError):
     pass
+
+
+def refresh_document_access(
+    session: Session,
+    document_id: UUID,
+    actor_id: UUID,
+    reauthorize: Callable[[], object] | None,
+    *,
+    owner: bool = False,
+):
+    """Refresh HTTP session and current grants/expiry inside an existing transaction."""
+    if reauthorize is not None:
+        reauthorize()
+        access = owned_document if owner else review_document
+        return access(session, document_id, actor_id, datetime.now(UTC))
+    return None
+
+
+def refresh_workspace_access(
+    session: Session,
+    workspace_id: UUID,
+    actor_id: UUID,
+    reauthorize: Callable[[], object] | None,
+    *,
+    administrator: bool = False,
+):
+    """Refresh HTTP authorization inside an existing workspace transaction."""
+    if reauthorize is not None:
+        reauthorize()
+        if administrator:
+            return require_administrator(session, workspace_id=workspace_id, actor_id=actor_id)
+        return active_workspace(session, workspace_id, actor_id)
+    return None
 
 
 def owned_document_record(
@@ -49,6 +83,8 @@ def owned_document_record(
     document = session.scalar(statement)
     if document is None:
         raise DocumentNotFound("Document not found.")
+    if lock:
+        session.info.setdefault("document_actors", {})[document.id] = actor_id
     return document
 
 
@@ -110,6 +146,8 @@ def review_document_record(session: Session, document_id: UUID, actor_id: UUID, 
     document = session.scalar(query)
     if document is None:
         raise DocumentNotFound("Document not found.")
+    if lock:
+        session.info.setdefault("document_actors", {})[document.id] = actor_id
     return document
 
 
@@ -129,20 +167,26 @@ def review_document(
 def require_administrator(
     session: Session, *, workspace_id: UUID, actor_id: UUID, lock: bool = False
 ) -> Workspace:
-    statement = select(Workspace).where(Workspace.id == workspace_id)
     if lock:
-        statement = statement.with_for_update()
-    workspace = session.scalar(statement)
-    membership = session.get(Membership, (workspace_id, actor_id))
-    user = session.get(User, actor_id)
-    if (
-        workspace is None
-        or membership is None
-        or membership.role != WorkspaceRole.ADMINISTRATOR
-        or membership.revoked_at is not None
-        or user is None
-        or user.disabled_at is not None
-    ):
+        # Acquire the existing workspace lock before reading current scope;
+        # a joined locking query can retain membership state from before a wait.
+        session.scalar(
+            select(Workspace.id).where(Workspace.id == workspace_id).with_for_update(key_share=True)
+        )
+    statement = (
+        select(Workspace)
+        .join(Membership, Membership.workspace_id == Workspace.id)
+        .join(User, User.id == Membership.user_id)
+        .where(
+            Workspace.id == workspace_id,
+            Membership.user_id == actor_id,
+            Membership.role == WorkspaceRole.ADMINISTRATOR,
+            Membership.revoked_at.is_(None),
+            User.disabled_at.is_(None),
+        )
+    )
+    workspace = session.scalar(statement.execution_options(populate_existing=True))
+    if workspace is None:
         raise WorkspaceAccessDenied("Workspace not found.")
     return workspace
 

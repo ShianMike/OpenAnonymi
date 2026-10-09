@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.accounts.access import active_workspace
 from app.contracts import WorkspaceRole
 from app.db.models import AuditEvent, Document, Membership
+from app.workspace.decision_audit import decision_diff
 
 EVENT_CODES = frozenset(
     {
@@ -21,8 +22,10 @@ EVENT_CODES = frozenset(
         "output_generated",
         "document_deleted",
         "document_expired",
+        "document_retention_renewed",
         "preset_created",
         "preset_updated",
+        "preset_defaults_applied",
         "workspace_rule_saved",
         "review_handoff_changed",
         "review_second_approved",
@@ -42,6 +45,12 @@ EVENT_CODES = frozenset(
         "member_role_changed",
         "member_revoked",
         "member_restored",
+        "second_factor_enabled",
+        "second_factor_disabled",
+        "backup_codes_regenerated",
+        "device_signed_out",
+        "other_devices_signed_out",
+        "second_factor_reset",
     }
 )
 
@@ -72,11 +81,16 @@ def record_event(
     event_code: str,
     now: datetime,
     outcome: str = "completed",
+    decision_before: dict | None = None,
+    decision_version: int | None = None,
 ) -> None:
     if event_code not in EVENT_CODES:
         raise ValueError("Unsupported activity code.")
     if outcome not in ("completed", "failed"):
         raise ValueError("Unsupported activity outcome.")
+    changes, count = (
+        decision_diff(session, decision_before) if decision_before is not None else ([], 0)
+    )
     session.add(
         AuditEvent(
             id=uuid4(),
@@ -86,6 +100,9 @@ def record_event(
             event_code=event_code,
             outcome=outcome,
             occurred_at=now,
+            decision_changes=changes,
+            decision_change_count=count,
+            decision_version=decision_version,
         )
     )
 
@@ -96,7 +113,6 @@ def load_activity(
     since = now - timedelta(days=30)
     with Session(engine) as session:
         active_workspace(session, workspace_id, actor_id)
-        membership = session.get(Membership, (workspace_id, actor_id))
         own_filter = or_(AuditEvent.actor_id == actor_id, Document.owner_id == actor_id)
         own_total = (
             session.scalar(
@@ -110,8 +126,13 @@ def load_activity(
             )
             or 0
         )
-        own = session.scalars(
-            select(AuditEvent)
+        own = session.execute(
+            select(
+                AuditEvent.event_code,
+                AuditEvent.outcome,
+                AuditEvent.document_id,
+                AuditEvent.occurred_at,
+            )
             .outerjoin(Document, Document.id == AuditEvent.document_id)
             .where(
                 AuditEvent.workspace_id == workspace_id,
@@ -121,8 +142,14 @@ def load_activity(
             .order_by(AuditEvent.occurred_at.desc(), AuditEvent.id.desc())
             .limit(100)
         ).all()
+        active_workspace(session, workspace_id, actor_id)
+        role = session.scalar(
+            select(Membership.role).where(
+                Membership.workspace_id == workspace_id, Membership.user_id == actor_id
+            )
+        )
         workspace_counts = None
-        if membership.role == WorkspaceRole.ADMINISTRATOR:
+        if role == WorkspaceRole.ADMINISTRATOR:
             workspace_counts = dict(
                 session.execute(
                     select(AuditEvent.event_code, func.count(AuditEvent.id))
@@ -133,6 +160,16 @@ def load_activity(
                     .group_by(AuditEvent.event_code)
                 ).all()
             )
+        active_workspace(session, workspace_id, actor_id)
+        if (
+            session.scalar(
+                select(Membership.role).where(
+                    Membership.workspace_id == workspace_id, Membership.user_id == actor_id
+                )
+            )
+            != WorkspaceRole.ADMINISTRATOR
+        ):
+            workspace_counts = None
         return ActivityViewData(
             as_of=now,
             since=since,

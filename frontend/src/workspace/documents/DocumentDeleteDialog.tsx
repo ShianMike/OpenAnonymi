@@ -38,7 +38,7 @@ export function DocumentDeleteDialog({
           <AlertDialog.Title>Delete this review?</AlertDialog.Title>
           <p className="document-delete-name">{documentLabel(item)}</p>
           <AlertDialog.Description>
-            Access ends immediately and stored content is removed by cleanup. This review cannot be restored.
+            Access ends immediately and content removal starts when you delete. This review cannot be restored.
           </AlertDialog.Description>
           {error && <p role="alert">{error}</p>}
           <div className="document-dialog-actions">

@@ -5,17 +5,18 @@ from dataclasses import dataclass
 
 import phonenumbers
 
-from app.contracts import MAX_CODE_POINTS, FindingCategory, SourceSpan
+from app.contracts import AUTOMATIC_CATEGORIES, MAX_CODE_POINTS, FindingCategory, SourceSpan
 
-DETECTOR_VERSION = "1"
+DETECTOR_VERSION = "3"
 MAX_SUGGESTIONS = 1_000
 MAX_PHONE_DIGITS = 20_000
 
 # This intentionally recognizes common ASCII mailbox syntax. Exact matched text
 # stays in the encrypted source and is never copied into a finding row.
+# Markdown emphasis/code markers and log assignment separators bound a mailbox.
 EMAIL_PATTERN = re.compile(
-    r"(?<![A-Za-z0-9.!#$%&'*+/=?^_`{|}~-])"
-    r"[A-Za-z0-9](?:[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{0,62}[A-Za-z0-9])?"
+    r"(?<![A-Za-z0-9.!#$%&'+/?^_{|}~-])"
+    r"[A-Za-z0-9](?:[A-Za-z0-9.!#$%&'+/?^_{|}~-]{0,62}[A-Za-z0-9])?"
     r"@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.){1,10}"
     r"[A-Za-z]{2,63}(?![A-Za-z0-9-])"
 )
@@ -36,6 +37,7 @@ class Suggestion:
     rule_id: str
     rule_version: str
     reason: str
+    date_format: str | None = None
 
 
 def _append(result: list[Suggestion], suggestion: Suggestion) -> None:
@@ -45,40 +47,30 @@ def _append(result: list[Suggestion], suggestion: Suggestion) -> None:
 
 
 def detect_suggestions(
-    source: str, categories: set[FindingCategory], phone_region: str
+    source: str, categories: set[FindingCategory], phone_region: str, language: str = "en"
 ) -> list[Suggestion]:
     """Return stable code-point spans without approving any review action."""
     if len(source) > MAX_CODE_POINTS:
         raise DetectionLimitError("source_too_large")
-    if not categories.issubset(
-        {
-            FindingCategory.EMAIL,
-            FindingCategory.PHONE,
-            FindingCategory.PERSON,
-            FindingCategory.ORGANIZATION,
-            FindingCategory.LOCATION,
-            FindingCategory.IDENTIFIER,
-        }
-    ):
+    if not categories.issubset(AUTOMATIC_CATEGORIES):
         raise ValueError("Choose supported automatic suggestion categories.")
     if phone_region not in phonenumbers.SUPPORTED_REGIONS:
         raise ValueError("Choose a supported phone region.")
 
     result: list[Suggestion] = []
-    email_spans: list[tuple[int, int]] = []
     if FindingCategory.EMAIL in categories:
         for match in EMAIL_PATTERN.finditer(source):
             local = source[match.start() : source.index("@", match.start(), match.end())]
-            if ".." in local:
+            domain = source[match.start() + len(local) + 1:match.end()]
+            if ".." in local or len(match[0]) > 254 or re.fullmatch(r"[0-9]+x\.(?:png|jpg|jpeg|gif|svg|webp|avif|ico)", domain, re.IGNORECASE):
                 continue
-            email_spans.append((match.start(), match.end()))
             _append(
                 result,
                 Suggestion(
                     span=SourceSpan(start=match.start(), end=match.end()),
                     category=FindingCategory.EMAIL,
                     rule_id="email.common_syntax",
-                    rule_version="1",
+                    rule_version="3",
                     reason="Matches common email address syntax.",
                 ),
             )
@@ -102,10 +94,6 @@ def detect_suggestions(
                 continue
             if end < len(source) and (source[end].isalnum() or source[end] in "_@"):
                 continue
-            if any(
-                start < email_end and email_start < end for email_start, email_end in email_spans
-            ):
-                continue
             _append(
                 result,
                 Suggestion(
@@ -117,12 +105,45 @@ def detect_suggestions(
                 ),
             )
 
+    from app.detection.addresses import detect_addresses
+    from app.detection.dates import detect_dates
+    from app.detection.iban import detect_iban
     from app.detection.identifiers import detect_identifiers
     from app.detection.local_nlp import detect_entities
+    from app.detection.national_ids import detect_national_ids
+    from app.detection.secrets import detect_secrets
+    from app.detection.web import detect_urls, detect_web_identifiers
 
-    result.extend(detect_entities(source, categories))
+    entities = detect_entities(source, categories, language)
+    result.extend(entities)
     if FindingCategory.IDENTIFIER in categories:
         result.extend(detect_identifiers(source))
+        result.extend(detect_web_identifiers(source))
+        result.extend(detect_iban(source))
+    if FindingCategory.DATE in categories:
+        result.extend(detect_dates(source, phone_region))
+    if FindingCategory.URL in categories:
+        result.extend(detect_urls(source))
+    if FindingCategory.SECRET in categories:
+        result.extend(detect_secrets(source))
+    if FindingCategory.NATIONAL_ID in categories:
+        result.extend(detect_national_ids(source))
+    if FindingCategory.ADDRESS in categories:
+        result.extend(detect_addresses(source, entities if language == "en" else ()))
+    result = resolve_overlaps(result)
     if len(result) > MAX_SUGGESTIONS:
         raise DetectionLimitError("too_many_suggestions")
     return sorted(result, key=lambda item: (item.span.start, item.span.end, item.category.value))
+
+
+PRECEDENCE = {category: index for index, category in enumerate((FindingCategory.SECRET, FindingCategory.NATIONAL_ID, FindingCategory.EMAIL, FindingCategory.URL, FindingCategory.IDENTIFIER, FindingCategory.PHONE, FindingCategory.DATE, FindingCategory.ADDRESS, FindingCategory.PERSON, FindingCategory.ORGANIZATION, FindingCategory.LOCATION))}
+
+
+def resolve_overlaps(suggestions: list[Suggestion]):
+    """Longest first, category precedence, earlier start; custom rules are added later."""
+    priority = sorted(suggestions, key=lambda item: (-(item.span.end - item.span.start), PRECEDENCE.get(item.category, 99), item.span.start, item.rule_id))
+    accepted = []
+    for item in priority:
+        if not any(item.span.start < other.span.end and other.span.start < item.span.end for other in accepted):
+            accepted.append(item)
+    return accepted

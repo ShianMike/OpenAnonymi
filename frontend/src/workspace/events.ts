@@ -3,11 +3,13 @@ const names: Record<string, string> = {
   source_revised: 'Source revised',
   review_completed: 'Review confirmed',
   output_copied: 'Reviewed text copied',
-  output_generated: 'Reviewed TXT generated',
+  output_generated: 'Reviewed output generated',
   document_deleted: 'Review deleted',
   document_expired: 'Review expired',
+  document_retention_renewed: 'Review retention renewed',
   preset_created: 'Rules preset created',
   preset_updated: 'Rules preset updated',
+  preset_defaults_applied: 'Preset defaults refreshed',
   workspace_rule_saved: 'Detection rule saved',
   review_handoff_changed: 'Reviewer assignment changed',
   review_second_approved: 'Second review approved',
@@ -27,8 +29,15 @@ const names: Record<string, string> = {
   member_role_changed: 'Member role changed',
   member_revoked: 'Member access revoked',
   member_restored: 'Member access restored',
+  second_factor_enabled: 'Two-step verification enabled',
+  second_factor_disabled: 'Two-step verification disabled',
+  second_factor_reset: 'Authenticator reset',
+  backup_codes_regenerated: 'Backup codes regenerated',
+  device_signed_out: 'Session signed out',
+  other_devices_signed_out: 'Other sessions signed out',
 }
 
 export function eventName(code: string): string {
   return names[code] || code.replaceAll('_', ' ')
 }
+export const activityEventCodes = Object.keys(names)

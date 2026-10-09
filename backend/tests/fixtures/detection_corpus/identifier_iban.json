@@ -1,0 +1,46 @@
+{
+  "license": "CC0-1.0",
+  "author": "OpenAnonymi synthetic validation",
+  "rule_id": "identifier.iban",
+  "rows": [
+    {
+      "text": "😀 GB82 WEST 1234 5698 7654 32",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 29,
+          "category": "identifier",
+          "rule_id": "identifier.iban"
+        }
+      ]
+    },
+    {
+      "text": "😀 DE89370400440532013000",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 24,
+          "category": "identifier",
+          "rule_id": "identifier.iban"
+        }
+      ]
+    },
+    {
+      "text": "GB83 WEST 1234 5698 7654 32",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "ZZ82WEST12345698765432",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "GB82  WEST 1234 5698 7654 32",
+      "region": "US",
+      "expected": []
+    }
+  ]
+}

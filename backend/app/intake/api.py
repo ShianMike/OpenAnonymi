@@ -1,10 +1,11 @@
 """Authenticated source intake, saved drafts, and immutable source edits."""
 
+import json
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -12,10 +13,17 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile as StarletteUploadFile
 
-from app.accounts.access import WorkspaceAccessDenied, active_workspace
+from app.accounts.access import (
+    WorkspaceAccessDenied,
+    active_workspace,
+    owned_document,
+    review_document,
+)
 from app.accounts.api import current_identity, mutation_identity
+from app.accounts.response_boundary import protected_json_response
 from app.accounts.security import SessionIdentity
 from app.contracts import (
+    AUTOMATIC_CATEGORIES,
     ConflictResponse,
     DocumentStatus,
     ErrorResponse,
@@ -30,13 +38,24 @@ from app.db.repository import (
     SavedDocument,
     StorageValidationError,
     VersionConflict,
+    _version,
     append_source_revision,
     create_document,
     load_current_source,
 )
 from app.errors import ApiError
-from app.intake.imports import MAX_FILE_BYTES, extract_import
-from app.intake.validation import SourceValidationError
+from app.intake.access import require_current_intake_access
+from app.intake.csv_contracts import (
+    ColumnRulesRequest,
+    CsvInfo,
+    CsvSettingsRequest,
+    CsvSettingsView,
+)
+from app.intake.csv_service import change_csv_settings
+from app.intake.csv_structure import CsvError, Delimiter, Header
+from app.intake.imports import MAX_FILE_BYTES, edit_import, extract_import
+from app.intake.validation import SourceValidationError, validate_source
+from app.transformations.contracts import CategoryDefault
 from app.workspace.presets import PresetNotFound
 
 
@@ -50,9 +69,13 @@ class SourceView(BaseModel):
     title: str | None
     categories: list[FindingCategory]
     phone_region: str
+    language: str
     preset_id: UUID | None
     preset_version: int | None
-    preferred_action: str
+    preferred_action: Literal["label", "redact"]
+    category_defaults: dict[FindingCategory, CategoryDefault]
+    structure: Literal["kept", "simplified", "none"]
+    csv: CsvInfo | None = None
 
 
 class IntakeDefaultsView(BaseModel):
@@ -71,6 +94,7 @@ class CreateDraftRequest(BaseModel):
     phone_region: str = Field(default="PH", min_length=2, max_length=2)
     retention_days: int | None = Field(default=None, ge=1, le=30)
     preset_id: UUID | None = None
+    language: str = Field(default="en", min_length=2, max_length=2)
 
 
 class EditSourceRequest(BaseModel):
@@ -82,6 +106,7 @@ class SavedDraftView(BaseModel):
     version: VersionRef
     expires_at: datetime
     status: DocumentStatus
+    structure: Literal["kept", "simplified", "none"]
 
 
 def _source_view(source: LoadedSource) -> SourceView:
@@ -95,14 +120,23 @@ def _source_view(source: LoadedSource) -> SourceView:
         title=source.title,
         categories=list(source.categories),
         phone_region=source.phone_region,
+        language=source.language,
         preset_id=source.preset_id,
         preset_version=source.preset_version,
         preferred_action=source.preferred_action,
+        category_defaults=source.category_defaults,
+        structure=source.structure,
+        csv=source.csv,
     )
 
 
 def _saved_view(saved: SavedDocument) -> SavedDraftView:
-    return SavedDraftView(version=saved.version, expires_at=saved.expires_at, status=saved.status)
+    return SavedDraftView(
+        version=saved.version,
+        expires_at=saved.expires_at,
+        status=saved.status,
+        structure=saved.structure,
+    )
 
 
 def _keys(request: Request) -> KeyRing:
@@ -114,16 +148,7 @@ def _keys(request: Request) -> KeyRing:
 
 def _categories(values: list[FindingCategory]) -> set[FindingCategory]:
     categories = set(values)
-    if not categories.issubset(
-        {
-            FindingCategory.EMAIL,
-            FindingCategory.PHONE,
-            FindingCategory.PERSON,
-            FindingCategory.ORGANIZATION,
-            FindingCategory.LOCATION,
-            FindingCategory.IDENTIFIER,
-        }
-    ):
+    if not categories.issubset(AUTOMATIC_CATEGORIES):
         raise ApiError(
             422, "invalid_categories", "Choose supported automatic suggestion categories."
         )
@@ -131,7 +156,7 @@ def _categories(values: list[FindingCategory]) -> set[FindingCategory]:
 
 
 def _input_error(exc: ValueError) -> ApiError:
-    return ApiError(422, "invalid_source", str(exc))
+    return ApiError(422, exc.code if isinstance(exc, CsvError) else "invalid_source", str(exc))
 
 
 def _conflict(exc: VersionConflict) -> JSONResponse:
@@ -162,6 +187,45 @@ def _load_owned_source(
         raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
 
 
+def _source_response(engine, request, identity, source: LoadedSource, view: BaseModel) -> Response:
+    def authorize(current):
+        try:
+            with Session(engine) as session:
+                document = review_document(
+                    session, source.version.document_id, current.user_id, datetime.now(UTC)
+                )
+                if (
+                    _version(document) != source.version
+                    or document.status != source.status
+                    or document.expires_at != source.expires_at
+                    or document.workspace_id != source.workspace_id
+                    or (document.owner_id == current.user_id) != source.can_edit
+                ):
+                    raise ApiError(409, "source_changed", "The source changed while loading. Retry.")
+        except DocumentNotFound:
+            raise ApiError(404, "document_not_found", "Document not found.") from None
+        except ContentUnavailable:
+            raise ApiError(410, "content_expired", "Document content is unavailable.") from None
+
+    return protected_json_response(view, request, identity, authorize)
+
+
+def _csv_response(engine, request, identity, view: CsvSettingsView) -> Response:
+    def authorize(current):
+        with Session(engine) as session:
+            document = owned_document(
+                session, view.version.document_id, current.user_id, datetime.now(UTC)
+            )
+            if (
+                _version(document) != view.version
+                or document.csv_delimiter != view.delimiter
+                or document.csv_has_header != view.has_header
+            ):
+                raise ApiError(409, "source_changed", "The source changed while loading. Retry.")
+
+    return protected_json_response(view, request, identity, authorize)
+
+
 def create_intake_router(engine: Engine) -> APIRouter:
     router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
 
@@ -190,7 +254,7 @@ def create_intake_router(engine: Engine) -> APIRouter:
         "",
         response_model=SavedDraftView,
         status_code=201,
-        responses={401: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+        responses={code: {"model": ErrorResponse} for code in (401, 403, 404, 410, 422, 503)},
     )
     def create_pasted_draft_route(
         body: CreateDraftRequest,
@@ -209,26 +273,32 @@ def create_intake_router(engine: Engine) -> APIRouter:
                     title=body.title,
                     categories=_categories(body.categories),
                     phone_region=body.phone_region,
+                    language=body.language,
                     keys=keys,
                     now=now,
                     requested_expiry=(now + timedelta(days=body.retention_days))
                     if body.retention_days is not None
                     else None,
                     preset_id=body.preset_id,
+                    reauthorize=lambda: current_identity(request),
                 )
         except DocumentNotFound:
             raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
         except PresetNotFound:
             raise ApiError(404, "preset_not_found", "Preset not found.") from None
+        except ContentUnavailable:
+            raise ApiError(410, "content_expired", "Document content is unavailable.") from None
         except (SourceValidationError, StorageValidationError) as exc:
             raise _input_error(exc) from None
+        except (ContentKeyUnavailable, ProtectedContentError):
+            raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
         return _saved_view(saved)
 
     @router.post(
         "/from-file",
         response_model=SavedDraftView,
         status_code=201,
-        responses={401: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+        responses={code: {"model": ErrorResponse} for code in (401, 403, 404, 410, 422, 503)},
     )
     async def create_file_draft_route(
         request: Request,
@@ -238,8 +308,17 @@ def create_intake_router(engine: Engine) -> APIRouter:
         title: Annotated[str | None, Form(max_length=200)] = None,
         categories: Annotated[str, Form()] = "email,phone",
         phone_region: Annotated[str, Form(min_length=2, max_length=2)] = "PH",
+        language: Annotated[str, Form(min_length=2, max_length=2)] = "en",
         retention_days: Annotated[int | None, Form(ge=1, le=30)] = None,
         preset_id: Annotated[UUID | None, Form()] = None,
+        csv_delimiter: Annotated[Delimiter, Form()] = "auto",
+        csv_header: Annotated[Header, Form()] = "auto",
+        edited_text_json: Annotated[
+            str | None,
+            Form(
+                max_length=600002, description="JSON-encoded text correction preserving newlines."
+            ),
+        ] = None,
     ) -> SavedDraftView:
         # FastAPI has already parsed the multipart body. Reject extra file parts and
         # bound the bytes read from the uploaded file before decoding.
@@ -249,7 +328,7 @@ def create_intake_router(engine: Engine) -> APIRouter:
             or sum(isinstance(value, StarletteUploadFile) for _name, value in form.multi_items())
             != 1
         ):
-            raise ApiError(422, "invalid_file", "Choose exactly one TXT, PDF or Word DOCX file.")
+            raise ApiError(422, "invalid_file", "Choose exactly one supported document or scan.")
         try:
             with Session(engine) as session:
                 active_workspace(session, workspace_id, identity.user_id)
@@ -258,8 +337,29 @@ def create_intake_router(engine: Engine) -> APIRouter:
         if file.size is not None and file.size > MAX_FILE_BYTES:
             raise ApiError(422, "invalid_file", "File exceeds the 8 MiB import limit.")
         raw = await file.read(MAX_FILE_BYTES + 1)
+        edited_text = None
+        if "edited_text_json" in form:
+            values = form.getlist("edited_text_json")
+            if len(values) != 1 or not isinstance(values[0], str):
+                raise ApiError(422, "invalid_source", "Submit one extracted-text correction.")
+            try:
+                edited_text = json.loads(values[0])
+            except (ValueError, TypeError):
+                raise ApiError(
+                    422, "invalid_source", "Submit a valid extracted-text correction."
+                ) from None
+            if not isinstance(edited_text, str):
+                raise ApiError(422, "invalid_source", "Submit a text correction.")
+            try:
+                validate_source(edited_text)
+            except SourceValidationError as exc:
+                raise _input_error(exc) from None
         try:
-            validated = (await run_in_threadpool(extract_import, file.filename, raw)).source
+            imported = await run_in_threadpool(
+                extract_import, file.filename, raw, csv_delimiter, csv_header
+            )
+            imported = edit_import(imported, edited_text)
+            validated = imported.source
             parsed_categories = [
                 FindingCategory(value.strip()) for value in categories.split(",") if value.strip()
             ]
@@ -269,6 +369,7 @@ def create_intake_router(engine: Engine) -> APIRouter:
             raise ApiError(
                 422, "invalid_categories", "Choose supported automatic suggestion categories."
             ) from None
+        require_current_intake_access(engine, request, workspace_id)
         keys = _keys(request)
         now = datetime.now(UTC)
         try:
@@ -281,33 +382,116 @@ def create_intake_router(engine: Engine) -> APIRouter:
                     title=title,
                     categories=_categories(parsed_categories),
                     phone_region=phone_region,
+                    language=language,
                     keys=keys,
                     now=now,
                     requested_expiry=(now + timedelta(days=retention_days))
                     if retention_days is not None
                     else None,
                     preset_id=preset_id,
+                    layout=imported.layout,
+                    layout_kind=imported.format,
+                    validated_source=imported.source,
+                    reauthorize=lambda: current_identity(request),
                 )
         except DocumentNotFound:
             raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
         except PresetNotFound:
             raise ApiError(404, "preset_not_found", "Preset not found.") from None
+        except ContentUnavailable:
+            raise ApiError(410, "content_expired", "Document content is unavailable.") from None
         except (SourceValidationError, StorageValidationError) as exc:
             raise _input_error(exc) from None
+        except (ContentKeyUnavailable, ProtectedContentError):
+            raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
         return _saved_view(saved)
+
+    def _csv_mutation(document_id, body, request, identity, *, column_rules=False):
+        try:
+            result = change_csv_settings(
+                engine,
+                document_id=document_id,
+                actor_id=identity.user_id,
+                expected_settings_version=body.expected_settings_version,
+                delimiter=None if column_rules else body.delimiter,
+                has_header=None if column_rules else body.has_header,
+                rules=[rule.model_dump(mode="json") for rule in body.rules]
+                if column_rules
+                else None,
+                keys=_keys(request),
+                now=datetime.now(UTC),
+                reauthorize=lambda: current_identity(request),
+            )
+            return _csv_response(engine, request, identity, CsvSettingsView.model_validate(result))
+        except DocumentNotFound:
+            raise ApiError(404, "document_not_found", "Document not found.") from None
+        except ContentUnavailable:
+            raise ApiError(410, "content_expired", "Document content is unavailable.") from None
+        except VersionConflict as exc:
+            return _conflict(exc)
+        except SourceValidationError as exc:
+            raise _input_error(exc) from None
+        except (ContentKeyUnavailable, ProtectedContentError):
+            raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
+
+    @router.get(
+        "/{document_id}/column-rules", response_model=CsvSettingsView,
+        responses={code: {"model": ErrorResponse} for code in (401, 404, 409, 410, 503)},
+    )
+    @router.get(
+        "/{document_id}/csv-settings", response_model=CsvSettingsView,
+        responses={code: {"model": ErrorResponse} for code in (401, 404, 409, 410, 503)},
+    )
+    def csv_settings_route(
+        document_id: UUID,
+        request: Request,
+        identity: Annotated[SessionIdentity, Depends(current_identity)],
+    ):
+        source = _load_owned_source(engine, request, document_id, identity.user_id)
+        if source.csv is None:
+            raise ApiError(422, "csv_required", "These settings apply to an imported CSV document.")
+        return _source_response(
+            engine, request, identity, source, CsvSettingsView(version=source.version, **source.csv)
+        )
+
+    @router.put(
+        "/{document_id}/csv-settings",
+        response_model=CsvSettingsView,
+        responses={409: {"model": ConflictResponse}, 422: {"model": ErrorResponse}},
+    )
+    def change_csv_settings_route(
+        document_id: UUID,
+        body: CsvSettingsRequest,
+        request: Request,
+        identity: Annotated[SessionIdentity, Depends(mutation_identity)],
+    ):
+        return _csv_mutation(document_id, body, request, identity)
+
+    @router.put(
+        "/{document_id}/column-rules",
+        response_model=CsvSettingsView,
+        responses={409: {"model": ConflictResponse}, 422: {"model": ErrorResponse}},
+    )
+    def column_rules_route(
+        document_id: UUID,
+        body: ColumnRulesRequest,
+        request: Request,
+        identity: Annotated[SessionIdentity, Depends(mutation_identity)],
+    ):
+        return _csv_mutation(document_id, body, request, identity, column_rules=True)
 
     @router.get(
         "/{document_id}/source",
         response_model=SourceView,
-        responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
+        responses={code: {"model": ErrorResponse} for code in (401, 404, 409, 410, 503)},
     )
     def source_route(
         document_id: UUID,
         request: Request,
         identity: Annotated[SessionIdentity, Depends(current_identity)],
-    ) -> SourceView:
+    ) -> Response:
         source = _load_owned_source(engine, request, document_id, identity.user_id)
-        return _source_view(source)
+        return _source_response(engine, request, identity, source, _source_view(source))
 
     @router.put(
         "/{document_id}/source",
@@ -331,6 +515,7 @@ def create_intake_router(engine: Engine) -> APIRouter:
                     source=body.source,
                     keys=keys,
                     now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
                 )
         except DocumentNotFound:
             raise ApiError(404, "document_not_found", "Document not found.") from None
@@ -340,6 +525,8 @@ def create_intake_router(engine: Engine) -> APIRouter:
             return _conflict(exc)
         except SourceValidationError as exc:
             raise _input_error(exc) from None
+        except (ContentKeyUnavailable, ProtectedContentError):
+            raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
         return _saved_view(saved)
 
     @router.get(
@@ -348,6 +535,7 @@ def create_intake_router(engine: Engine) -> APIRouter:
         responses={
             401: {"model": ErrorResponse},
             404: {"model": ErrorResponse},
+            409: {"model": ErrorResponse},
             410: {"model": ErrorResponse},
             503: {"model": ErrorResponse},
         },
@@ -357,10 +545,10 @@ def create_intake_router(engine: Engine) -> APIRouter:
         revision_id: UUID,
         request: Request,
         identity: Annotated[SessionIdentity, Depends(current_identity)],
-    ) -> SourceView:
+    ) -> Response:
         source = _load_owned_source(engine, request, document_id, identity.user_id)
         if source.version.source_revision_id != revision_id:
             raise ApiError(404, "revision_not_found", "Revision not found.")
-        return _source_view(source)
+        return _source_response(engine, request, identity, source, _source_view(source))
 
     return router

@@ -5,18 +5,27 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
 
-from app.accounts.access import DocumentNotFound, WorkspaceAccessDenied
+from app.accounts.access import (
+    ContentUnavailable,
+    DocumentNotFound,
+    WorkspaceAccessDenied,
+    active_workspace,
+    require_administrator,
+)
 from app.accounts.api import current_identity
+from app.accounts.response_boundary import protected_json_response
 from app.accounts.security import SessionIdentity
-from app.contracts import DocumentStatus, ErrorResponse
+from app.contracts import DocumentStatus, ErrorResponse, FindingCategory
 from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedContentError
 from app.errors import ApiError
 from app.workspace.activity import load_activity
 from app.workspace.documents import list_documents, load_overview
 from app.workspace.history import load_document_history
+from app.workspace.private_titles import validate_title_view
 
 
 class DocumentIndexView(BaseModel):
@@ -30,6 +39,24 @@ class DocumentIndexView(BaseModel):
     current_revision_id: UUID | None
     finding_count: int
     decided_count: int
+    favorite: bool
+    pinned: bool
+
+
+class CategoryCountView(BaseModel):
+    category: FindingCategory
+    count: int = Field(ge=0)
+
+
+class OverviewAnalyticsView(BaseModel):
+    since: datetime
+    cohort_documents: int = Field(ge=0)
+    confirmed_documents: int = Field(ge=0)
+    exported_documents: int = Field(ge=0)
+    average_time_to_confirm_seconds: float | None = Field(ge=0)
+    export_rate: float | None = Field(ge=0, le=1)
+    findings_total: int = Field(ge=0)
+    categories: list[CategoryCountView]
 
 
 class OverviewView(BaseModel):
@@ -38,6 +65,7 @@ class OverviewView(BaseModel):
     own_created_last_30_days: int
     own_by_status: dict[str, int]
     workspace_total: int | None
+    analytics: OverviewAnalyticsView
 
 
 class ActivityEntryView(BaseModel):
@@ -124,7 +152,7 @@ def create_workspace_router(engine: Engine) -> APIRouter:
     @router.get(
         "/{workspace_id}/documents",
         response_model=list[DocumentIndexView],
-        responses={404: {"model": ErrorResponse}},
+        responses={status: {"model": ErrorResponse} for status in (404, 409, 410, 503)},
     )
     def documents_route(
         workspace_id: UUID,
@@ -140,23 +168,34 @@ def create_workspace_router(engine: Engine) -> APIRouter:
                 keys=keys,
                 now=datetime.now(UTC),
             )
-            return [
+            view = [
                 DocumentIndexView.model_validate(record, from_attributes=True) for record in records
             ]
-        except WorkspaceAccessDenied:
+
+            def authorize(current):
+                with Session(engine) as session:
+                    validate_title_view(
+                        session, current.user_id, view, keys, workspace_id=workspace_id, index=True
+                    )
+
+            return protected_json_response(view, request, identity, authorize)
+        except (WorkspaceAccessDenied, DocumentNotFound):
             raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
+        except ContentUnavailable:
+            raise ApiError(410, "content_expired", "Document content is unavailable.") from None
         except (ContentKeyUnavailable, ProtectedContentError):
             raise ApiError(503, "content_unavailable", "Document titles are unavailable.") from None
 
     @router.get(
         "/{workspace_id}/overview",
         response_model=OverviewView,
-        responses={404: {"model": ErrorResponse}},
+        responses={status: {"model": ErrorResponse} for status in (401, 404)},
     )
     def overview_route(
         workspace_id: UUID,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(current_identity)],
-    ) -> OverviewView:
+    ):
         try:
             record = load_overview(
                 engine,
@@ -164,19 +203,21 @@ def create_workspace_router(engine: Engine) -> APIRouter:
                 actor_id=identity.user_id,
                 now=datetime.now(UTC),
             )
-            return OverviewView.model_validate(record, from_attributes=True)
+            view = OverviewView.model_validate(record, from_attributes=True)
+            return protected_reporting(view, request, identity, workspace_id)
         except WorkspaceAccessDenied:
             raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
 
     @router.get(
         "/{workspace_id}/activity",
         response_model=ActivityView,
-        responses={404: {"model": ErrorResponse}},
+        responses={status: {"model": ErrorResponse} for status in (401, 404)},
     )
     def activity_route(
         workspace_id: UUID,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(current_identity)],
-    ) -> ActivityView:
+    ):
         try:
             record = load_activity(
                 engine,
@@ -184,8 +225,19 @@ def create_workspace_router(engine: Engine) -> APIRouter:
                 actor_id=identity.user_id,
                 now=datetime.now(UTC),
             )
-            return ActivityView.model_validate(record, from_attributes=True)
+            view = ActivityView.model_validate(record, from_attributes=True)
+            return protected_reporting(view, request, identity, workspace_id)
         except WorkspaceAccessDenied:
             raise ApiError(404, "workspace_not_found", "Workspace not found.") from None
+
+    def protected_reporting(view, request, identity, workspace_id):
+        def authorize(current):
+            with Session(engine) as session:
+                private_counts = view.workspace_total if isinstance(view, OverviewView) else view.workspace_counts
+                if private_counts is not None:
+                    require_administrator(session, workspace_id=workspace_id, actor_id=current.user_id)
+                else:
+                    active_workspace(session, workspace_id, current.user_id)
+        return protected_json_response(view, request, identity, authorize)
 
     return router

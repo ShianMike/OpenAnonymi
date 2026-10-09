@@ -1,10 +1,10 @@
-import { LoadingState, type LoadingShape } from './LoadingState'
+import { LoadingState } from './LoadingState'
 import { EntranceFrame } from './EntranceFrame'
 
-export function LoadingScreen({ label, description, shape = 'document' }: {
-  label: string; description: string; shape?: LoadingShape
+export function LoadingScreen({ label, description }: {
+  label: string; description: string
 }) {
   return <EntranceFrame>
-    <LoadingState label={label} description={description} shape={shape} heading onRetry={() => window.location.reload()} />
+    <LoadingState label={label} description={description} heading onRetry={() => window.location.reload()} />
   </EntranceFrame>
 }

@@ -84,13 +84,6 @@ html[data-theme='light'] .document-text {
   background: #f9faf2;
   box-shadow: inset 0 1px 0 #fff;
 }
-html[data-theme='light'] .auth-card {
-  box-shadow: inset 0 1px 0 #fff, 0 24px 80px rgb(61 75 46 / 10%);
-}
-html[data-theme='light'] .auth-card-symbol .brand-mark {
-  background: #dce7d2;
-  color: var(--blue);
-}
 /* Keep inactive actions readable without fading their label into the paper.
    Selection controls retain their own field/checked/disabled treatments. */
 html[data-theme='light'] button:disabled:not([role='combobox'], [role='checkbox'], [role='switch'], [role='tab'], .inline-finding) {

@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Eye, AlignLeft, Highlighter } from 'lucide-react'
 import type { ReviewController } from './useReviewController'
 import { sameVersion } from './reviewState'
@@ -7,9 +8,16 @@ import { LoadingState } from '../loading/LoadingState'
 
 export function ReviewPreview({ review }: { review: ReviewController }) {
   const { state, preview, plainPreview, setPlainPreview, activeFindings, previewRef } = review
+  const marks = useMemo(() => {
+    const byId = new Map(activeFindings.map((finding) => [finding.finding_id, finding]))
+    return preview?.mappings.flatMap((mapping) => {
+      const finding = byId.get(mapping.finding_id)
+      return finding ? [{ span: mapping.preview_span, finding }] : []
+    }) ?? []
+  }, [activeFindings, preview])
   if (state.kind !== 'ready') return null
   const current =
-    preview && sameVersion(preview.version, state.saved.version) && preview.text !== null
+    !review.decisionPending && preview && sameVersion(preview.version, state.saved.version) && preview.text !== null
   return (
     <section
       className="review-preview"
@@ -40,6 +48,8 @@ export function ReviewPreview({ review }: { review: ReviewController }) {
       </div>
       {review.dirty || review.settingsDirty ? (
         <p className="document-empty">Save your changes to refresh the reviewed output.</p>
+      ) : review.decisionPending ? (
+        <p className="document-empty" role="status">Saving decisions and updating the reviewed output…</p>
       ) : preview?.status === 'conflict' ? (
         <p role="alert" className="document-empty">
           Overlapping findings need correction or removal before an output can be shown.
@@ -53,17 +63,14 @@ export function ReviewPreview({ review }: { review: ReviewController }) {
                 ? `${preview.unresolved_finding_ids.length} details still need a decision. This output is provisional.`
                 : 'All marked details have decisions. Read the full output before confirming.'}
           </p>
-          {!plainPreview && (
+          {(preview.fictional_finding_ids?.length ?? 0) > 0 && <p className="fictional-legend"><strong>Fictional stand-ins</strong> · These replacements are not real people, organizations, places or contacts.</p>}
+          {(preview.stand_in_fallback_ids?.length ?? 0) > 0 && <p className="fictional-legend">A unique fictional stand-in was unavailable for {preview.stand_in_fallback_ids?.length} occurrences. Their category labels are used instead.</p>}
+          {!plainPreview && review.mobilePanel === 'preview' && (
             <ReviewText
               text={preview.text as string}
               review={review}
               variant="preview"
-              marks={preview.mappings.flatMap((mapping) => {
-                const finding = activeFindings.find(
-                  (item) => item.finding_id === mapping.finding_id,
-                )
-                return finding ? [{ span: mapping.preview_span, finding }] : []
-              })}
+              marks={marks}
             />
           )}
           <div hidden={!plainPreview}>

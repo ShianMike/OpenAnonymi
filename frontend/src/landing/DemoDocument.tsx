@@ -26,7 +26,6 @@ export function DemoDocument({ sample, selectedId, decisions, view, onViewChange
           <Tabs.Trigger value="original"><FileText size={14} aria-hidden="true" /> Original</Tabs.Trigger>
           <Tabs.Trigger value="output"><Eye size={14} aria-hidden="true" /> Reviewed output</Tabs.Trigger>
         </Tabs.List>
-        <span className="demo-page-number" aria-hidden="true">01</span>
       </div>
       <div className="demo-document-stack">
         <Tabs.Content forceMount value="original" className="demo-document" aria-label="Original fictional text" aria-hidden={view !== 'original'} inert={view !== 'original'}>

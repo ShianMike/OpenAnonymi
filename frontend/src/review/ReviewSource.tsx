@@ -1,4 +1,6 @@
-import { FileText, Pencil, Check, MousePointer2 } from 'lucide-react'
+import { useMemo } from 'react'
+import { categoryPresentation, findingCategories } from '../rules/categoryPresentation'
+import { FileText, Pencil, Check, MousePointer2, CircleHelp, Tag, Eye } from 'lucide-react'
 import type { ReviewController } from './useReviewController'
 import { GlassTextarea } from '../ui/GlassTextarea'
 import { GlassSelect } from '../ui/GlassSelect'
@@ -9,6 +11,7 @@ import { ReviewReloadButton } from './ReviewReloadButton'
 export function ReviewSource({ review }: { review: ReviewController }) {
   const { state, editingSource, setEditingSource, text, dirty, pending, sourceRef, selection } =
     review
+  const marks = useMemo(() => review.activeFindings.map((finding) => ({ span: finding.span, finding })), [review.activeFindings])
   if (state.kind !== 'ready') return null
   return (
     <form
@@ -49,18 +52,20 @@ export function ReviewSource({ review }: { review: ReviewController }) {
           </p>
           <ReviewText
             text={state.saved.text}
-            marks={review.activeFindings.map((finding) => ({ span: finding.span, finding }))}
+            marks={marks}
             review={review}
             variant="original"
           />
           <div className="document-legend" aria-label="Highlight legend">
-            <span>Needs decision</span>
-            <span>Label / redact</span>
-            <span>Kept</span>
+            <strong>Highlights</strong>
+            <span data-action="pending"><CircleHelp size={15} aria-hidden="true" /> Needs a choice</span>
+            <span data-action="changed"><Tag size={15} aria-hidden="true" /> Hidden or replaced</span>
+            <span data-action="keep"><Eye size={15} aria-hidden="true" /> Kept as written</span>
           </div>
         </>
       )}
       <div hidden={!editingSource} className="document-editor">
+        {state.saved.structure === 'simplified' && <p className="field-note" role="status">This edit changed the Word layout; the Word download will use plain paragraphs.</p>}
         <p className="document-help">
           {review.canEdit ? 'Select text to mark a detail, or edit the source and save a new revision.' : 'Select text to mark a detail. The owner manages source revisions.'}
         </p>
@@ -103,10 +108,10 @@ export function ReviewSource({ review }: { review: ReviewController }) {
                 review.setManualCategory(value as typeof review.manualCategory)
               }
             >
-              {['person', 'organization', 'location', 'address', 'identifier', 'custom', 'email', 'phone'].map(
+              {findingCategories.map(
                 (category) => (
                   <option key={category} value={category}>
-                    {category[0].toUpperCase() + category.slice(1)}
+                    {categoryPresentation[category as keyof typeof categoryPresentation].label}
                   </option>
                 ),
               )}

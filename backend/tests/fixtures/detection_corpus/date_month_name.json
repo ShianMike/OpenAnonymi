@@ -1,0 +1,58 @@
+{
+  "license": "CC0-1.0",
+  "author": "OpenAnonymi synthetic validation",
+  "rule_id": "date.month_name",
+  "rows": [
+    {
+      "text": "😀 3 October 2026",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 16,
+          "category": "date",
+          "rule_id": "date.month_name"
+        }
+      ]
+    },
+    {
+      "text": "😀 October 3, 2026",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 17,
+          "category": "date",
+          "rule_id": "date.month_name"
+        }
+      ]
+    },
+    {
+      "text": "😀 3rd Oct 2026",
+      "region": "US",
+      "expected": [
+        {
+          "start": 2,
+          "end": 14,
+          "category": "date",
+          "rule_id": "date.month_name"
+        }
+      ]
+    },
+    {
+      "text": "October 2026",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "31 April 2026",
+      "region": "US",
+      "expected": []
+    },
+    {
+      "text": "3 May 26",
+      "region": "US",
+      "expected": []
+    }
+  ]
+}

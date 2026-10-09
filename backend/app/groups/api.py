@@ -1,12 +1,12 @@
-"""Exact-span manual finding routes for one authorized document owner."""
+"""Exact-span finding routes for a current owner or assigned reviewer."""
 
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Path, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.engine import Engine
 
 from app.accounts.access import ContentUnavailable, DocumentNotFound
@@ -38,6 +38,7 @@ from app.groups.service import (
     split_finding,
     undo_last_review_edit,
 )
+from app.transformations.contracts import StyleName, StyleOption
 
 
 class FindingView(BaseModel):
@@ -52,12 +53,16 @@ class FindingView(BaseModel):
     label: str | None
     action: Literal["label", "redact", "keep"] | None
     keep_reason: str | None
+    style: StyleName
+    style_option: StyleOption | None
+    date_format: str | None
 
 
 class FindingsView(BaseModel):
     version: VersionRef
     findings: list[FindingView]
     overlaps: list[tuple[UUID, UUID]]
+    undo_available: int = Field(default=0, ge=0, le=20)
 
 
 class ExactMatchesView(BaseModel):
@@ -96,11 +101,29 @@ class DecisionRequest(BaseModel):
     keep_reason: str | None = None
     group_scope: bool = False
     affected_finding_ids: set[UUID]
+    style: Literal["token", "stand_in", "date_shift", "partial_mask", "generalize"] = "token"
+    style_option: str | None = Field(default=None, max_length=24)
+
+
+class ColumnDecisionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected: VersionRef
+    action: DecisionAction
+    affected_finding_ids: set[UUID] = Field(max_length=1000)
+    keep_reason: Literal["false_match", "intended_disclosure"] | None = None
+    style: StyleName = "token"
+    style_option: StyleOption | None = None
+    same_text_same_entity: bool = False
+
+
+class RefreshDefaultsRequest(BaseModel):
+    expected_decision_version: int = Field(ge=0)
 
 
 def _view(snapshot: FindingsSnapshot) -> FindingsView:
     return FindingsView(
         version=snapshot.version,
+        undo_available=snapshot.undo_available,
         overlaps=list(snapshot.overlaps),
         findings=[
             FindingView(
@@ -115,6 +138,9 @@ def _view(snapshot: FindingsSnapshot) -> FindingsView:
                 label=item.label,
                 action=item.action,
                 keep_reason=item.keep_reason,
+                style=item.style,
+                style_option=item.style_option,
+                date_format=item.date_format,
             )
             for item in snapshot.findings
         ],
@@ -147,6 +173,48 @@ def _keys(request: Request) -> KeyRing:
 
 def create_groups_router(engine: Engine) -> APIRouter:
     router = APIRouter(prefix="/api/v1/documents", tags=["findings"])
+
+    @router.post("/{document_id}/columns/{column}/decision", response_model=FindingsView)
+    def column_decision_route(
+        document_id: UUID,
+        column: Annotated[int, Path(ge=0, le=49)],
+        body: ColumnDecisionRequest,
+        request: Request,
+        identity: Annotated[SessionIdentity, Depends(mutation_identity)],
+    ):
+        from app.groups.columns import decide_column
+
+        try:
+            return _view(
+                decide_column(
+                    engine,
+                    document_id=document_id,
+                    actor_id=identity.user_id,
+                    column=column,
+                    expected=body.expected,
+                    affected_ids=body.affected_finding_ids,
+                    action=body.action,
+                    keep_reason=body.keep_reason,
+                    style=body.style,
+                    style_option=body.style_option,
+                    same_text_same_entity=body.same_text_same_entity,
+                    keys=_keys(request),
+                    now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
+                )
+            )
+        except (
+            VersionConflict,
+            DocumentNotFound,
+            ContentUnavailable,
+            ReviewValidationError,
+            ContentKeyUnavailable,
+            ProtectedContentError,
+        ) as exc:
+            error = _error(exc)
+            if isinstance(error, ApiError):
+                raise error from None
+            return error
 
     @router.get(
         "/{document_id}/findings",
@@ -194,6 +262,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
                     category=body.category,
                     keys=_keys(request),
                     now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
                 )
             )
         except (
@@ -233,6 +302,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
                     category=body.category,
                     keys=_keys(request),
                     now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
                 )
             )
         except (
@@ -258,6 +328,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
         document_id: UUID,
         finding_id: UUID,
         body: RemoveFindingRequest,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ) -> FindingsView | JSONResponse:
         try:
@@ -269,6 +340,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
                     actor_id=identity.user_id,
                     expected=body.expected,
                     now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
                 )
             )
         except (VersionConflict, DocumentNotFound, FindingNotFound, ContentUnavailable) as exc:
@@ -333,6 +405,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
                     span=body.span,
                     keys=_keys(request),
                     now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
                 )
             )
         except (
@@ -357,6 +430,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
         document_id: UUID,
         finding_id: UUID,
         body: RemoveFindingRequest,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ) -> FindingsView | JSONResponse:
         try:
@@ -368,6 +442,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
                     actor_id=identity.user_id,
                     expected=body.expected,
                     now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
                 )
             )
         except (
@@ -390,6 +465,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
         document_id: UUID,
         finding_id: UUID,
         body: MergeRequest,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ) -> FindingsView | JSONResponse:
         try:
@@ -402,6 +478,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
                     actor_id=identity.user_id,
                     expected=body.expected,
                     now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
                 )
             )
         except (
@@ -424,6 +501,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
         document_id: UUID,
         finding_id: UUID,
         body: DecisionRequest,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ) -> FindingsView | JSONResponse:
         try:
@@ -438,13 +516,48 @@ def create_groups_router(engine: Engine) -> APIRouter:
                     keep_reason=body.keep_reason,
                     affected_ids=body.affected_finding_ids,
                     group_scope=body.group_scope,
+                    style=body.style,
+                    style_option=body.style_option,
+                    keys=_keys(request),
                     now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
                 )
             )
         except (
             VersionConflict,
             DocumentNotFound,
             FindingNotFound,
+            ContentUnavailable,
+            ReviewValidationError,
+            ContentKeyUnavailable,
+            ProtectedContentError,
+        ) as exc:
+            result = _error(exc)
+            if isinstance(result, ApiError):
+                raise result from None
+            return result
+
+    @router.post("/{document_id}/category-defaults/refresh", response_model=FindingsView)
+    def refresh_defaults_route(
+        document_id: UUID,
+        body: RefreshDefaultsRequest,
+        identity: Annotated[SessionIdentity, Depends(mutation_identity)],
+    ):
+        from app.transformations.defaults import refresh_defaults
+
+        try:
+            return _view(
+                refresh_defaults(
+                    engine,
+                    document_id=document_id,
+                    actor_id=identity.user_id,
+                    expected_decision_version=body.expected_decision_version,
+                    now=datetime.now(UTC),
+                )
+            )
+        except (
+            VersionConflict,
+            DocumentNotFound,
             ContentUnavailable,
             ReviewValidationError,
         ) as exc:
@@ -461,6 +574,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
     def undo_route(
         document_id: UUID,
         body: RemoveFindingRequest,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ) -> FindingsView | JSONResponse:
         try:
@@ -471,6 +585,7 @@ def create_groups_router(engine: Engine) -> APIRouter:
                     actor_id=identity.user_id,
                     expected=body.expected,
                     now=datetime.now(UTC),
+                    reauthorize=lambda: current_identity(request),
                 )
             )
         except (

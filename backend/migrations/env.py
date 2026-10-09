@@ -7,16 +7,25 @@ from sqlalchemy import create_engine, pool
 
 from app.config import load_settings
 from app.db import (
+    column_rules,  # noqa: F401 -- encrypted immutable CSV column settings
     custom_rules,  # noqa: F401 -- register rule version/snapshot tables
+    document_preferences,  # noqa: F401 -- personal document flags, separate from grants
+    durable,  # noqa: F401 -- register persistent content-free limits and undo
+    email_verification,  # noqa: F401 -- register ownership proof and pending accounts
+    maintenance,  # noqa: F401 -- register content-free cleanup run health
     models,  # noqa: F401 — register all tables with Base.metadata
+    notifications,  # noqa: F401 -- content-free recipient events and delivery intent
     recovery,  # noqa: F401 -- register the protected autosave table
+    replacement_secrets,  # noqa: F401 -- encrypted replacement seed/date offset
+    second_factor,  # noqa: F401 -- register encrypted TOTP and content-free challenges
+    source_structures,  # noqa: F401 -- encrypted immutable revision layout
     team_review,  # noqa: F401 -- register explicit reviewer grant and protected comments
 )
 from app.db.base import Base
 
 config = context.config
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 

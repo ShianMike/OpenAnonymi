@@ -1,0 +1,12 @@
+html[data-font-size='large'] { font-size: 18px; }
+html[data-motion='reduced'] *, html[data-motion='reduced'] *::before, html[data-motion='reduced'] *::after {
+  scroll-behavior: auto !important;
+  animation: none !important;
+  transition: none !important;
+}
+html[data-density='compact'] .documents-table tbody td { padding-block: 10px; }
+html[data-density='compact'] .finding-card-trigger { padding-block: 10px; min-height: 44px; }
+html[data-density='compact'] .choice-switch:has(input[type='checkbox']) { padding-block: 8px; min-height: 44px; }
+html[data-density='compact'] .glass-checkbox-row { padding-block: 7px; min-height: 44px; }
+html[data-density='compact'] .review-text-column { padding-block: 16px; }
+.detection-controls { min-width: 0; }

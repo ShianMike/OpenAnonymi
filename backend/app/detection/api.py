@@ -39,6 +39,7 @@ class ScanSettingsRequest(BaseModel):
     expected: VersionRef
     categories: list[FindingCategory] = Field(default_factory=list)
     phone_region: str = Field(min_length=2, max_length=2)
+    language: str | None = Field(default=None, min_length=2, max_length=2)
 
 
 class ScanSettingsView(BaseModel):
@@ -52,6 +53,7 @@ class SuggestionView(BaseModel):
     rule_id: str
     rule_version: str
     reason: str
+    date_format: str | None
 
 
 class ScanView(BaseModel):
@@ -61,6 +63,7 @@ class ScanView(BaseModel):
     match_count: int | None
     failure_code: str | None
     suggestions: list[SuggestionView]
+    dropped_suggestions: int
 
 
 def _view(snapshot: ScanSnapshot) -> ScanView:
@@ -70,6 +73,7 @@ def _view(snapshot: ScanSnapshot) -> ScanView:
         attempt_count=snapshot.attempt_count,
         match_count=snapshot.match_count,
         failure_code=snapshot.failure_code,
+        dropped_suggestions=snapshot.dropped_suggestions,
         suggestions=[
             SuggestionView(
                 finding_id=item.id,
@@ -78,6 +82,7 @@ def _view(snapshot: ScanSnapshot) -> ScanView:
                 rule_id=item.rule_id,
                 rule_version=item.rule_version,
                 reason=item.reason,
+                date_format=item.date_format,
             )
             for item in snapshot.suggestions
         ],
@@ -137,6 +142,7 @@ def create_detection_router(engine: Engine) -> APIRouter:
                 expected=body.expected,
                 keys=keys,
                 now=datetime.now(UTC),
+                reauthorize=lambda: current_identity(request),
             )
             return _view(snapshot)
         except DocumentNotFound:
@@ -172,6 +178,7 @@ def create_detection_router(engine: Engine) -> APIRouter:
     def scan_settings_route(
         document_id: UUID,
         body: ScanSettingsRequest,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ) -> ScanSettingsView | JSONResponse:
         try:
@@ -182,7 +189,9 @@ def create_detection_router(engine: Engine) -> APIRouter:
                 expected=body.expected,
                 categories=set(body.categories),
                 phone_region=body.phone_region,
+                language=body.language,
                 now=datetime.now(UTC),
+                reauthorize=lambda: current_identity(request),
             )
             return ScanSettingsView(version=version)
         except DocumentNotFound:

@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.accounts.access import owned_document
-from app.contracts import DocumentStatus, FindingCategory, VersionRef
+from app.contracts import LABEL_PREFIXES, DocumentStatus, FindingCategory, VersionRef
 from app.db.models import Document, EntityGroup, LabelCounter
 from app.db.repository import VersionConflict, _version
 from app.lifecycle import require_transition
@@ -40,7 +40,7 @@ def allocate_group_locked(
         document_id=document.id,
         source_revision_id=document.current_revision_id,
         category=category.value,
-        label=f"{category.value.upper()}_{number:03d}",
+        label=f"{LABEL_PREFIXES[category]}_{number:03d}",
         created_at=now,
     )
     session.add(group)
