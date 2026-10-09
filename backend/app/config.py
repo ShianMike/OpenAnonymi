@@ -18,7 +18,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, DotEnvSettingsSource, SettingsConfigDict
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import ArgumentError
 
@@ -191,7 +191,11 @@ class Settings(BaseSettings):
 def load_settings() -> Settings:
     try:
         # Heroku rotates DATABASE_URL; use its current value with verified RDS TLS.
-        if not os.environ.get("PRIVACY_REVIEW_DATABASE_URL") and os.environ.get("DATABASE_URL"):
+        if (
+            os.environ.get("DATABASE_URL")
+            and "PRIVACY_REVIEW_DATABASE_URL" not in os.environ
+            and "database_url" not in DotEnvSettingsSource(Settings)()
+        ):
             database = make_url(os.environ["DATABASE_URL"])
             if database.drivername not in ("postgres", "postgresql", "postgresql+psycopg"):
                 raise ConfigurationError("Invalid configuration: database_url.")

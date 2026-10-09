@@ -67,10 +67,15 @@ def test_platform_database_uses_verified_tls_and_current_rotated_credentials(mon
         assert Path(database.query["sslrootcert"]).is_file()
 
 
-def test_explicit_database_takes_precedence_over_platform_url(monkeypatch, tmp_path):
+@pytest.mark.parametrize("source", ("environment", "dotenv"))
+def test_explicit_database_takes_precedence_over_platform_url(monkeypatch, tmp_path, source):
     monkeypatch.chdir(tmp_path)
     explicit = "postgresql+psycopg://synthetic:synthetic@localhost/explicit"
-    monkeypatch.setenv("PRIVACY_REVIEW_DATABASE_URL", explicit)
+    if source == "environment":
+        monkeypatch.setenv("PRIVACY_REVIEW_DATABASE_URL", explicit)
+    else:
+        monkeypatch.delenv("PRIVACY_REVIEW_DATABASE_URL", raising=False)
+        (tmp_path / ".env").write_text("PRIVACY_REVIEW_DATABASE_URL=" + explicit + "\n")
     monkeypatch.setenv("DATABASE_URL", "postgres://synthetic:synthetic@localhost/platform")
     monkeypatch.setenv("PRIVACY_REVIEW_ALLOWED_ORIGINS", '["http://localhost:5173"]')
     monkeypatch.setenv("PRIVACY_REVIEW_ENVIRONMENT", "test")
