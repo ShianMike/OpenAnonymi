@@ -11,6 +11,7 @@ paths = [
   '''^backend/tests/docx_fixtures\.py$''',
   '''^backend/tests/test_styles\.py$''',
   '''^backend/tests/test_detection_corpus\.py$''',
+  '''^scripts/check_public_repository\.py$''',
 ]
 regexTarget = "match"
 regexes = ['''(?:ghp_Fictional7654|sk_live_Fictional7654|token=Fictional7654)''']
