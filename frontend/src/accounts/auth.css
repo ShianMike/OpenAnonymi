@@ -424,7 +424,7 @@ html[data-theme='light'] .auth-shell .password-toggle:disabled {
   border-radius: 13px;
   font-size: 0.85rem;
   line-height: 1.5;
-  animation: auth-rise 260ms ease-out both;
+  animation: auth-rise 180ms ease-out both;
 }
 .auth-notice > svg {
   flex: none;
@@ -778,7 +778,7 @@ html[data-theme='light'] .auth-shell .password-toggle:disabled {
   color: var(--auth-danger-text);
   font-size: 0.86rem;
   line-height: 1.5;
-  animation: auth-rise 240ms ease-out both;
+  animation: auth-rise 180ms ease-out both;
 }
 .topbar-alert > svg {
   flex: none;

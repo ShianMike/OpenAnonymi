@@ -18,6 +18,24 @@
     "source": "locked official PyPI wheels from uv.lock",
     "release": "https://github.com/pypdfium2-team/pypdfium2/releases/tag/5.14.0"
   },
+  "tesseract": {
+    "version": "5.5.3",
+    "source": "https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.5.3.tar.gz",
+    "source_sha256": "9218e62793116d42a9f6d14cd9348518b27f382096eea3d0f2d1a24616bb5884",
+    "build": "shared library; training, legacy engine, graphics, OpenMP, archive, CURL and TIFF disabled"
+  },
+  "leptonica": {
+    "version": "1.87.0",
+    "source": "https://github.com/DanBloomberg/leptonica/releases/download/1.87.0/leptonica-1.87.0.tar.gz",
+    "source_sha256": "c73363397f96eb1295602bf44d708a994ad42046c791bf03ea0505d829bdb6a7",
+    "build": "shared library; image codecs and programs disabled; OCR receives raw pixels"
+  },
+  "tesserocr": {
+    "version": "2.10.0",
+    "source": "locked PyPI sdist from uv.lock",
+    "source_sha256": "439c7a9f0fd0f6a298aaa746d5f2ccd4eba50db3ebccf500c89a6aa0d59d2999",
+    "build": "uv sync --locked --no-binary-package tesserocr; links the source-built Tesseract and Leptonica"
+  },
   "other_pillow_native_libraries": "Debian packages; exact installed versions and linked hashes recorded by the container verification gate",
   "native_patch_status_certified": false
 }
