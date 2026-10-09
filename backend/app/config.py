@@ -1,5 +1,6 @@
 """Validated process configuration. Never include setting values in errors."""
 
+import os
 import re
 import secrets
 from pathlib import Path
@@ -189,6 +190,20 @@ class Settings(BaseSettings):
 
 def load_settings() -> Settings:
     try:
+        # Heroku rotates DATABASE_URL; use its current value with verified RDS TLS.
+        if not os.environ.get("PRIVACY_REVIEW_DATABASE_URL") and os.environ.get("DATABASE_URL"):
+            database = make_url(os.environ["DATABASE_URL"])
+            if database.drivername not in ("postgres", "postgresql", "postgresql+psycopg"):
+                raise ConfigurationError("Invalid configuration: database_url.")
+            database = database.set(drivername="postgresql+psycopg").update_query_dict(
+                {
+                    "sslmode": "verify-full",
+                    "sslrootcert": str(
+                        Path(__file__).resolve().parents[1] / "certs/aws-rds-global-bundle.crt"
+                    ),
+                }
+            )
+            return Settings(database_url=database.render_as_string(hide_password=False))
         return Settings()
     except ValidationError as exc:
         fields = sorted({str(error["loc"][0]) for error in exc.errors() if error["loc"]})
@@ -196,3 +211,5 @@ def load_settings() -> Settings:
         raise ConfigurationError(
             f"Invalid configuration: {names}. See backend/.env.example."
         ) from None
+    except (ArgumentError, ValueError):
+        raise ConfigurationError("Invalid configuration: database_url.") from None

@@ -30,6 +30,13 @@ Keep retired encryption keys while any retained content or backup needs them.
 Back up the database and the keyring separately, restrict access, and verify a
 restore procedure before a migration.
 
+For Heroku Postgres Essential, leave `PRIVACY_REVIEW_DATABASE_URL` unset. The
+application uses the platform-managed `DATABASE_URL`, including credential
+rotations, with `sslmode=verify-full` and the bundled AWS RDS CA certificates.
+An explicit `PRIVACY_REVIEW_DATABASE_URL` takes precedence. The bundled public
+CA file comes from https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem;
+update it when the provider rotates its certificate authorities.
+
 ## Image and startup
 
 ```sh

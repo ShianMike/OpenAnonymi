@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowUpRight } from 'lucide-react'
+import { ArrowLeft, ArrowUpRight, Mail } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'motion/react'
 import type { SessionView } from '../api/client'
 import { Brand } from '../ui/Brand'
 import { AppCredit } from '../ui/AppCredit'
-import { BorderBeam } from '../ui/BorderBeam'
 import { useLoadingMotion } from '../loading/useLoadingMotion'
 import { useDisplayPreferences } from '../appearance/useDisplayPreferences'
 import { AuthCredentials, type CredentialStage } from './AuthCredentials'
@@ -19,7 +18,7 @@ type Mode = 'sign-in' | 'sign-up' | 'recovery'
 const views = {
   'sign-in': { title: 'Welcome back.', description: 'Your next thoughtful review starts here.' },
   'sign-up': { title: 'Make space for privacy.', description: 'Create an account and a workspace of your own.' },
-  'signup-code': { title: 'Confirm your email.', description: 'Enter the code from the email to finish creating your account.' },
+  'signup-code': { title: 'Confirm your email.', description: 'Paste your email code to finish creating your account.' },
   'second-factor': {
     title: 'Verify it’s you.',
     description: 'Enter the six-digit code from your authenticator app, or use a backup code.',
@@ -91,7 +90,7 @@ export function SignInPage({
       <main id="main-content" className="auth-main">
         <motion.section ref={panelMotion} className="auth-panel auth-card" aria-labelledby="auth-title"
           initial={reducedMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={transition}>
-          <BorderBeam />
+          {stage === 'signup-code' && !recovering && <div className="auth-code-heading"><span><Mail size={24} aria-hidden="true" /></span><small>Step 2 of 2</small></div>}
           {recovering && (
             <div className="auth-recovery-nav">
               <button type="button" className="auth-link auth-back" onClick={() => switchMode('sign-in')}>
@@ -142,7 +141,7 @@ export function SignInPage({
           {mode === 'sign-up' && (stage === 'credentials' || stage === 'signup-code') && (
             <p className="auth-terms">By creating an account, you agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" aria-label="Terms of Service (opens in a new tab)">Terms of Service</a>. Our <a href="/privacy" target="_blank" rel="noopener noreferrer" aria-label="Privacy Notice (opens in a new tab)">Privacy Notice</a> explains how the service handles information.</p>
           )}
-          {!recovering && (stage === 'credentials' || stage === 'signup-code') && (
+          {!recovering && stage === 'credentials' && (
             <div className="auth-switch">
               <span>{mode === 'sign-in' ? 'New to OpenAnonymi?' : 'Already have an account?'}</span>
               <button
