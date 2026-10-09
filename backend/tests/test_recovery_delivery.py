@@ -26,7 +26,8 @@ def test_partial_recovery_configuration_is_rejected():
 
 
 @pytest.mark.parametrize("port", [465, 587])
-def test_configured_smtp_sends_one_time_code_with_certificate_validation(monkeypatch, port):
+@pytest.mark.parametrize("sender", ["review@example.invalid", "Tenant Team <review@example.invalid>"])
+def test_configured_smtp_sends_one_time_code_with_certificate_validation(monkeypatch, port, sender):
     observed = {"events": []}
 
     class FakeSmtp:
@@ -62,7 +63,7 @@ def test_configured_smtp_sends_one_time_code_with_certificate_validation(monkeyp
         smtp_port=port,
         smtp_username="test-account",
         smtp_password="synthetic-mail-secret",
-        smtp_from="review@example.invalid",
+        smtp_from=sender,
     )
     SmtpRecoveryMailer(settings).send_recovery_code(
         "member@example.invalid", "synthetic-recovery-code"
@@ -78,8 +79,13 @@ def test_configured_smtp_sends_one_time_code_with_certificate_validation(monkeyp
     assert not observed["message"]["Message-ID"].defects
     assert "synthetic-recovery-code" in observed["message"].get_body(preferencelist=("plain",)).get_content()
     assert "synthetic-recovery-code" in observed["message"].get_body(preferencelist=("html",)).get_content()
-    assert observed["message"]["From"].addresses[0].display_name == "OpenAnonymi"
-    assert observed["message"]["Reply-To"] == "support@openanonymi.com"
+    assert observed["message"]["From"].addresses[0].display_name == (
+        "Tenant Team" if sender.startswith("Tenant Team") else "OpenAnonymi"
+    )
+    assert observed["message"]["Reply-To"] is None
+    html = observed["message"].get_body(preferencelist=("html",)).get_content()
+    assert 'href="mailto:review@example.invalid"' in html
+    assert "support@openanonymi.com" not in html and "https://openanonymi.com" not in html
     assert observed["events"] == (["tls"] if port == 587 else []) + ["login", "send"]
 
 
@@ -98,7 +104,7 @@ def test_every_code_email_has_same_copyable_code_and_expiry_in_both_formats(monk
         smtp_password="synthetic-mail-secret", smtp_from="review@example.invalid",
     ))
     def capture(recipient, subject, body, *, code):
-        observed.update(body=body, html=email_html(subject, body, code=code))
+        observed.update(body=body, html=email_html(subject, body, sender="review@example.invalid", code=code))
     monkeypatch.setattr(mailer, "_send_message", capture)
     code = "synthetic-<code>&\"'"
     getattr(mailer, method)("member@example.invalid", code)
@@ -113,7 +119,7 @@ def test_every_code_email_has_same_copyable_code_and_expiry_in_both_formats(monk
 def test_other_email_content_is_escaped_without_a_code_panel():
     from app.accounts.email_template import email_html
 
-    html = email_html("<Private subject>", "A notification.\n\n<script>bad()</script>")
+    html = email_html("<Private subject>", "A notification.\n\n<script>bad()</script>", sender="review@example.invalid")
     assert "&lt;Private subject&gt;" in html and "&lt;script&gt;bad()&lt;/script&gt;" in html
     assert "YOUR ONE-TIME CODE" not in html and "<script>" not in html
 

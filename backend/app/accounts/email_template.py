@@ -3,7 +3,7 @@
 from html import escape
 
 
-def email_html(subject: str, body: str, *, code: str | None = None) -> str:
+def email_html(subject: str, body: str, *, sender: str, code: str | None = None) -> str:
     paragraphs = []
     for paragraph in body.split("\n\n"):
         if code is not None and paragraph == code:
@@ -34,14 +34,14 @@ def email_html(subject: str, body: str, *, code: str | None = None) -> str:
 <tr><td align="center" style="padding:32px 16px">
 <table role="presentation" style="width:100%;max-width:560px;border-collapse:separate;background:#ffffff;border:1px solid #dbe3d9;border-radius:16px" cellpadding="0" cellspacing="0">
 <tr><td style="padding:26px 28px;border-bottom:1px solid #e4e9e1">
-<a href="https://openanonymi.com" style="font-size:21px;font-weight:700;color:#173e30;text-decoration:none">OpenAnonymi<span style="color:#55866d">.</span></a>
+<span style="font-size:21px;font-weight:700;color:#173e30">OpenAnonymi<span style="color:#55866d">.</span></span>
 </td></tr>
 <tr><td style="padding:28px">
 <h1 style="margin:0 0 20px;font-size:24px;line-height:1.35;color:#173e30">{escape(subject)}</h1>
 {''.join(paragraphs)}{code_help}
 </td></tr>
 <tr><td style="padding:20px 28px;border-top:1px solid #e4e9e1;font-size:12px;line-height:1.8;color:#52665b">
-Need help? <a href="mailto:support@openanonymi.com" style="color:#2c654b">support@openanonymi.com</a><br>
-<a href="https://openanonymi.com" style="color:#52665b;text-decoration:none">openanonymi.com</a>
+Need help? Contact the sender:<br>
+<a href="mailto:{escape(sender)}" style="color:#2c654b">{escape(sender)}</a>
 </td></tr></table>
 </td></tr></table></body></html>"""

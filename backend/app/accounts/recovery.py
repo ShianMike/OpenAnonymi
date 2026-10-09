@@ -117,13 +117,12 @@ class SmtpRecoveryMailer:
         sender = message["From"].addresses[0]
         if not sender.display_name:
             message.replace_header("From", Address("OpenAnonymi", addr_spec=sender.addr_spec))
-        message["Reply-To"] = "support@openanonymi.com"
         message["To"] = recipient
         message["Subject"] = subject
         message["Date"] = format_datetime(datetime.now(UTC))
         message["Message-ID"] = make_msgid(domain=message["From"].addresses[0].domain)
         message.set_content(body)
-        message.add_alternative(email_html(subject, body, code=code), subtype="html")
+        message.add_alternative(email_html(subject, body, sender=sender.addr_spec, code=code), subtype="html")
         try:
             context = ssl.create_default_context()
             connection = (
