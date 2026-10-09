@@ -21,6 +21,7 @@ store.
 | `PRIVACY_REVIEW_HTTPS_REDIRECT_ENABLED` | `true` behind a correctly configured trusted HTTPS proxy |
 | `PRIVACY_REVIEW_TRUSTED_PROXY_HOPS` | Measured trusted proxy chain length; do not blindly trust visitor-supplied forwarding headers |
 | `PRIVACY_REVIEW_SMTP_*` | Authenticated SMTP with STARTTLS for registration, verification, recovery, and optional notification emails |
+| `PRIVACY_REVIEW_SMTP_REPLY_TO` | Optional deployment support address for replies and contact links; defaults to the configured sender |
 | `PRIVACY_REVIEW_REGISTRATION_ENABLED` | `true` for open signup, `false` to close registration |
 | `PRIVACY_REVIEW_MAINTENANCE_TOKEN_SHA256` | SHA-256 digest of a random maintenance bearer token |
 

@@ -1,6 +1,5 @@
 """Actual source and CSV transactions deny late access loss without partial saves."""
 
-import time
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -143,13 +142,28 @@ def test_late_source_or_csv_access_loss_rolls_back_protected_state(
 def test_source_and_csv_wall_clock_expiry_rolls_back_entire_transaction(
     intake_site, monkeypatch, operation, phase
 ):
+    from app.db import repository
+    from app.intake import csv_service
+
     case = mutation_case(intake_site, operation)
     before = storage_fingerprint(case["engine"], case["document_id"])
+    clock = [datetime.now(UTC)]
+    expires_at = clock[0] + timedelta(minutes=30)
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return clock[0].astimezone(tz)
+
+    monkeypatch.setattr(repository, "datetime", Clock)
+    monkeypatch.setattr(csv_service, "datetime", Clock)
     with Session(case["engine"]) as session, session.begin():
-        session.get(Document, case["document_id"]).expires_at = datetime.now(UTC) + timedelta(
-            seconds=0.5
-        )
-    fired = after_mutation(monkeypatch, operation, phase, lambda: time.sleep(0.55))
+        session.get(Document, case["document_id"]).expires_at = expires_at
+
+    def expire():
+        clock[0] = expires_at + timedelta(seconds=1)
+
+    fired = after_mutation(monkeypatch, operation, phase, expire)
     response = case["client"].put(case["path"], headers=case["headers"], json=case["body"])
     assert response.status_code == 410 and "Fictional" not in response.text
     assert fired and storage_fingerprint(case["engine"], case["document_id"]) == before

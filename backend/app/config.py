@@ -7,6 +7,7 @@ from typing import Literal
 from urllib.parse import urlsplit
 
 from cryptography.fernet import Fernet
+from email_validator import EmailNotValidError, validate_email
 from pydantic import (
     Field,
     PrivateAttr,
@@ -41,6 +42,7 @@ class Settings(BaseSettings):
     smtp_username: str | None = None
     smtp_password: SecretStr | None = Field(default=None, repr=False)
     smtp_from: str | None = None
+    smtp_reply_to: str | None = None
     email_check_deliverability: bool = True
     email_dns_timeout: int = Field(default=5, ge=2, le=10)
     email_block_disposable: bool = False
@@ -53,6 +55,18 @@ class Settings(BaseSettings):
     # libpq connect timeout in seconds; managed databases that suspend may need longer.
     database_connect_timeout: int = Field(default=2, ge=2, le=60)
     maintenance_token_sha256: SecretStr | None = Field(default=None, repr=False)
+
+    @field_validator("smtp_reply_to")
+    @classmethod
+    def require_reply_address(cls, value: str | None):
+        if value is None:
+            return None
+        try:
+            return validate_email(
+                value, check_deliverability=False, allow_smtputf8=False, test_environment=True
+            ).ascii_email
+        except EmailNotValidError:
+            raise ValueError("SMTP reply address must be one valid email address") from None
 
     @field_validator("attempt_subject_key")
     @classmethod
@@ -133,7 +147,7 @@ class Settings(BaseSettings):
             self.smtp_password,
             self.smtp_from,
         )
-        if any(smtp_fields) and not all(smtp_fields):
+        if any((*smtp_fields, self.smtp_reply_to)) and not all(smtp_fields):
             raise ValueError("SMTP recovery requires host, username, password, and sender")
         if self.active_key_id and self.active_key_id not in self.content_keys:
             raise ValueError("active_key_id must identify a configured content key")

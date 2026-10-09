@@ -180,7 +180,8 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
               aria-describedby="signup-code-help"
             />
             <small id="signup-code-help" className="field-hint">
-              Enter the code sent to {email}. Keep this page open; reloading asks for your password again.
+              Look for an email from OpenAnonymi at {email}, including in spam. Codes expire after 15 minutes.
+              Keep this page open; reloading asks for your password again.
             </small>
           </div>
         )}
@@ -207,6 +208,14 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
               Edit sign-up details or request a new code
             </button>
           </p>
+        )}
+        {requested && (
+          <div className="auth-alt-action">
+            <span>Sign-up codes are only sent for new accounts. Already registered?</span>
+            <button type="button" className="auth-link" onClick={() => onRecover(email)}>
+              Recover your existing account
+            </button>
+          </div>
         )}
       </fieldset>
       {!creating && (

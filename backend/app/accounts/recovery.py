@@ -5,6 +5,7 @@ import secrets
 import smtplib
 import ssl
 from datetime import UTC, datetime, timedelta
+from email.headerregistry import Address
 from email.message import EmailMessage
 from email.utils import format_datetime, make_msgid
 from typing import Protocol
@@ -14,6 +15,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.accounts.email_rules import lookup_forms
+from app.accounts.email_template import email_html
 from app.accounts.security import hash_password
 from app.config import Settings
 from app.db.models import RecoveryToken, User
@@ -56,6 +58,7 @@ class SmtpRecoveryMailer:
         self.username = settings.smtp_username
         self.password = settings.smtp_password
         self.sender = settings.smtp_from
+        self.reply_to = settings.smtp_reply_to
 
     def send_recovery_code(self, recipient: str, code: str) -> None:
         self._send_code(
@@ -97,7 +100,7 @@ class SmtpRecoveryMailer:
     def _send_code(
         self, recipient: str, code: str, subject: str, introduction: str, expiry: str
     ) -> None:
-        self._send_message(recipient, subject, f"{introduction}\n\n{code}\n\n{expiry}")
+        self._send_message(recipient, subject, f"{introduction}\n\n{code}\n\n{expiry}", code=code)
 
     def send_security_notice(self, recipient: str, event: str, at: datetime) -> None:
         from app.accounts.security_notices import notice_body
@@ -109,14 +112,21 @@ class SmtpRecoveryMailer:
 
         self._send_message(recipient, SUBJECT, notification_body(event))
 
-    def _send_message(self, recipient: str, subject: str, body: str) -> None:
+    def _send_message(self, recipient: str, subject: str, body: str, *, code: str | None = None) -> None:
         message = EmailMessage()
         message["From"] = self.sender
+        sender = message["From"].addresses[0]
+        if not sender.display_name:
+            message.replace_header("From", Address("OpenAnonymi", addr_spec=sender.addr_spec))
+        contact = self.reply_to or sender.addr_spec
+        if self.reply_to:
+            message["Reply-To"] = self.reply_to
         message["To"] = recipient
         message["Subject"] = subject
         message["Date"] = format_datetime(datetime.now(UTC))
         message["Message-ID"] = make_msgid(domain=message["From"].addresses[0].domain)
-        message.set_content(body)
+        message.set_content(f"{body}\n\nNeed help? Contact {contact}. Never share your code with support.")
+        message.add_alternative(email_html(subject, body, contact=contact, code=code), subtype="html")
         try:
             context = ssl.create_default_context()
             connection = (

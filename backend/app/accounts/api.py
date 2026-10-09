@@ -429,7 +429,7 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
                 "registration_code_delivery_failed",
             )
         return RegistrationMessage(
-            message="If this address can be used, we sent a code to it. It expires in 15 minutes."
+            message="If this address is eligible for a new account, look for a code in your inbox or spam. Codes expire after 15 minutes."
         )
 
     @router.post(

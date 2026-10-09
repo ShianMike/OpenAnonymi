@@ -23,10 +23,23 @@ def _settings(**overrides):
 def test_partial_recovery_configuration_is_rejected():
     with pytest.raises(ValidationError):
         _settings(smtp_host="smtp.example.invalid")
+    with pytest.raises(ValidationError):
+        _settings(smtp_reply_to="support@example.com")
+
+
+@pytest.mark.parametrize("address", [
+    "", "not-an-address", "one@example.invalid, two@example.invalid",
+    "support@example.invalid\r\nBcc: other@example.invalid",
+])
+def test_reply_address_rejects_invalid_addresses_and_header_injection(address):
+    with pytest.raises(ValidationError, match="SMTP reply address"):
+        _settings(smtp_reply_to=address)
 
 
 @pytest.mark.parametrize("port", [465, 587])
-def test_configured_smtp_sends_one_time_code_with_certificate_validation(monkeypatch, port):
+@pytest.mark.parametrize("sender", ["review@example.invalid", "Tenant Team <review@example.invalid>"])
+@pytest.mark.parametrize("reply_to", [None, "support@tenant.example.test"])
+def test_configured_smtp_sends_one_time_code_with_certificate_validation(monkeypatch, port, sender, reply_to):
     observed = {"events": []}
 
     class FakeSmtp:
@@ -62,7 +75,8 @@ def test_configured_smtp_sends_one_time_code_with_certificate_validation(monkeyp
         smtp_port=port,
         smtp_username="test-account",
         smtp_password="synthetic-mail-secret",
-        smtp_from="review@example.invalid",
+        smtp_from=sender,
+        smtp_reply_to=reply_to,
     )
     SmtpRecoveryMailer(settings).send_recovery_code(
         "member@example.invalid", "synthetic-recovery-code"
@@ -76,8 +90,54 @@ def test_configured_smtp_sends_one_time_code_with_certificate_validation(monkeyp
     assert observed["message"]["Date"].datetime.utcoffset().total_seconds() == 0
     assert observed["message"]["Message-ID"].endswith("@example.invalid>")
     assert not observed["message"]["Message-ID"].defects
-    assert "synthetic-recovery-code" in observed["message"].get_content()
+    assert "synthetic-recovery-code" in observed["message"].get_body(preferencelist=("plain",)).get_content()
+    assert "synthetic-recovery-code" in observed["message"].get_body(preferencelist=("html",)).get_content()
+    assert observed["message"]["From"].addresses[0].display_name == (
+        "Tenant Team" if sender.startswith("Tenant Team") else "OpenAnonymi"
+    )
+    assert observed["message"]["Reply-To"] == reply_to
+    contact = reply_to or "review@example.invalid"
+    assert contact in observed["message"].get_body(preferencelist=("plain",)).get_content()
+    html = observed["message"].get_body(preferencelist=("html",)).get_content()
+    assert f'href="mailto:{contact}"' in html
+    assert "support@openanonymi.com" not in html and "https://openanonymi.com" not in html
     assert observed["events"] == (["tls"] if port == 587 else []) + ["login", "send"]
+
+
+@pytest.mark.parametrize("method,expiry", [
+    ("send_registration_code", "15 minutes"),
+    ("send_email_verification_code", "15 minutes"),
+    ("send_recovery_code", "30 minutes"),
+    ("send_invitation_code", "24 hours"),
+])
+def test_every_code_email_has_same_copyable_code_and_expiry_in_both_formats(monkeypatch, method, expiry):
+    from app.accounts.email_template import email_html
+
+    observed = {}
+    mailer = SmtpRecoveryMailer(_settings(
+        smtp_host="smtp.example.invalid", smtp_port=587, smtp_username="test-account",
+        smtp_password="synthetic-mail-secret", smtp_from="review@example.invalid",
+    ))
+    def capture(recipient, subject, body, *, code):
+        observed.update(body=body, html=email_html(subject, body, contact="support@example.invalid", code=code))
+    monkeypatch.setattr(mailer, "_send_message", capture)
+    code = "synthetic-<code>&\"'"
+    getattr(mailer, method)("member@example.invalid", code)
+    assert code in observed["body"] and expiry in observed["body"]
+    assert "synthetic-&lt;code&gt;&amp;&quot;&#x27;" in observed["html"]
+    assert 'synthetic-&lt;code&gt;&amp;&quot;&#x27;</div>' in observed["html"]
+    assert code not in observed["html"] and expiry in observed["html"]
+    assert "YOUR ONE-TIME CODE" in observed["html"]
+    assert "<img" not in observed["html"] and "<script" not in observed["html"]
+    assert code not in observed["html"].split("</div>", 1)[0]
+
+
+def test_other_email_content_is_escaped_without_a_code_panel():
+    from app.accounts.email_template import email_html
+
+    html = email_html("<Private subject>", "A notification.\n\n<script>bad()</script>", contact="support@example.invalid")
+    assert "&lt;Private subject&gt;" in html and "&lt;script&gt;bad()&lt;/script&gt;" in html
+    assert "YOUR ONE-TIME CODE" not in html and "<script>" not in html
 
 
 @pytest.mark.parametrize("error", [ssl.SSLCertVerificationError, smtplib.SMTPNotSupportedError])
