@@ -30,6 +30,13 @@ Keep retired encryption keys while any retained content or backup needs them.
 Back up the database and the keyring separately, restrict access, and verify a
 restore procedure before a migration.
 
+For Heroku Postgres Essential, leave `PRIVACY_REVIEW_DATABASE_URL` unset. The
+application uses the platform-managed `DATABASE_URL`, including credential
+rotations, with `sslmode=verify-full` and the bundled AWS RDS CA certificates.
+An explicit `PRIVACY_REVIEW_DATABASE_URL` takes precedence. The bundled public
+CA file comes from https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem;
+update it when the provider rotates its certificate authorities.
+
 ## Image and startup
 
 ```sh
@@ -105,6 +112,23 @@ repository write permissions.
 Physical cleanup is bounded and may require several passes. Operators must
 monitor failed or overdue runs; unavailable content does not mean every backup
 copy has been destroyed.
+
+## Database backups
+
+The hosted deployment uses Heroku Postgres Essential-1. Schedule PGBackups with
+`heroku pg:backups:schedule DATABASE_URL --at "02:00 Asia/Manila" --app YOUR_APP`
+and confirm it with `heroku pg:backups:schedules --app YOUR_APP`. Essential retains
+seven days of daily backups and one week of weekly backups. Rollback to an
+arbitrary point in time is not supported. Monitor failed or overdue backups;
+Heroku does not send scheduled-backup failure notifications.
+
+Manual Heroku backups have a count limit, not a time-based expiry. Verify a real
+restore and remove manual test captures when they are no longer needed. Register
+temporary operator migration files for seven-day expiry separately. Local expiry
+jobs must catch up after an offline computer returns; they cannot promise removal
+while it is offline. Live-data cleanup does not delete backups or retired migration
+databases. Keep a verified rollback copy until cutover checks pass, then explicitly
+retire it according to the operator's data-removal policy.
 
 ## Attribution and source
 

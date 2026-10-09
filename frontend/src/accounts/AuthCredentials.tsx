@@ -1,6 +1,6 @@
 import { LoadingMark } from '../loading/LoadingMark'
 import { useState, type FormEvent } from 'react'
-import { ArrowUpRight, AtSign, KeyRound, LockKeyhole, Layers2 } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, AtSign, ChevronDown, CircleHelp, KeyRound, LockKeyhole, Layers2, Mail } from 'lucide-react'
 import { signIn, signUp, verifySignUp, type ChallengeView, type SessionView } from '../api/client'
 import { GlassInput } from '../ui/GlassField'
 import { AuthNotice, CapsLockNote, PasswordRequirement } from './AuthNotice'
@@ -19,7 +19,7 @@ type Props = {
 }
 
 export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover, onStageChange }: Props) {
-  const [pending, setPending] = useState(false)
+  const [pending, setPending] = useState<'request' | 'complete' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [email, setEmail] = useState(initialEmail)
   const [password, setPassword] = useState('')
@@ -29,19 +29,25 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
   const [message, setMessage] = useState<string | null>(null)
   const [challenge, setChallenge] = useState<ChallengeView | null>(null)
   const creating = mode === 'sign-up'
-  const focus = usePendingFocus(pending)
+  const busy = pending !== null
+  const focus = usePendingFocus(busy)
   const { capsLock, capsLockProps } = useCapsLock()
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    await run(creating && !requested ? 'request' : 'complete')
+  }
+
+  async function run(action: 'request' | 'complete') {
     if (pending) return
     focus.remember()
-    setPending(true)
+    setPending(action)
     setError(null)
     try {
-      if (creating && !requested) {
+      if (action === 'request') {
         const receipt = await signUp(email, password, workspace)
-        setMessage(receipt.message)
+        setMessage(requested ? `Requested again. ${receipt.message}` : receipt.message)
+        setCode('')
         setRequested(true)
         focus.forget()
         onStageChange('signup-code')
@@ -61,7 +67,7 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : 'Please try again in a moment.')
     } finally {
-      setPending(false)
+      setPending(null)
     }
   }
 
@@ -71,6 +77,7 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
     setMessage(null)
     setError(null)
     onStageChange('credentials')
+    requestAnimationFrame(() => document.getElementById('auth-email')?.focus())
   }
 
   if (challenge) {
@@ -92,10 +99,10 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
   const passwordNotes = [creating && 'password-hint', capsLock && 'auth-password-caps'].filter(Boolean).join(' ')
 
   return (
-    <form onSubmit={submit} className="auth-form" aria-busy={pending}>
+    <form onSubmit={submit} className="auth-form" aria-busy={busy}>
       {error && <AuthNotice tone="error">{error}</AuthNotice>}
-      {message && <AuthNotice tone="sent">{message}</AuthNotice>}
-      <fieldset disabled={pending} className="auth-fields">
+      {message && <p className="sr-only" role="status">{message}</p>}
+      <fieldset disabled={busy} className="auth-fields">
         {!requested && (
           <>
             <div className="auth-field-row">
@@ -162,6 +169,13 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
           </>
         )}
         {requested && (
+          <div className="auth-code-destination">
+            <Mail size={20} aria-hidden="true" />
+            <div><span>Your sign-up email</span><strong>{email}</strong></div>
+            <button type="button" className="auth-link" onClick={editDetails}>Change</button>
+          </div>
+        )}
+        {requested && (
           <div className="auth-field-row">
             <label htmlFor="signup-code">Email code</label>
             <GlassInput
@@ -180,15 +194,14 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
               aria-describedby="signup-code-help"
             />
             <small id="signup-code-help" className="field-hint">
-              Look for an email from OpenAnonymi at {email}, including in spam. Codes expire after 15 minutes.
-              Keep this page open; reloading asks for your password again.
+              Use the latest code. It expires after 15 minutes.
             </small>
           </div>
         )}
-        <button type="submit" className="auth-submit">
+        <button type="submit" className="auth-submit" disabled={requested && !code.trim()}>
           <span className="auth-submit-label">
-            {pending && <LoadingMark small />}
-            {pending
+            {pending && (!requested || pending === 'complete') && <LoadingMark small />}
+            {pending && (!requested || pending === 'complete')
               ? creating
                 ? requested
                   ? 'Verifying your code…'
@@ -200,35 +213,41 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
                   : 'Send sign-up code'
                 : 'Sign in'}
           </span>
-          {!pending && <ArrowUpRight size={18} aria-hidden="true" />}
+          {!pending && (requested ? <ArrowRight size={18} aria-hidden="true" /> : <ArrowUpRight size={18} aria-hidden="true" />)}
         </button>
         {requested && (
           <p className="auth-resend">
-            <button type="button" className="auth-link" onClick={editDetails}>
-              Edit sign-up details or request a new code
+            <span>No email yet?</span>
+            <button type="button" className="auth-link" onClick={() => void run('request')}>
+              {pending === 'request' ? 'Requesting a code…' : 'Send a new code'}
             </button>
           </p>
         )}
         {requested && (
-          <div className="auth-alt-action">
-            <span>Sign-up codes are only sent for new accounts. Already registered?</span>
-            <button type="button" className="auth-link" onClick={() => onRecover(email)}>
-              Recover your existing account
-            </button>
-          </div>
+          <details className="auth-code-help">
+            <summary><CircleHelp size={16} aria-hidden="true" /><span>Can't find your code?</span><ChevronDown size={15} aria-hidden="true" /></summary>
+            <div className="auth-code-help-body">
+              <p>Check your spam folder for the latest OpenAnonymi email. Keep this page open while you check.</p>
+              <small>Sign-up codes are sent only to addresses eligible for a new account.</small>
+              <div className="auth-code-recovery">
+                <span><strong>Already registered?</strong><small>Recover access to your existing account.</small></span>
+                <button type="button" className="auth-link" disabled={busy} onClick={() => onRecover(email)}>Recover account <ArrowRight size={14} aria-hidden="true" /></button>
+              </div>
+            </div>
+          </details>
         )}
       </fieldset>
       {!creating && (
         <p className="auth-alt-action">
           <span>Invited to a workspace?</span>
-          <button type="button" className="auth-link" disabled={pending} onClick={() => onRecover(email)}>
+          <button type="button" className="auth-link" disabled={busy} onClick={() => onRecover(email)}>
             Recover password
           </button>
         </p>
       )}
       {pending && (
         <span className="sr-only" role="status">
-          {creating ? (requested ? 'Verifying your code' : 'Sending your code') : 'Signing in'}
+          {pending === 'request' ? 'Requesting your code' : creating ? 'Verifying your code' : 'Signing in'}
         </span>
       )}
     </form>
