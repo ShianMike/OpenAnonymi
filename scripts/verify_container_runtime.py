@@ -77,7 +77,8 @@ def native_inventory():
         assert features.version("freetype2") and features.version("webp")
         assert ocr_version.startswith("tesseract " + provenance["tesseract"]["version"])
         assert "leptonica-" + provenance["leptonica"]["version"] in ocr_version
-        assert not any(codec in ocr_version.lower() for codec in ("libpng", "libtiff", "libwebp", "zlib"))
+        assert "libtiff " + provenance["libtiff"]["version"] in ocr_version
+        assert not any(codec in ocr_version.lower() for codec in ("libpng", "libwebp", "zlib"))
         assert not any("tesserocr.libs" in path for path in linked)
         assert all(any(path.startswith("/usr/lib/") and library in path for path in linked)
             for library in ("libtesseract", "libleptonica"))

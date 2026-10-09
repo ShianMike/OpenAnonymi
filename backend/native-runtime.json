@@ -28,7 +28,7 @@
     "version": "1.87.0",
     "source": "https://github.com/DanBloomberg/leptonica/releases/download/1.87.0/leptonica-1.87.0.tar.gz",
     "source_sha256": "c73363397f96eb1295602bf44d708a994ad42046c791bf03ea0505d829bdb6a7",
-    "build": "shared library; image codecs and programs disabled; OCR receives raw pixels"
+    "build": "shared library; programs and optional image codecs disabled; internal fonts use source-built TIFF 4.7.2; OCR receives raw pixels"
   },
   "tesserocr": {
     "version": "2.10.0",

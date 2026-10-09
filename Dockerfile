@@ -32,14 +32,14 @@ RUN curl --fail --location --proto '=https' --tlsv1.2 \
     && cd tiff-4.7.2 \
     && ./configure --prefix=/usr --disable-static --disable-tools --disable-tests --disable-contrib --disable-docs \
     && make -j2 && make install && ldconfig
-# OCR receives raw pixels from Pillow/PDFium; Leptonica needs no image codecs.
+# OCR receives raw pixels; Leptonica's internal bitmap fonts still need patched TIFF.
 RUN curl --fail --location --proto '=https' --tlsv1.2 \
     https://github.com/DanBloomberg/leptonica/releases/download/1.87.0/leptonica-1.87.0.tar.gz -o leptonica.tar.gz \
     && echo 'c73363397f96eb1295602bf44d708a994ad42046c791bf03ea0505d829bdb6a7  leptonica.tar.gz' | sha256sum --check \
     && tar -xzf leptonica.tar.gz \
     && cd leptonica-1.87.0 \
     && ./configure --prefix=/usr --libdir=/usr/lib --disable-static --disable-programs \
-        --without-zlib --without-libpng --without-jpeg --without-giflib --without-libtiff \
+        --without-zlib --without-libpng --without-jpeg --without-giflib --with-libtiff \
         --without-libwebp --without-libwebpmux --without-libopenjpeg \
     && make -j2 && make install && ldconfig
 RUN curl --fail --location --proto '=https' --tlsv1.2 \
