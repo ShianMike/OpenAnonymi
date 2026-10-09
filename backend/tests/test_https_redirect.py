@@ -21,6 +21,7 @@ def settings(**overrides):
         "database_url": "postgresql+psycopg://test:test@localhost/review",
         "allowed_origins": [ORIGIN], "environment": "production",
         "active_key_id": "synthetic", "content_keys": {"synthetic": Fernet.generate_key().decode()},
+        "attempt_subject_key": Fernet.generate_key().decode(),
         "trusted_proxy_hops": 1, "https_redirect_enabled": True,
     }
     return Settings(**{**values, **overrides}, _env_file=None)
