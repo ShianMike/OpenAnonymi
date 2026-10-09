@@ -111,7 +111,7 @@ def create_app(
     # internal HTTP scheme, potentially resending a request body to an insecure URL.
     app = FastAPI(
         title="OpenAnonymi API",
-        version="0.1.0",
+        version="0.1.1",
         lifespan=lifespan,
         redirect_slashes=not production,
         **docs,
