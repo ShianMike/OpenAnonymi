@@ -43,6 +43,7 @@ const PreferencesPage = lazy(() =>
 const LandingPage = lazy(() =>
   import('./landing/LandingPage').then((module) => ({ default: module.LandingPage })),
 )
+const LegalPage = lazy(() => import('./legal/LegalPage').then((module) => ({ default: module.LegalPage })))
 
 type Authentication =
   | { kind: 'checking' }
@@ -192,6 +193,11 @@ function App() {
 
   const authRoute = pathname === '/sign-in' || pathname === '/sign-up'
   const publicLanding = pathname === '/welcome' || (pathname === '/' && authentication.kind !== 'signed-in')
+  if (pathname === '/terms' || pathname === '/privacy') {
+    return <PageLoadBoundary key={pathname} fullScreen><Suspense fallback={<LoadingScreen label="Opening the notice…" description="Loading service and privacy information." />}>
+      <LegalPage notice={pathname === '/privacy' ? 'privacy' : 'terms'} />
+    </Suspense></PageLoadBoundary>
+  }
   if (publicLanding) {
     return (
       <PageLoadBoundary key={pathname} fullScreen><Suspense fallback={<LoadingScreen label="Opening OpenAnonymi…" description="Preparing a little more privacy for your words." />}>

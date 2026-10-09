@@ -139,6 +139,9 @@ export function SignInPage({
             />
           )}
           </motion.div>
+          {mode === 'sign-up' && (stage === 'credentials' || stage === 'signup-code') && (
+            <p className="auth-terms">By creating an account, you agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" aria-label="Terms of Service (opens in a new tab)">Terms of Service</a>. Our <a href="/privacy" target="_blank" rel="noopener noreferrer" aria-label="Privacy Notice (opens in a new tab)">Privacy Notice</a> explains how the service handles information.</p>
+          )}
           {!recovering && (stage === 'credentials' || stage === 'signup-code') && (
             <div className="auth-switch">
               <span>{mode === 'sign-in' ? 'New to OpenAnonymi?' : 'Already have an account?'}</span>
