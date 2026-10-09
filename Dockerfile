@@ -49,7 +49,7 @@ RUN curl --fail --location --proto '=https' --tlsv1.2 \
     && cmake -S tesseract-5.5.3 -B tesseract-build -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib -DBUILD_SHARED_LIBS=ON \
         -DBUILD_TRAINING_TOOLS=OFF -DBUILD_TESTS=OFF -DOPENMP_BUILD=OFF \
-        -DGRAPHICS_DISABLED=ON -DDISABLED_LEGACY_ENGINE=ON -DDISABLE_TIFF=ON \
+        -DGRAPHICS_DISABLED=ON -DDISABLE_TIFF=ON \
         -DDISABLE_ARCHIVE=ON -DDISABLE_CURL=ON -DINSTALL_CONFIGS=OFF \
     && cmake --build tesseract-build --parallel 2 \
     && cmake --install tesseract-build && ldconfig
