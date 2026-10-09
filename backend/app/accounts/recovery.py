@@ -58,6 +58,7 @@ class SmtpRecoveryMailer:
         self.username = settings.smtp_username
         self.password = settings.smtp_password
         self.sender = settings.smtp_from
+        self.reply_to = settings.smtp_reply_to
 
     def send_recovery_code(self, recipient: str, code: str) -> None:
         self._send_code(
@@ -117,12 +118,15 @@ class SmtpRecoveryMailer:
         sender = message["From"].addresses[0]
         if not sender.display_name:
             message.replace_header("From", Address("OpenAnonymi", addr_spec=sender.addr_spec))
+        contact = self.reply_to or sender.addr_spec
+        if self.reply_to:
+            message["Reply-To"] = self.reply_to
         message["To"] = recipient
         message["Subject"] = subject
         message["Date"] = format_datetime(datetime.now(UTC))
         message["Message-ID"] = make_msgid(domain=message["From"].addresses[0].domain)
-        message.set_content(body)
-        message.add_alternative(email_html(subject, body, sender=sender.addr_spec, code=code), subtype="html")
+        message.set_content(f"{body}\n\nNeed help? Contact {contact}. Never share your code with support.")
+        message.add_alternative(email_html(subject, body, contact=contact, code=code), subtype="html")
         try:
             context = ssl.create_default_context()
             connection = (
