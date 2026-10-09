@@ -20,7 +20,7 @@
 .notification-day-heading { margin: 0; padding: 16px 22px 10px; border-top: 1px solid var(--line); color: var(--muted); font-size: .76rem; font-weight: 550; }
 .notification-day:first-of-type .notification-day-heading { border-top: 0; }
 .notification-list { padding: 0; margin: 0; list-style: none; }
-.notification { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: start; gap: 16px; padding: 16px 22px; border-top: 1px solid var(--line); background: var(--tone-accent-wash, #b4e6cc07); }
+.notification { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: start; gap: 16px; padding: 12px 22px; border-top: 1px solid var(--line); background: var(--tone-accent-wash, #b4e6cc07); }
 .notification:first-child { border-top: 0; }
 .notification.is-read { background: transparent; }
 .notification:focus-within { background: var(--surface-subtle); }
@@ -39,8 +39,7 @@
 .notification-read { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-width: 130px; min-height: 44px; padding: 0 12px; margin: 0; border: 1px solid var(--line); border-radius: 10px; background: transparent; box-shadow: none; color: var(--muted); font-size: .78rem; white-space: nowrap; }
 .notification-read:hover:not([aria-disabled='true'], :disabled) { border-color: var(--line-strong); background: var(--surface-subtle); color: var(--text); }
 .notification-read[aria-disabled='true'], .notification-read[aria-disabled='true']:hover { border-color: transparent; background: transparent; color: var(--muted); cursor: default; }
-.notification-pagination { padding: 18px 22px; border-top: 1px solid var(--line); }
-.notification-pagination button { width: 100%; min-height: 44px; font-size: .83rem; }
+.notification-inbox > .list-pagination { border-top: 0; padding-inline: 22px; }
 .notification-empty { display: grid; justify-items: center; gap: 14px; padding: 48px 24px; text-align: center; color: var(--muted); }
 .notification-empty-icon { display: grid; place-items: center; width: 52px; height: 52px; border: 1px solid var(--line); border-radius: 14px; color: var(--blue-strong); }
 .notification-empty h2 { margin: 0; font-size: 1.1rem; color: var(--text); }
@@ -48,7 +47,18 @@
 .notification-empty .button-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; margin-top: 6px; padding: 0 14px; border: 1px solid var(--line); border-radius: 10px; font-size: .82rem; text-decoration: none; }
 .notification-retention { max-width: 720px; margin: 0; color: var(--muted); font-size: .74rem; line-height: 1.65; }
 .notification-inbox .loading-state { padding: 22px; }
-.notification-preferences { grid-column: 1 / -1; }
+.notification-preferences { display: grid; gap: 14px; min-width: 0; grid-column: 1 / -1; }
+.settings-hub .notification-preferences .panel-heading { align-items: center; margin: 0; }
+.notification-preferences .panel-heading h2 { margin: 0; }
+.notification-preferences .choice-switch:has(input[type='checkbox']) { min-height: 64px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-subtle); }
+.notification-preferences .choice-switch:has(input:checked) { border-color: var(--blue); background: var(--blue-tint); }
+.notification-preferences .choice-switch:focus-within { outline: 2px solid var(--focus); outline-offset: 3px; }
+.notification-preferences .choice-switch > span { min-width: 0; }
+.notification-preferences .choice-switch strong { line-height: 1.5; }
+.notification-preferences .choice-switch small { line-height: 1.5; text-wrap: pretty; }
+.notification-email-note { display: flex; align-items: start; gap: 9px; margin: 0; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: .76rem; line-height: 1.6; text-wrap: pretty; }
+.notification-email-note > svg { flex-shrink: 0; margin-top: 2px; color: var(--blue-strong); }
+.notification-preferences .inline-notice { margin: 0; padding: 10px 12px; font-size: .76rem; border-radius: 8px; }
 @container notifications (max-width: 760px) {
   .notifications-page .page-heading { flex-direction: column; align-items: stretch; }
   .notifications-page .page-heading-action { align-self: flex-start; }

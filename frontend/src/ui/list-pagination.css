@@ -1,0 +1,10 @@
+.list-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; padding: 8px 16px; border-block: 1px solid var(--line); background: var(--surface); }
+.list-pagination p { margin: 0; font-size: .77rem; font-variant-numeric: tabular-nums; color: var(--muted); }
+.list-pagination > div { display: flex; align-items: center; gap: 8px; }
+.list-pagination > div > span { min-width: 70px; text-align: center; color: var(--muted); font-size: .74rem; font-variant-numeric: tabular-nums; }
+.list-pagination button { width: 44px; min-height: 44px; margin: 0; border: 1px solid var(--line); border-radius: 9px; background: transparent; box-shadow: none; }
+.list-pagination button:hover:not(:disabled) { background: var(--surface-subtle); border-color: var(--line-strong); }
+.list-pagination button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (forced-colors: active) {
+  .list-pagination, .list-pagination button { border-color: CanvasText; background: Canvas; }
+}

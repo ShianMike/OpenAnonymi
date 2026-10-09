@@ -1,0 +1,44 @@
+[extend]
+useDefault = true
+
+# Only exact, authored nonfunctional detector samples in their test files.
+[[rules]]
+id = "generic-api-key"
+[[rules.allowlists]]
+description = "Fictional detector values, never an actual credential"
+condition = "AND"
+paths = [
+  '''^backend/tests/docx_fixtures\.py$''',
+  '''^backend/tests/test_styles\.py$''',
+  '''^backend/tests/test_detection_corpus\.py$''',
+]
+regexTarget = "match"
+regexes = ['''(?:ghp_Fictional7654|sk_live_Fictional7654|token=Fictional7654)''']
+
+[[rules]]
+id = "stripe-access-token"
+[[rules.allowlists]]
+description = "Exact repeated-pattern Stripe detector fixture"
+paths = ['''^backend/tests/fixtures/detection_corpus/secret_stripe_key\.json$''']
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^(?:sk_test_(?:Ab1){8}|rk_live_(?:Bc2){8})$''']
+
+[[rules.allowlists]]
+description = "Exact fictional prefix-preservation test"
+condition = "AND"
+paths = ['''^backend/tests/test_styles\.py$''']
+regexTarget = "secret"
+regexes = ['''^sk_live_Fictional7654$''']
+
+[[rules]]
+id = "private-key"
+[[rules.allowlists]]
+description = "PEM delimiters surrounding literal fictional bytes, not encoded key material"
+condition = "AND"
+paths = [
+  '''^backend/tests/fixtures/detection_corpus/secret_pem_private_key\.json$''',
+  '''^backend/tests/test_detection_secrets\.py$''',
+]
+regexTarget = "match"
+regexes = ['''-----BEGIN (?:RSA )?PRIVATE KEY-----(?:\\n|\n)(?:fictional bytes|synthetic bytes only)(?:\\n|\n)-----END (?:RSA )?PRIVATE KEY-----''']

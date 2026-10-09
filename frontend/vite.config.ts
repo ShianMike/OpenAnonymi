@@ -47,7 +47,7 @@ function apiBaseFrom(env: Record<string, string>, onVercel: boolean): string {
 
 /**
  * Production builds carry a Content-Security-Policy whose connect-src names the configured
- * API origin. frame-ancestors cannot be set from a meta element; vercel.json sends it.
+ * API origin. frame-ancestors is sent by the API host's HTTP security headers.
  */
 function contentSecurityPolicy(apiBase: string): Plugin {
   const apiOrigin = apiBase.startsWith('/') ? '' : ` ${new URL(apiBase).origin}`

@@ -52,6 +52,8 @@ COPY backend/certs ./certs
 RUN /app/.venv/bin/python -m compileall -q app migrations
 
 FROM python:3.11-slim
+LABEL org.opencontainers.image.source="https://github.com/ShianMike/OpenAnonymi" \
+    org.opencontainers.image.licenses="AGPL-3.0-or-later"
 ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -66,6 +68,7 @@ COPY --from=build /usr/lib/libtiff.so* /usr/lib/
 COPY --from=build /tmp/native/tiff-4.7.2/LICENSE.md /usr/share/doc/openanonymi-libtiff/LICENSE.md
 RUN ldconfig
 WORKDIR /app
+COPY LICENSE NOTICE THIRD_PARTY_NOTICES.md /usr/share/doc/openanonymi/
 COPY --from=build /app /app
 COPY --from=website /website/dist /app/frontend
 COPY backend/docker-entrypoint.sh /usr/local/bin/openanonymi-start

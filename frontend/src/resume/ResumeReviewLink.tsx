@@ -1,13 +1,14 @@
 import { BookOpen } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { BranchCurve } from '../shell/BranchCurve'
+import { workspaceHref } from '../shell/navigation'
 import './resume.css'
 
-export function ResumeReviewLink({ onClick }: { onClick: () => void }) {
+export function ResumeReviewLink({ onClick, workspaceId }: { onClick: () => void; workspaceId?: string }) {
   return (
     <NavLink
       className={({ isActive }) => `branch-link resume-review-link${isActive ? ' is-active' : ''}`}
-      to="/continue"
+      to={workspaceHref('/continue', workspaceId)}
       onClick={onClick}
     >
       {({ isActive }) => <>

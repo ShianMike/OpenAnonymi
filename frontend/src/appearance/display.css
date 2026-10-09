@@ -9,23 +9,4 @@ html[data-density='compact'] .finding-card-trigger { padding-block: 10px; min-he
 html[data-density='compact'] .choice-switch:has(input[type='checkbox']) { padding-block: 8px; min-height: 44px; }
 html[data-density='compact'] .glass-checkbox-row { padding-block: 7px; min-height: 44px; }
 html[data-density='compact'] .review-text-column { padding-block: 16px; }
-.display-panel { margin-top: 24px; }
-.display-choice-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
-.display-choice-groups fieldset { padding: 0; margin: 0; border: 0; min-width: 0; box-shadow: none; background: transparent; }
-.display-choice-groups legend { padding: 0; margin-bottom: 12px; font-weight: 600; font-size: .9rem; }
-.display-choice-groups .display-choice {
-  display: flex; align-items: start; gap: 10px; min-height: 44px;
-  padding: 12px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 12px;
-  font-weight: 400; cursor: pointer;
-}
-.display-choice:has(input:checked) { border-color: var(--focus); background: var(--blue-tint); }
-.display-choice:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 3px; }
-.display-choice input { flex-shrink: 0; margin-top: 4px; accent-color: var(--blue); }
-.display-choice strong { font-size: .85rem; display: block; }
-.display-choice small { color: var(--muted); font-size: .75rem; display: block; margin-top: 4px; }
 .detection-controls { min-width: 0; }
-@container preferences (max-width: 700px) { .display-choice-groups { grid-template-columns: 1fr; gap: 16px; } }
-@media (forced-colors: active) {
-  .display-choice:has(input:checked) { border: 2px solid Highlight; }
-  .display-choice:has(input:focus-visible) { outline-color: Highlight; }
-}

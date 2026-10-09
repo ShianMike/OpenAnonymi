@@ -5,6 +5,8 @@ import type { SessionView } from '../api/client'
 import { LoadingState } from '../loading/LoadingState'
 import { PageHeader } from '../ui/PageHeader'
 import { InlineNotice, RefreshButton } from '../ui/WorkspaceControls'
+import { ListPagination } from '../ui/ListPagination'
+import { pageWindow } from '../ui/pagination'
 import { cn } from '../ui/cn'
 import { dayKey, dayLabel } from '../workspace/activity/activityPresentation'
 import { relativeEdit } from '../workspace/documents/documentPresentation'
@@ -28,6 +30,8 @@ const icons: Record<Notification['event_code'], LucideIcon> = {
   approval_invalidated: RefreshCw,
   comment_added: MessageSquare,
 }
+
+const PAGE_SIZE = 5
 
 export function NotificationList({ items, pending, onRead, now }: {
   items: Notification[]
@@ -78,6 +82,7 @@ export function NotificationsPage({ session }: { session: SessionView }) {
   const [attempt, setAttempt] = useState(0)
   const [pending, setPending] = useState<string | null>(null)
   const [view, setView] = useState<'all' | 'unread'>('all')
+  const [pageIndex, setPageIndex] = useState(0)
   const [checkedAt, setCheckedAt] = useState(() => Date.now())
   const activeFilter = useRef<HTMLButtonElement>(null)
   const mounted = useRef(false)
@@ -131,21 +136,27 @@ export function NotificationsPage({ session }: { session: SessionView }) {
       if (mounted.current) setError(cause instanceof Error ? cause.message : 'Read status could not be saved.')
     } finally { if (mounted.current) setPending(null) }
   }
-  async function more() {
-    if (!page?.next_cursor || pending) return
+  async function nextPage() {
+    if (pending) return
+    if (range.end < visible.length) { setPageIndex(range.page + 1); return }
+    if (!page?.next_cursor) return
     const expected = generation.current
     setPending('more'); setError(null)
     try {
       const next = await getNotifications(undefined, page.next_cursor)
       if (!mounted.current || generation.current !== expected) return
       setPage((current) => current && { next_cursor: next.next_cursor, items: [...current.items, ...next.items.filter((row) => !current.items.some((item) => item.id === row.id))] })
+      // Fill a partial filtered page before advancing, so older unread rows are never skipped.
+      setPageIndex(Math.floor(range.end / PAGE_SIZE))
     } catch (cause: unknown) {
       if (mounted.current && generation.current === expected) setError(cause instanceof Error ? cause.message : 'More notifications could not be loaded.')
     } finally { if (mounted.current) setPending(null) }
   }
   const unread = page?.items.filter((item) => !item.read_at).length ?? 0
   const visible = page?.items.filter((item) => view === 'all' || !item.read_at) ?? []
-  function refreshInbox() { setAttempt((value) => value + 1); notificationChanged() }
+  const range = pageWindow(visible.length, pageIndex, PAGE_SIZE)
+  function refreshInbox() { setPageIndex(0); setAttempt((value) => value + 1); notificationChanged() }
+  function changeView(value: 'all' | 'unread') { setView(value); setPageIndex(0) }
   return <section className="notifications-page" aria-labelledby="notifications-title">
     <PageHeader title="Notifications" titleId="notifications-title" description="Assignments, approvals, and comments across your workspaces."
       action={<div className="notification-heading-actions">
@@ -157,21 +168,22 @@ export function NotificationsPage({ session }: { session: SessionView }) {
     <div className="notification-inbox">
       <div className="notification-toolbar">
         <div className="notification-filters" role="group" aria-label="Notification views">
-          <button type="button" aria-pressed={view === 'all'} ref={view === 'all' ? activeFilter : undefined} onClick={() => setView('all')}>All notifications</button>
-          <button type="button" aria-pressed={view === 'unread'} ref={view === 'unread' ? activeFilter : undefined} onClick={() => setView('unread')}>Unread{page && <span className="notification-filter-count" aria-label={`${unread} unread in this view`}>{unread}</span>}</button>
+          <button type="button" aria-pressed={view === 'all'} ref={view === 'all' ? activeFilter : undefined} onClick={() => changeView('all')}>All notifications</button>
+          <button type="button" aria-pressed={view === 'unread'} ref={view === 'unread' ? activeFilter : undefined} onClick={() => changeView('unread')}>Unread{page && <span className="notification-filter-count" aria-label={`${unread} unread in loaded updates`}>{unread}</span>}</button>
         </div>
-        <p className="notification-view-count" role="status">{page ? `${visible.length} ${view === 'unread' ? 'unread' : 'updates'}${page.next_cursor ? ' in this view' : ''}` : ''}</p>
+        <p className="notification-view-count">Newest first</p>
       </div>
       {!page && !error && <LoadingState label="Checking notifications…" shape="list" />}
       {page && <>
-        {visible.length ? <NotificationList items={visible} pending={pending} onRead={(id) => void read(id)} now={checkedAt} />
+        <ListPagination page={range.page} total={visible.length} pageSize={PAGE_SIZE} label="Updates" hasMore={!!page.next_cursor} pending={!!pending}
+          onPrevious={() => setPageIndex(range.page - 1)} onNext={() => void nextPage()} />
+        {visible.length ? <NotificationList items={visible.slice(range.start, range.end)} pending={pending} onRead={(id) => void read(id)} now={checkedAt} />
           : <div className="notification-empty"><span className="notification-empty-icon">{view === 'unread' ? <CheckCheck size={24} aria-hidden="true" /> : <Bell size={24} aria-hidden="true" />}</span>
             <h2>{view === 'unread' ? page.next_cursor ? 'No unread updates in this view' : 'You’re all caught up' : 'No notifications yet'}</h2>
-            <p>{view === 'unread' ? page.next_cursor ? 'Load older notifications to continue through your inbox.' : 'Your earlier updates are still here whenever you need them.' : 'Review assignments, approvals, and comments will appear here.'}</p>
-            {view === 'unread' ? <button type="button" className="button-secondary" onClick={() => setView('all')}>View all notifications</button>
+            <p>{view === 'unread' ? page.next_cursor ? 'Use Next to check older notifications.' : 'Your earlier updates are still here whenever you need them.' : 'Review assignments, approvals, and comments will appear here.'}</p>
+            {view === 'unread' ? <button type="button" className="button-secondary" onClick={() => changeView('all')}>View all notifications</button>
               : <Link className="button-secondary" to="/documents">Go to documents <ArrowUpRight size={15} aria-hidden="true" /></Link>}
           </div>}
-        {page.next_cursor && <div className="notification-pagination"><button type="button" className="button-secondary" disabled={!!pending} onClick={() => void more()}>{pending === 'more' ? 'Loading…' : 'Load more notifications'}</button></div>}
       </>}
     </div>
     <p className="notification-retention">Updates stay here for 30 days, or until the review’s content is removed. Review access is checked each time you open it.</p>

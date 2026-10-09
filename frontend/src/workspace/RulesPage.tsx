@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import * as Tabs from '@radix-ui/react-tabs'
 import { ArrowRight, Mail, Plus, ScanLine, ShieldCheck, SlidersHorizontal, Users } from 'lucide-react'
 import { createWorkspacePreset, getWorkspacePresets, updateWorkspacePreset,
@@ -18,7 +18,8 @@ type Data = { kind: 'loading' } | { kind: 'error'; message: string } | { kind: '
 const presetIcons = [Mail, Users, ScanLine]
 
 export function RulesPage({ session }: { session: SessionView }) {
-  const [workspaceId, setWorkspaceId] = useState(session.memberships[0]?.workspace_id ?? '')
+  const [params, setParams] = useSearchParams()
+  const [workspaceId, setWorkspaceId] = useState(() => session.memberships.find(item => item.workspace_id === params.get('workspace'))?.workspace_id ?? session.memberships[0]?.workspace_id ?? '')
   const [data, setData] = useState<Data>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
   const [notice, setNotice] = useState<string | null>(null)
@@ -47,6 +48,7 @@ export function RulesPage({ session }: { session: SessionView }) {
         <label htmlFor="rules-workspace">Workspace</label>
         <GlassSelect id="rules-workspace" value={workspaceId} onValueChange={(value) => {
           setWorkspaceId(value); setData({ kind: 'loading' }); setNotice(null)
+          setParams(current => { const next = new URLSearchParams(current); next.set('workspace', value); return next })
         }}>{session.memberships.map((item, index) => <option key={item.workspace_id} value={item.workspace_id}>
           {item.workspace_name || `Workspace ${index + 1}`}</option>)}</GlassSelect>
       </div>} />

@@ -1,0 +1,24 @@
+name: Bug report
+description: Report a reproducible problem using synthetic data.
+body:
+  - type: markdown
+    attributes:
+      value: Do not include private documents or credentials. Report security vulnerabilities through the repository's Security tab.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps and synthetic input
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Commit or deployment, browser, and operating system
+    validations:
+      required: true

@@ -82,6 +82,7 @@ export function MembersPanel({
                 <MemberDialog
                   member={member}
                   workspaceId={workspaceId}
+                  workspaceName={session.memberships.find(item => item.workspace_id === workspaceId)?.workspace_name || 'this workspace'}
                   csrfToken={session.csrf_token}
                   onChanged={(updated) => {
                     onChanged(updated)

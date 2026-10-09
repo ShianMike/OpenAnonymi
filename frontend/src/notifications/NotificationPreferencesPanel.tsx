@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Bell } from 'lucide-react'
+import { Bell, ShieldCheck } from 'lucide-react'
 import type { SessionView } from '../api/client'
 import { ChoiceSwitch, InlineNotice, PanelHeading } from '../ui/WorkspaceControls'
 import { getNotificationPreferences, updateNotificationPreferences, type NotificationPreferences } from './api'
@@ -32,10 +32,11 @@ export function NotificationPreferencesPanel({ session }: { session: SessionView
   }
   if (preferences && !preferences.notification_emails_available) return null
   if (!preferences && !error) return null
-  return <section className="workspace-panel notification-preferences">
-    <PanelHeading icon={Bell} title="Notification emails" description="Optional notices for assignments, approvals, and comments." />
-    {preferences && <ChoiceSwitch label="Email me about review notifications" checked={requested ?? preferences.notification_emails === 'immediate'} disabled={pending} onChange={(value) => void change(value)} />}
-    <p className="field-note">Emails contain a brief notice and no workspace names, document details, or links. Up to 10 are sent per hour; every notification stays in your inbox.</p>
+  return <section className="workspace-panel notification-preferences" aria-busy={pending}>
+    <PanelHeading icon={Bell} title="Notification emails" />
+    {preferences && <ChoiceSwitch label="Email me about review notifications" description="Assignments, approvals, and comments."
+      checked={requested ?? preferences.notification_emails === 'immediate'} disabled={pending} onChange={(value) => void change(value)} />}
+    <p className="notification-email-note"><ShieldCheck size={16} aria-hidden="true" /><span>Emails leave out workspace names, document details, and links. Up to 10 per hour; all updates stay in your notification inbox.</span></p>
     {error && <InlineNotice error>{error} <button type="button" disabled={pending} onClick={() => setAttempt((value) => value + 1)}>Reload preference</button></InlineNotice>}
     {notice && <InlineNotice>{notice}</InlineNotice>}
   </section>

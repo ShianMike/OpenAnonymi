@@ -305,12 +305,12 @@ function App() {
                   <NewReviewPage session={authentication.session} onUnsavedChange={handleUnsavedChange} />
                 }
               />
-              <Route path="/documents" element={<DocumentsPage session={authentication.session} />} />
+              <Route path="/documents" element={<DocumentsPage key={new URLSearchParams(search).get('workspace')} session={authentication.session} />} />
               <Route path="/notifications" element={<NotificationsPage key={authentication.session.user_id} session={authentication.session} />} />
               <Route path="/continue" element={<ContinueReviewPage session={authentication.session} />} />
-              <Route path="/activity" element={<ActivityPage session={authentication.session} />} />
+              <Route path="/activity" element={<ActivityPage key={new URLSearchParams(search).get('workspace')} session={authentication.session} />} />
               <Route path="/members" element={<MembersPage session={authentication.session} />} />
-              <Route path="/rules" element={<RulesPage session={authentication.session} />} />
+              <Route path="/rules" element={<RulesPage key={new URLSearchParams(search).get('workspace')} session={authentication.session} />} />
               <Route path="/preferences" element={<PreferencesPage />} />
               <Route
                 path="/documents/:documentId/edit"

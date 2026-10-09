@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import type { ActivityView, DocumentIndexView } from '../../api/client'
 import { eventName } from '../events'
+import { pageWindow } from '../../ui/pagination'
 
 export type ActivityEntry = ActivityView['own_events'][number]
 export type ActivityFilter = 'all' | 'reviews' | 'outputs' | 'workspace'
@@ -17,9 +18,7 @@ export type DocumentMap = Record<string, DocumentIndexView>
 
 export const ACTIVITY_PAGE_SIZE = 6
 export function activityWindow(total: number, requestedPage: number) {
-  const pages = Math.max(1, Math.ceil(total / ACTIVITY_PAGE_SIZE))
-  const page = Math.max(0, Math.min(requestedPage, pages - 1))
-  return { page, pages, start: page * ACTIVITY_PAGE_SIZE, end: Math.min((page + 1) * ACTIVITY_PAGE_SIZE, total) }
+  return pageWindow(total, requestedPage, ACTIVITY_PAGE_SIZE)
 }
 
 export function eventGroup(code: string): Exclude<ActivityFilter, 'all'> {

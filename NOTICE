@@ -1,0 +1,35 @@
+OpenAnonymi
+Copyright (C) 2026 ShianMike and OpenAnonymi contributors
+https://github.com/ShianMike/OpenAnonymi
+
+The original OpenAnonymi material in this repository is licensed under the GNU
+Affero General Public License, version 3 or (at your option) any later version.
+See LICENSE. Separately licensed third-party material and CC0 synthetic fixtures
+retain their stated licenses.
+
+Additional attribution term under AGPL version 3, section 7(b):
+Preserve the copyright notice above and the author attribution "Powered by
+OpenAnonymi" in the Appropriate Legal Notices of works containing the original
+OpenAnonymi material. For an interactive application, these notices must remain
+reasonably accessible through its interface. A legal/about screen or a footer
+link to these notices is sufficient; a permanent banner on every screen is not
+required.
+
+This term requires reasonable legal and author notices, not endorsement,
+advertising, a particular logo, credit in exported user documents, or disclosure
+of users' private data. No trademark rights are granted.
+
+OpenAnonymi is distributed WITHOUT ANY WARRANTY, including the implied
+warranties of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+If you modify and host a covered version, offer its users the Corresponding
+Source required by AGPL section 13. Update the application's source link to the
+source of the version you run, and retain this notice with that source.
+
+Project principle (nonbinding; not an additional license restriction):
+OpenAnonymi is open-source software. We discourage making access to a copy of
+the community application dependent on a subscription, particularly when a
+fork contributes no improvements back. Keep a free self-hosting path and be
+clear that a paid fork is not the official project. Hosting, support, and
+commercial use remain permitted under the AGPL; charging money does not remove
+the attribution and corresponding-source obligations.

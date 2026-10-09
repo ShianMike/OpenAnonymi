@@ -88,3 +88,32 @@ def test_authenticated_preview_is_transient_and_file_review_txt_gate(intake_site
     assert exported.content == source.replace("nora@example.com", "[REDACTED]").encode("utf-8")
     assert exported.headers["content-type"].startswith("text/plain")
     assert owner.get(base + "/source").json()["text"] == source
+
+
+def test_markdown_file_scans_code_and_prose_without_losing_source(intake_site):
+    owner, _other, _engine, workspace, _user = intake_site
+    headers = _login(owner, "intake-owner@example.invalid")
+    source = (
+        "# Meeting 😀\r\n\r\nPrepared by (`maya@example.com`)\r\n"
+        "| Contact |\r\n| --- |\r\n| daniel@example.org |\r\n"
+        "**billing@example.com**\r\n\r\n"
+        "```text\r\nuser=jordan@example.net ip=192.0.2.18\r\n```\r\n"
+        "Phone: +1 (202) 555-0162\r\n"
+    )
+    created = owner.post(
+        "/api/v1/documents/from-file",
+        data={"workspace_id": str(workspace), "categories": "email,phone,identifier", "phone_region": "US"},
+        files={"file": ("meeting.md", source.encode())}, headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    version = created.json()["version"]
+    base = f"/api/v1/documents/{version['document_id']}"
+    assert owner.get(base + "/source").json()["text"] == source
+    scan = owner.post(base + "/scan", json={"expected": version}, headers=headers)
+    assert scan.status_code == 200, scan.text
+    assert [source[item["span"]["start"]:item["span"]["end"]] for item in scan.json()["suggestions"]] == [
+        "maya@example.com", "daniel@example.org", "billing@example.com", "jordan@example.net",
+        "192.0.2.18", "+1 (202) 555-0162",
+    ]
+    assert owner.get(base + "/source").json()["text"] == source
+    assert owner.get(base + "/preview").json()["text"] == source

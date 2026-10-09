@@ -9,6 +9,7 @@ type Props = {
   value: string | number
   onValueChange: (value: string) => void
   children: ReactNode
+  displayValue?: ReactNode
   disabled?: boolean
   className?: string
   'aria-label'?: string
@@ -29,6 +30,7 @@ export function GlassSelect({
   value,
   onValueChange,
   children,
+  displayValue,
   disabled,
   className = '',
   ...aria
@@ -51,7 +53,7 @@ export function GlassSelect({
     >
       <Select.Trigger id={id} className={`glass-select-trigger ${className}`} {...aria}>
         <span className="glass-select-value" title={optionText(selected?.children)}>
-          <Select.Value>{selected?.children ?? 'Choose an option'}</Select.Value>
+          <Select.Value>{displayValue ?? selected?.children ?? 'Choose an option'}</Select.Value>
         </span>
         <Select.Icon className="glass-select-chevron">
           <ChevronDown size={16} aria-hidden="true" />

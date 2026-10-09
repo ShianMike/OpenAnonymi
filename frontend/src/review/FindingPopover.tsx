@@ -20,7 +20,6 @@ export function FindingPopover({
   getReview?: () => ReviewController
 }) {
   const [open, setOpen] = useState(false)
-  const value = open ? review.codePoints.slice(finding.span.start, finding.span.end).join('') : ''
   function changeOpen(next: boolean) {
     setOpen(next)
     if (next) {
@@ -40,13 +39,14 @@ export function FindingPopover({
       if (!event.defaultPrevented && !current.dirty && !current.settingsDirty) changeOpen(true)
     } })
   }
+  const value = review.codePoints.slice(finding.span.start, finding.span.end).join('')
   return (
     <Dialog.Root
       open={open && !review.dirty && !review.settingsDirty}
       onOpenChange={changeOpen}
     >
       <Dialog.Trigger asChild>{children}</Dialog.Trigger>
-      {open && <Dialog.Portal>
+      <Dialog.Portal>
         <Dialog.Overlay className="workspace-dialog-overlay" />
         <Dialog.Content
           className="finding-popover"
@@ -63,7 +63,7 @@ export function FindingPopover({
           </header>
           <StyleControls finding={finding} review={review} onApplied={() => setOpen(false)} />
         </Dialog.Content>
-      </Dialog.Portal>}
+      </Dialog.Portal>
     </Dialog.Root>
   )
 }

@@ -77,7 +77,7 @@ export function SettingsPage({ session, onPasswordChanged, onSessionChanged, onS
         </Tabs.List>
       </div>
       <Tabs.Content value="account" forceMount>
-        <AccountPanel session={session} />
+        <AccountPanel session={session} onSessionChanged={onSessionChanged} />
       </Tabs.Content>
       <Tabs.Content value="security">
         <SecurityPanel session={session} onPasswordChanged={onPasswordChanged} onSignedOut={onSignedOut} onSessionChanged={updated => { onSessionChanged(updated); reload() }} />

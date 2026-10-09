@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, ArrowUpRight, Check, History } from 'lucide-react'
+import { ArrowUpRight, Check, History } from 'lucide-react'
 import { eventName } from '../events'
+import { ListPagination } from '../../ui/ListPagination'
 import {
-  activityWindow,
+  ACTIVITY_PAGE_SIZE,
   dayLabel,
   eventGroup,
   eventIcon,
@@ -47,19 +48,8 @@ export function ActivityPagination({ page, total, hasMore = false, pending = fal
   page: number; total: number; hasMore?: boolean; pending?: boolean
   onPrevious: () => void; onNext: () => void
 }) {
-  const window = activityWindow(total, page)
-  return <nav className="activity-pagination" aria-label="Activity pages">
-    <p role="status">{total ? `Events ${window.start + 1}–${window.end}${hasMore ? '' : ` of ${total}`}` : '0 events'}</p>
-    <div>
-      <button type="button" className="quiet-icon" aria-label="Previous events" disabled={pending || window.page === 0} onClick={onPrevious}>
-        <ArrowLeft size={16} aria-hidden="true" />
-      </button>
-      <span>Page {window.page + 1}{!hasMore && ` of ${window.pages}`}</span>
-      <button type="button" className="quiet-icon" aria-label="Next events" disabled={pending || (!hasMore && window.end === total)} onClick={onNext}>
-        <ArrowRight size={16} aria-hidden="true" />
-      </button>
-    </div>
-  </nav>
+  return <ListPagination page={page} total={total} pageSize={ACTIVITY_PAGE_SIZE} label="Events"
+    hasMore={hasMore} pending={pending} onPrevious={onPrevious} onNext={onNext} />
 }
 
 export function ActivityEmpty({ filtered, onClear, workspaceId }: { filtered: boolean; onClear: () => void; workspaceId: string }) {

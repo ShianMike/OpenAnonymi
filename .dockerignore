@@ -2,6 +2,9 @@
 # Never send .env, private evidence, virtual environments, tests or local data.
 *
 !Dockerfile
+!LICENSE
+!NOTICE
+!THIRD_PARTY_NOTICES.md
 !backend/
 backend/*
 !backend/pyproject.toml

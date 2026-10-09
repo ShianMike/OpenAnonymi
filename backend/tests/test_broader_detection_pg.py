@@ -39,7 +39,7 @@ def test_opt_in_scan_labels_formats_and_completed_scan_stay_stable(intake_site):
     with Session(engine) as session:
         row = session.scalar(select(Finding).where(Finding.document_id == UUID(version['document_id']), Finding.category == 'date'))
         assert row.date_format == 'm:dmy:long-title:1:0:0:1'
-        assert session.scalar(select(ScanRun.detector_version).where(ScanRun.id == row.scan_run_id)) == '2'
+        assert session.scalar(select(ScanRun.detector_version).where(ScanRun.id == row.scan_run_id)) == '3'
     current = findings['version']
     labels = set()
     for item in findings['findings']:

@@ -11,3 +11,9 @@ export const pages = [
   { path: '/settings', name: 'Settings', icon: Settings2 },
   { path: '/preferences', name: 'Preferences', icon: Palette },
 ]
+
+export const workspacePages = ['/', '/new', '/documents', '/continue', '/rules', '/activity', '/members', '/settings']
+
+export function workspaceHref(path: string, workspaceId?: string) {
+  return workspaceId && workspacePages.includes(path) ? `${path}?workspace=${encodeURIComponent(workspaceId)}` : path
+}

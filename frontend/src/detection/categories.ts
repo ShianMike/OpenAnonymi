@@ -4,7 +4,7 @@ export const extraDetection = [
   { category: 'person' as const, label: 'People', description: 'People’s names in English text' },
   { category: 'organization' as const, label: 'Organizations', description: 'Company and organization names' },
   { category: 'location' as const, label: 'Places', description: 'Cities, countries and named places' },
-  { category: 'identifier' as const, label: 'Identifiers', description: 'IP addresses, international bank account numbers, cards and usernames' },
+  { category: 'identifier' as const, label: 'Identifiers', description: 'IP addresses, bank details, usernames and labeled customer, account, ticket or invoice references' },
   { category: 'address' as const, label: 'Addresses', description: 'Street addresses with US, UK or Singapore postal codes' },
   { category: 'date' as const, label: 'Dates', description: 'Calendar dates and dates of birth' },
   { category: 'url' as const, label: 'Web addresses', description: 'Website links, including private codes inside a link' },

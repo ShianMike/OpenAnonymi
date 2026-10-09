@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowUpRight, LockKeyhole } from 'lucide-react'
+import { ArrowLeft, ArrowUpRight } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import type { SessionView } from '../api/client'
 import { Brand } from '../ui/Brand'
+import { AppCredit } from '../ui/AppCredit'
 import { BorderBeam } from '../ui/BorderBeam'
 import { useLoadingMotion } from '../loading/useLoadingMotion'
 import { AuthCredentials, type CredentialStage } from './AuthCredentials'
@@ -146,7 +147,7 @@ export function SignInPage({
       </main>
       <AuthStory />
       <footer className="auth-footer">
-        <LockKeyhole size={13} aria-hidden="true" /> A private workspace. A considered review.
+        <AppCredit />
       </footer>
     </div>
   )

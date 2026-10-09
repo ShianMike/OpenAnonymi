@@ -7,13 +7,16 @@ import { RefreshButton } from '../ui/WorkspaceControls'
 import { StatusBadge } from '../ui/StatusBadge'
 import { LoadingState } from '../loading/LoadingState'
 import { OverviewAnalytics } from './overview/OverviewAnalytics'
+import { useReviewWorkspace } from '../resume/reviewWorkspace'
 
 type Data = { kind: 'loading' } | { kind: 'error'; workspaceId: string; message: string }
   | { kind: 'ready'; workspaceId: string; value: OverviewView }
 
 export function OverviewPage({ session }: { session: SessionView }) {
   const [params, setParams] = useSearchParams()
-  const workspace = session.memberships.find((item) => item.workspace_id === params.get('workspace')) ?? session.memberships[0]
+  const preferred = useReviewWorkspace(session.user_id)
+  const workspace = session.memberships.find((item) => item.workspace_id === params.get('workspace'))
+    ?? session.memberships.find(item => item.workspace_id === preferred) ?? session.memberships[0]
   const workspaceId = workspace?.workspace_id ?? ''
   const [data, setData] = useState<Data>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)

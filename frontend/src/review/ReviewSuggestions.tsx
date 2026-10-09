@@ -6,10 +6,12 @@ import { CsvReview } from './CsvReview'
 import { DisabledReason } from '../ui/DisabledReason'
 import { cn } from '../ui/cn'
 import { RefreshButton } from '../ui/WorkspaceControls'
+import { detectionChoices } from '../detection/categories'
 
 export function ReviewSuggestions({ review }: { review: ReviewController }) {
   if (review.state.kind !== 'ready') return null
   const { scan } = review
+  const scanChoices = detectionChoices.filter(choice => review.state.kind === 'ready' && review.state.saved.categories.includes(choice.category))
   const complete = scan?.status === 'completed'
   const blocked = review.dirty || review.settingsDirty || review.actionPending || review.conflict
   const blockedReason = review.conflict ? 'Load the latest saved review first.'
@@ -54,6 +56,13 @@ export function ReviewSuggestions({ review }: { review: ReviewController }) {
         )}
         <RefreshButton label="Refresh scan status" disabled={review.dirty || review.actionPending} onClick={() => void review.refreshScan()} />
       </div>
+      <p className="scan-blocked-note">Scanning for: {scanChoices.map(choice => choice.label).join(', ') || 'manual findings only'}.
+        {scanChoices.length < detectionChoices.length ? ' Other categories are excluded. ' : ' '}
+        {review.canEdit && <button type="button" className="button-link" onClick={() => {
+          const settings = document.getElementById('review-suggestion-settings') as HTMLDetailsElement | null
+          if (settings) { settings.open = true; settings.scrollIntoView({ block: 'nearest' }); settings.querySelector<HTMLElement>('summary')?.focus() }
+        }}>Change categories</button>}
+      </p>
       {blocked && <p className="scan-blocked-note" role="status">{blockedReason}</p>}
       {scan?.status === 'scanning' && (
         <div><LoadingState label="Checking for sensitive details…" compact

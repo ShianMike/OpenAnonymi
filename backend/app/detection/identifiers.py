@@ -8,6 +8,11 @@ from app.detection.rules import MAX_SUGGESTIONS, DetectionLimitError, Suggestion
 
 IP = re.compile(r"(?<![\w.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?!\w|\.[0-9])")
 CARD = re.compile(r"(?<!\w)(?:[0-9][ -]?){12,18}[0-9](?!\w)")
+REFERENCE = re.compile(
+    r"(?<!\w)(?:customer[ \t]+id|account[ \t]+(?:id|reference|number)|ticket|invoice)"
+    r"[*_`]{0,2}(?:[ \t]{0,8}[:=#][ \t*_`]{0,8}|[ \t]{1,8})"
+    r"([A-Z][A-Z0-9]{1,15}(?:-[A-Z0-9]{1,16}){1,4})(?![\w-])", re.IGNORECASE,
+)
 
 
 def luhn(digits: str) -> bool:
@@ -49,4 +54,14 @@ def detect_identifiers(source: str) -> list[Suggestion]:
                     else "Matches payment card length and checksum; validity does not imply a real account.",
                 )
             )
-    return result
+    for match in REFERENCE.finditer(source):
+        if not any(character.isdigit() for character in match[1]):
+            continue
+        if len(result) >= MAX_SUGGESTIONS:
+            raise DetectionLimitError("too_many_suggestions")
+        result.append(Suggestion(
+            SourceSpan(start=match.start(1), end=match.end(1)), FindingCategory.IDENTIFIER,
+            "identifier.labeled_reference", "1",
+            "Reference following an explicit customer, account, ticket or invoice label.",
+        ))
+    return sorted(result, key=lambda item: (item.span.start, item.span.end))

@@ -4,6 +4,8 @@ import { ChevronDown, ChevronRight, LogOut, Menu as MenuIcon, Palette, Settings2
 import { Link, useLocation } from 'react-router-dom'
 import type { SessionView } from '../api/client'
 import { NotificationLink } from '../notifications/NotificationLink'
+import { useReviewWorkspace } from '../resume/reviewWorkspace'
+import { workspacePages } from './navigation'
 
 const GlobalSearch = lazy(() => import('../search/GlobalSearch').then((module) => ({ default: module.GlobalSearch })))
 
@@ -18,8 +20,10 @@ export function Topbar({ session, title, menuOpen, menuButtonRef, accountButtonR
   signOutPending: boolean
 }) {
   const { pathname, search } = useLocation()
+  const preferred = useReviewWorkspace(session.user_id)
   const workspace = session.memberships.find((item) => item.workspace_id === new URLSearchParams(search).get('workspace'))
-    ?? (pathname === '/' || session.memberships.length === 1 ? session.memberships[0] : null)
+    ?? (workspacePages.includes(pathname) ? session.memberships.find(item => item.workspace_id === preferred) : null)
+    ?? (workspacePages.includes(pathname) || session.memberships.length === 1 ? session.memberships[0] : null)
   const workspaceLabel = workspace?.workspace_name ?? `${session.memberships.length} workspaces`
   const initials = session.email.split('@')[0].split(/[._+-]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase()
   const openingConfirmation = useRef(false)

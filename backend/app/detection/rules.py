@@ -7,15 +7,16 @@ import phonenumbers
 
 from app.contracts import AUTOMATIC_CATEGORIES, MAX_CODE_POINTS, FindingCategory, SourceSpan
 
-DETECTOR_VERSION = "2"
+DETECTOR_VERSION = "3"
 MAX_SUGGESTIONS = 1_000
 MAX_PHONE_DIGITS = 20_000
 
 # This intentionally recognizes common ASCII mailbox syntax. Exact matched text
 # stays in the encrypted source and is never copied into a finding row.
+# Markdown emphasis/code markers and log assignment separators bound a mailbox.
 EMAIL_PATTERN = re.compile(
-    r"(?<![A-Za-z0-9.!#$%&'*+/=?^_`{|}~-])"
-    r"[A-Za-z0-9](?:[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{0,62}[A-Za-z0-9])?"
+    r"(?<![A-Za-z0-9.!#$%&'+/?^_{|}~-])"
+    r"[A-Za-z0-9](?:[A-Za-z0-9.!#$%&'+/?^_{|}~-]{0,62}[A-Za-z0-9])?"
     r"@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.){1,10}"
     r"[A-Za-z]{2,63}(?![A-Za-z0-9-])"
 )
@@ -69,7 +70,7 @@ def detect_suggestions(
                     span=SourceSpan(start=match.start(), end=match.end()),
                     category=FindingCategory.EMAIL,
                     rule_id="email.common_syntax",
-                    rule_version="2",
+                    rule_version="3",
                     reason="Matches common email address syntax.",
                 ),
             )

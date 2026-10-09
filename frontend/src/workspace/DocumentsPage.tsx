@@ -30,7 +30,7 @@ type Deletion = { item: DocumentIndexView; trigger: HTMLButtonElement | null }
 type Renewal = Deletion & { workspaceId: string }
 
 export function DocumentsPage({ session }: { session: SessionView }) {
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const [workspaceId, setWorkspaceId] = useState(() => session.memberships.find((item) => item.workspace_id === params.get('workspace'))?.workspace_id ?? session.memberships[0]?.workspace_id ?? '')
   const [data, setData] = useState<Data>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
@@ -201,6 +201,7 @@ export function DocumentsPage({ session }: { session: SessionView }) {
                 disabled={bulkPending || deleting || preferencePending.size > 0 || renewing !== null}
                 onValueChange={(value) => {
                   setWorkspaceId(value)
+                  setParams(current => { const next = new URLSearchParams(current); next.set('workspace', value); return next })
                   currentWorkspace.current = value
                   setData({ kind: 'loading' })
                   setRefreshError(null)

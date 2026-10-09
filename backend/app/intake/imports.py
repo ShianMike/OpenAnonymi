@@ -217,7 +217,7 @@ def extract_import(
             "md",
             None,
             (
-                "Markdown is imported as literal text. HTML, image references and links are not opened.",
+                "Markdown source is preserved. Formatting appears in the review; HTML, images and links stay inactive.",
             ),
         )
     if suffix == ".txt":

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { ArrowDownRight, ArrowRight, Check, Pause, Play } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Brand } from '../ui/Brand'
+import { AppCredit } from '../ui/AppCredit'
 import { LandingNav } from './LandingNav'
 import { ReviewDemo } from './ReviewDemo'
 import { WorkflowStory } from './WorkflowStory'
@@ -55,7 +56,7 @@ export function LandingPage({ signedIn, sessionError, onRetry }: {
         <div><Link to="/welcome" aria-label="OpenAnonymi home"><Brand /></Link></div>
         <nav aria-label="Landing page footer"><a href="#how-it-works">The process</a><Link to={signedIn ? '/continue' : '/sign-in'}>{signedIn ? 'Continue review' : 'Sign in'}</Link><button className="landing-motion-button" type="button" disabled={reduced} aria-pressed={paused} onClick={toggleMotion}>
           {paused ? <Play size={14} aria-hidden="true" /> : <Pause size={14} aria-hidden="true" />}{reduced ? 'Reduced motion enabled' : paused ? 'Play animations' : 'Pause animations'}</button></nav>
-        <small>Privacy review. Your decisions.</small>
+        <AppCredit />
       </footer>
     </div>
   )

@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import * as Tabs from '@radix-ui/react-tabs'
 import { useSearchParams } from 'react-router-dom'
 import type { SessionView } from '../api/client'
 import { PageHeader } from '../ui/PageHeader'
@@ -49,10 +50,14 @@ export function ContinueReviewPage({ session }: { session: SessionView }) {
       {data.kind === 'ready' && queue && <>
         {data.unavailable && <p className="continue-notice" role="status">Your last review is no longer available. It may have expired or your access changed. Choose another review below.</p>}
         <LastReviewCard item={queue.last} now={data.checkedAt} workspaceId={workspaceId} />
-        <div className="continue-queues">
-          <ReviewQueueList key={`own.${workspaceId}`} items={queue.unfinished} now={data.checkedAt} workspaceId={workspaceId} />
-          <ReviewQueueList key={`assigned.${workspaceId}`} items={queue.assigned} assigned now={data.checkedAt} workspaceId={workspaceId} />
-        </div>
+        <Tabs.Root className="continue-queues" key={workspaceId} defaultValue={queue.unfinished.length ? 'own' : 'shared'}>
+          <Tabs.List aria-label="Review queues" className="continue-queue-tabs">
+            <Tabs.Trigger value="own">Your unfinished reviews <span>{queue.unfinished.length}</span></Tabs.Trigger>
+            <Tabs.Trigger value="shared">Shared with you <span>{queue.assigned.length}</span></Tabs.Trigger>
+          </Tabs.List>
+          <Tabs.Content value="own"><ReviewQueueList key={`own.${workspaceId}`} items={queue.unfinished} now={data.checkedAt} workspaceId={workspaceId} /></Tabs.Content>
+          <Tabs.Content value="shared"><ReviewQueueList key={`assigned.${workspaceId}`} items={queue.assigned} assigned now={data.checkedAt} workspaceId={workspaceId} /></Tabs.Content>
+        </Tabs.Root>
       </>}
     </>}
   </section>

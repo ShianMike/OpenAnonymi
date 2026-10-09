@@ -56,6 +56,35 @@ def test_identifiers_only_valid_syntax_checksums():
         detect_identifiers("192.0.2.1 " * 1001)
 
 
+def test_markdown_names_repeat_with_exact_source_positions():
+    source = (
+        "# Meeting 😀\n\n| Name | Role |\n| --- | --- |\n"
+        "| Maya Ellison | Operations Lead |\n| Priya Shah | External Consultant |\n"
+        "**Jordan Avery** reported the issue.\n\n"
+        "**Prepared by:** Maya Ellison\n- [ ] **Maya Ellison:** Send the report.\n"
+        "- [ ] **Priya Shah:** Read the text.\n- [ ] **Jordan Avery:** Confirm details.\n"
+    )
+    found = detect_suggestions(source, {FindingCategory.PERSON}, "US")
+    for name in ("Maya Ellison", "Priya Shah", "Jordan Avery"):
+        matches = [item for item in found if source[item.span.start:item.span.end] == name]
+        assert len(matches) == source.count(name)
+    assert detect_suggestions(source, {FindingCategory.EMAIL}, "US") == []
+
+
+def test_labeled_references_include_markdown_and_logs_but_not_project_details():
+    source = (
+        "😀 **Customer ID:** CUST-009184\n**Account reference:** ACCT-TEST-74291\n"
+        "**Ticket:** HELP-2026-1042\nConfirm invoice INV-2026-0087.\n"
+        "ticket=HELP-2026-1042 status=pending\n"
+        "Project Atlas has a 14-day review and a $5,000 budget. Ticket in-progress."
+    )
+    found = detect_suggestions(source, {FindingCategory.IDENTIFIER}, "US")
+    assert [source[item.span.start:item.span.end] for item in found] == [
+        "CUST-009184", "ACCT-TEST-74291", "HELP-2026-1042", "INV-2026-0087",
+        "HELP-2026-1042",
+    ]
+
+
 def test_missing_model_is_explicit_failure(monkeypatch):
     import spacy
 

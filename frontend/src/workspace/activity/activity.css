@@ -43,12 +43,6 @@
 .activity-search-field input::-webkit-search-cancel-button { display: none; }
 .activity-search-field .quiet-icon { position: absolute; right: 0; top: 0; width: 44px; height: 44px; }
 .activity-filter-bar .glass-select-trigger { width: 100%; min-height: 44px; font-size: .82rem; }
-.activity-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; padding: 8px 16px; border-block: 1px solid var(--line); background: var(--surface); }
-.activity-pagination p { margin: 0; font-size: .77rem; font-variant-numeric: tabular-nums; color: var(--muted); }
-.activity-pagination > div { display: flex; align-items: center; gap: 8px; }
-.activity-pagination > div > span { min-width: 70px; text-align: center; color: var(--muted); font-size: .74rem; font-variant-numeric: tabular-nums; }
-.activity-pagination button { width: 44px; min-height: 44px; border: 1px solid var(--line); border-radius: 9px; }
-.activity-pagination button + button { margin-left: 0; }
 .activity-timeline { list-style: none; margin: 0; padding: 0; }
 .activity-event { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); }
 .activity-event:last-child { border-bottom: 0; }
@@ -88,7 +82,7 @@ a.activity-event-detail:hover > strong { color: var(--blue-strong); text-decorat
   .activity-view-tabs > button { padding-inline: 8px; font-size: .78rem; }
   .activity-filter-bar { grid-template-columns: 1fr; padding: 14px; }
   .activity-search-field input[type='search'] { font-size: 16px; }
-  .activity-pagination { padding: 8px 14px; }
+  .activity-feed .list-pagination { padding: 8px 14px; }
   .activity-event { grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; padding: 12px 14px; }
   .activity-event-icon { width: 28px; height: 28px; border-radius: 8px; }
   .activity-event-detail > strong { font-size: .8rem; }
@@ -99,6 +93,6 @@ a.activity-event-detail:hover > strong { color: var(--blue-strong); text-decorat
   .activity-scope { padding: 12px 14px; }
 }
 @media (forced-colors: active) {
-  .activity-summary, .activity-feed, .activity-event-icon, .activity-pagination button { border-color: CanvasText; background: Canvas; }
+  .activity-summary, .activity-feed, .activity-event-icon { border-color: CanvasText; background: Canvas; }
   .activity-view-tabs > button[data-state='active']::after { background: Highlight; }
 }

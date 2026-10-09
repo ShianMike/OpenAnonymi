@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import * as Tabs from '@radix-ui/react-tabs'
+import { useSearchParams } from 'react-router-dom'
 import { History, Users } from 'lucide-react'
 import { GlassSelect } from '../ui/GlassSelect'
 import {
@@ -23,7 +24,8 @@ type Data =
   | { kind: 'ready'; value: ActivityView; documents: DocumentMap; titlesUnavailable: boolean; refreshing?: boolean }
 
 export function ActivityPage({ session }: { session: SessionView }) {
-  const [workspaceId, setWorkspaceId] = useState(session.memberships[0]?.workspace_id ?? '')
+  const [params, setParams] = useSearchParams()
+  const [workspaceId, setWorkspaceId] = useState(() => session.memberships.find(item => item.workspace_id === params.get('workspace'))?.workspace_id ?? session.memberships[0]?.workspace_id ?? '')
   const [data, setData] = useState<Data>({ kind: 'loading' })
   const [attempt, setAttempt] = useState(0)
   const [view, setView] = useState('own')
@@ -67,6 +69,7 @@ export function ActivityPage({ session }: { session: SessionView }) {
           <label htmlFor="activity-workspace">Workspace</label>
           <GlassSelect id="activity-workspace" value={workspaceId} onValueChange={value => {
             setWorkspaceId(value); setData({ kind: 'loading' }); setView('own')
+            setParams(current => { const next = new URLSearchParams(current); next.set('workspace', value); return next })
           }}>{session.memberships.map((membership, index) => <option key={membership.workspace_id} value={membership.workspace_id}>
             {membership.workspace_name || `Workspace ${index + 1}`}
           </option>)}</GlassSelect>

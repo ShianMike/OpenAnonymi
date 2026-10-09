@@ -2,6 +2,7 @@ import { memo, useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import type { ReviewController } from './useReviewController'
 import { FindingPopover } from './FindingPopover'
 import { segmentText, type TextMark, type ReviewFinding, type TextSegment } from './textSegments'
+import { MarkdownText } from './MarkdownText'
 
 type MarkProps = {
   finding: ReviewFinding; segment: TextSegment; review: ReviewController
@@ -54,7 +55,7 @@ export function ReviewText({
           : 'Reviewed output with clickable findings'
       }
     >
-      {segments.map((segment) => {
+      <MarkdownText text={text} segments={segments} plain={review.state.kind === 'ready' && Boolean(review.state.saved.csv)} renderSegment={(segment) => {
         const finding = segment.findings[0]
         if (!finding) return segment.text
         return (
@@ -70,7 +71,7 @@ export function ReviewText({
             fictional={variant === 'preview' && Boolean(review.preview?.fictional_finding_ids?.includes(finding.finding_id))}
           />
         )
-      })}
+      }} />
     </div>
   )
 }
