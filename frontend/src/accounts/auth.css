@@ -978,6 +978,8 @@ html[data-theme='light'] .auth-shell .password-toggle:disabled {
     transform: translateY(6px);
   }
 }
+.auth-terms { margin: 18px 0 0; color: var(--muted); font-size: .75rem; line-height: 1.65; text-wrap: pretty; }
+.auth-terms a { color: var(--text); text-underline-offset: 3px; }
 @keyframes auth-chip-in {
   from {
     opacity: 0;

@@ -44,7 +44,7 @@ def site(tmp_path):
     assert events == ["started", "stopped"]
 
 
-@pytest.mark.parametrize("path", ["/", "/documents", "/review/synthetic-id", "/preferences"])
+@pytest.mark.parametrize("path", ["/", "/documents", "/review/synthetic-id", "/preferences", "/terms", "/privacy"])
 def test_website_and_deep_links_serve_the_compiled_index(site, path):
     client, index = site
     response = client.get(path)
