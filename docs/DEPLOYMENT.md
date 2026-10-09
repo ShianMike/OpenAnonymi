@@ -17,6 +17,7 @@ store.
 | `PRIVACY_REVIEW_DATABASE_URL` | PostgreSQL with certificate and hostname verification: `sslmode=verify-full`, using the provider's public CA or `sslrootcert=system` |
 | `PRIVACY_REVIEW_ALLOWED_ORIGINS` | JSON array of exact HTTPS website origins |
 | `PRIVACY_REVIEW_ACTIVE_KEY_ID`, `PRIVACY_REVIEW_CONTENT_KEYS` | Active Fernet key ID and keyring, outside Git and the database |
+| `PRIVACY_REVIEW_ATTEMPT_SUBJECT_KEY` | Separate, stable base64-encoded 32-byte authentication-limiter key; keep fixed when content keys rotate |
 | `PRIVACY_REVIEW_HTTPS_REDIRECT_ENABLED` | `true` behind a correctly configured trusted HTTPS proxy |
 | `PRIVACY_REVIEW_TRUSTED_PROXY_HOPS` | Measured trusted proxy chain length; do not blindly trust visitor-supplied forwarding headers |
 | `PRIVACY_REVIEW_SMTP_*` | Authenticated SMTP with STARTTLS for registration, verification, recovery, and optional notification emails |
@@ -81,6 +82,12 @@ If startup fails, inspect redacted fixed-message logs and the host's release
 status. Do not regenerate keys or restore an old database blindly. A code
 rollback does not reverse a schema migration; inspect migration compatibility
 and recover using a verified backup when necessary.
+
+When upgrading a deployment that previously derived limiter digests from its
+active content key, initialize the stable limiter key from that existing HKDF
+output before changing content keys. It uses SHA-256, 32 bytes, no salt, and
+`info=b"openanonymi-attempt-subjects-v1"`. Keep that value fixed thereafter so
+existing authentication budgets and subject counts survive the upgrade.
 
 ## Scheduled cleanup
 

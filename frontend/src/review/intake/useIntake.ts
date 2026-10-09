@@ -135,7 +135,7 @@ export function useIntake(session: SessionView) {
 
   function setWorkspaceId(value: string) {
     if (value === workspaceId) return
-    resetFilePreview()
+    if (fileLoading) resetFilePreview()
     storeWorkspaceId(value)
   }
 

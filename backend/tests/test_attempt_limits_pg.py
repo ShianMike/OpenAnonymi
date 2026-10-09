@@ -1,10 +1,12 @@
 """Real PostgreSQL budgets across independent callers and concurrent requests."""
 
+import base64
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from sqlalchemy import create_engine, delete, func, insert, select
+from cryptography.fernet import Fernet
+from sqlalchemy import create_engine, delete, distinct, func, insert, select
 from sqlalchemy.orm import Session
 
 from app.accounts.limits import AttemptLimiter
@@ -104,3 +106,37 @@ def test_network_cap_does_not_apply_to_address_budgets(intake_site):
             session.execute(
                 delete(AttemptEvent).where(AttemptEvent.scope.in_([scope, addresses.scope]))
             )
+
+
+def test_stable_key_preserves_legacy_counts_and_subject_cap_after_content_key_rotation(intake_site):
+    owner, _, engine, _, _ = intake_site
+    scope = "rotation_" + uuid4().hex
+    settings = owner.app.state.settings
+    legacy = AttemptLimiter(engine, settings, scope=scope, maximum=3, subject_cap=2)
+    stable_key = base64.urlsafe_b64encode(legacy.key).decode()
+    rotated_key = Fernet.generate_key().decode()
+    rotated = Settings(
+        **(settings.model_dump() | {
+            "active_key_id": "rotated",
+            "content_keys": {**settings.content_keys, "rotated": rotated_key},
+            "attempt_subject_key": stable_key,
+        }), _env_file=None,
+    )
+    retired = Settings(
+        **(rotated.model_dump() | {"content_keys": {"rotated": rotated_key}}), _env_file=None,
+    )
+    current = AttemptLimiter(engine, rotated, scope=scope, maximum=3, subject_cap=2)
+    restarted = AttemptLimiter(engine, retired, scope=scope, maximum=3, subject_cap=2)
+    try:
+        assert legacy.take("network-a") and legacy.take("network-b")
+        assert current.take("network-a")
+        assert restarted.take("network-a")
+        assert not legacy.take("network-a") and not restarted.take("network-a")
+        assert not restarted.take("network-c")
+        with Session(engine) as session:
+            assert session.scalar(select(func.count(distinct(AttemptEvent.subject_hmac))).where(
+                AttemptEvent.scope == scope,
+            )) == 2
+    finally:
+        with Session(engine) as session, session.begin():
+            session.execute(delete(AttemptEvent).where(AttemptEvent.scope == scope))

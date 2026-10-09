@@ -18,6 +18,7 @@ def client(environment="production"):
         database_url="postgresql+psycopg://synthetic:synthetic@localhost/review",
         allowed_origins=[ORIGIN],
         environment=environment,
+        attempt_subject_key=Fernet.generate_key().decode(),
         active_key_id="synthetic",
         content_keys={"synthetic": Fernet.generate_key().decode()},
         _env_file=None,

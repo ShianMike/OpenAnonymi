@@ -170,6 +170,7 @@ jobs:
             -e PRIVACY_REVIEW_DATABASE_URL="$PRIVACY_REVIEW_TEST_DATABASE_URL" \
             -e PRIVACY_REVIEW_ALLOWED_ORIGINS='["https://app.example.invalid","https://127.0.0.1:8080"]' \
             -e PRIVACY_REVIEW_ACTIVE_KEY_ID=ci \
+            -e PRIVACY_REVIEW_ATTEMPT_SUBJECT_KEY="$key" \
             -e PRIVACY_REVIEW_CONTENT_KEYS="{\"ci\":\"$key\"}" \
             -e PRIVACY_REVIEW_TRUSTED_PROXY_HOPS=1 \
             -e PRIVACY_REVIEW_HTTPS_REDIRECT_ENABLED=true \

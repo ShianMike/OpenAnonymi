@@ -54,6 +54,7 @@ def test_production_accepts_verified_remote_database():
         environment="production",
         active_key_id="synthetic",
         content_keys={"synthetic": Fernet.generate_key().decode()},
+        attempt_subject_key=Fernet.generate_key().decode(),
     )
     assert configured.environment == "production"
 

@@ -32,7 +32,9 @@ class AttemptLimiter:
         self.engine, self.scope = engine, scope
         self.maximum, self.window_seconds = maximum, window_seconds
         self.network_scope, self.subject_cap = network_scope, subject_cap
-        if settings.active_key_id:
+        if settings.attempt_subject_key is not None:
+            self.key = base64.urlsafe_b64decode(settings.attempt_subject_key.get_secret_value())
+        elif settings.active_key_id:
             material = base64.urlsafe_b64decode(
                 settings.content_keys[settings.active_key_id].get_secret_value()
             )

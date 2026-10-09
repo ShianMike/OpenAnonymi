@@ -291,6 +291,7 @@ def test_real_production_challenge_and_session_cookie_attributes_match(intake_si
         database_url=current.database_url,
         allowed_origins=[origin],
         environment="production",
+        attempt_subject_key=current.content_keys[current.active_key_id],
         active_key_id=current.active_key_id,
         content_keys=current.content_keys,
         _env_file=None,

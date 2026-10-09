@@ -171,6 +171,7 @@ def test_production_cookie_is_secure_and_foreign_origin_cannot_sign_in(auth_site
         database_url=os.environ["PRIVACY_REVIEW_TEST_DATABASE_URL"],
         allowed_origins=[origin],
         environment="production",
+        attempt_subject_key=Fernet.generate_key().decode(),
         active_key_id="synthetic",
         content_keys={"synthetic": Fernet.generate_key().decode()},
         _env_file=None,

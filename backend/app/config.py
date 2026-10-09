@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     registration_enabled: bool = True
     active_key_id: str | None = None
     content_keys: dict[str, SecretStr] = Field(default_factory=dict, repr=False)
+    attempt_subject_key: SecretStr | None = Field(default=None, repr=False)
     _attempt_subject_key: bytes = PrivateAttr(default_factory=lambda: secrets.token_bytes(32))
     smtp_host: str | None = None
     smtp_port: int = Field(default=465, ge=1, le=65535)
@@ -52,6 +53,16 @@ class Settings(BaseSettings):
     # libpq connect timeout in seconds; managed databases that suspend may need longer.
     database_connect_timeout: int = Field(default=2, ge=2, le=60)
     maintenance_token_sha256: SecretStr | None = Field(default=None, repr=False)
+
+    @field_validator("attempt_subject_key")
+    @classmethod
+    def require_attempt_subject_key(cls, value: SecretStr | None):
+        if value is not None:
+            try:
+                Fernet(value.get_secret_value().encode("ascii"))
+            except (ValueError, UnicodeEncodeError):
+                raise ValueError("attempt subject key must be a base64-encoded 32-byte key") from None
+        return value
 
     @field_validator("maintenance_token_sha256")
     @classmethod
@@ -157,6 +168,8 @@ class Settings(BaseSettings):
                     )
             if not self.active_key_id:
                 raise ValueError("production requires an active content encryption key")
+            if self.attempt_subject_key is None:
+                raise ValueError("production requires a stable attempt subject key")
         return self
 
 

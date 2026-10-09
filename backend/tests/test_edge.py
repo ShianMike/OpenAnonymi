@@ -30,6 +30,7 @@ def _settings(**overrides) -> Settings:
 def _production(**overrides) -> Settings:
     return _settings(
         environment="production",
+        attempt_subject_key=Fernet.generate_key().decode(),
         active_key_id="synthetic",
         content_keys={"synthetic": Fernet.generate_key().decode()},
         **overrides,
