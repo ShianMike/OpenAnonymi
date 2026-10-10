@@ -160,8 +160,6 @@
 .scan-scope-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
 .scan-scope-heading strong { color: var(--muted); font-size: .75rem; font-weight: 500; }
 .review-suggestions .scan-scope-heading button { min-height: 44px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--blue-strong); font-size: .76rem; }
-.scan-categories { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 0; }
-.scan-categories li { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font-size: .74rem; line-height: 1.4; }
 .scan-scope-note { margin: 10px 0 0; color: var(--muted); font-size: .73rem; line-height: 1.5; }
 .review-suggestions .scan-explanations,
 .review-suggestions .review-setup {

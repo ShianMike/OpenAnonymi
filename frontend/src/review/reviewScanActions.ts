@@ -52,7 +52,7 @@ export function createReviewScanActions({ documentId, state, dirty, settingsDirt
             : 'Suggestions are ready. Choose what to change in each highlighted detail.',
         )
       } else {
-        setNotice('The check is running. Refresh to see its progress.')
+        setNotice('The check is running. Suggestions will appear automatically when ready.')
       }
       try {
         setFindings(await getFindings(documentId))
@@ -126,7 +126,7 @@ export function createReviewScanActions({ documentId, state, dirty, settingsDirt
   }
 
   async function refreshScan() {
-    if (!documentId || dirty) return
+    if (!documentId || dirty || settingsDirty) return
     try {
       const [latest, scanResult, findingResult, previewResult] = await Promise.all([
         getDraft(documentId),

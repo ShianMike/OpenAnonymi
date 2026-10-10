@@ -76,14 +76,17 @@ export function NewReviewPage({
             <div className="intake-submit-row">
               {intake.error && <InlineNotice error>{intake.error}</InlineNotice>}
               <div className="intake-submit-copy">
-                <strong>Next: check for private details</strong>
+                <strong>Ready to review?</strong>
                 <p id="intake-save-help">{intake.fileLoading ? 'Reading your file. You can check the text next.'
                   : intake.characters === 0 ? 'Add some text or choose a file to get started.'
-                  : 'Save your text, then choose which details to change.'}</p>
+                  : 'You’ll choose which suggestions to keep.'}</p>
               </div>
-              <button className="intake-save" type="submit" disabled={!intake.readyToSave} aria-describedby="intake-save-help">
-                {intake.submitting ? <><LoadingMark small /> Saving draft…</> : intake.pending ? 'Preparing review…' : <>Save draft <ArrowRight size={17} aria-hidden="true" /></>}
-              </button>
+              <div className="intake-submit-actions">
+                <button className="intake-save" type="submit" name="action" value="scan" disabled={!intake.readyToSave} aria-describedby="intake-save-help">
+                  {intake.submitting ? <><LoadingMark small /> {intake.findingSuggestions ? 'Finding suggestions…' : 'Saving draft…'}</> : intake.pending ? 'Preparing review…' : <>Save and find suggestions <ArrowRight size={17} aria-hidden="true" /></>}
+                </button>
+                <button className="intake-save-draft" type="submit" name="action" value="save" disabled={!intake.readyToSave}>Save draft only</button>
+              </div>
             </div>
             <AutosaveStatus recovery={intake.recovery} dirty={intake.intakeDirty} />
           </div>

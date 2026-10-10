@@ -41,7 +41,7 @@ export function ReviewSuggestions({ review }: { review: ReviewController }) {
       </div>
       <div className="scan-actions">
         {!complete && review.canEdit && (
-          <DisabledReason disabled={blocked || scan?.status === 'scanning'} reason={scan?.status === 'scanning' ? 'The check is running. Refresh to see its progress.' : blockedReason}><button
+          <DisabledReason disabled={blocked || scan?.status === 'scanning'} reason={scan?.status === 'scanning' ? 'The check is running. Suggestions will appear automatically when ready.' : blockedReason}><button
             className="button-primary"
             type="button"
             disabled={blocked || scan?.status === 'scanning'}
@@ -54,7 +54,7 @@ export function ReviewSuggestions({ review }: { review: ReviewController }) {
                 : 'Find suggestions'}<ArrowRight size={16} aria-hidden="true" />
           </button></DisabledReason>
         )}
-        {scan && scan.status !== 'not_started' && <RefreshButton label="Refresh scan status" disabled={review.dirty || review.actionPending} onClick={() => void review.refreshScan()} />}
+        {scan && scan.status !== 'not_started' && <RefreshButton label="Refresh scan status" disabled={blocked} onClick={() => void review.refreshScan()} />}
       </div>
       <div className="scan-scope">
         <div className="scan-scope-heading"><strong>Selected categories</strong>
@@ -70,8 +70,8 @@ export function ReviewSuggestions({ review }: { review: ReviewController }) {
       {blocked && <p className="scan-blocked-note" role="status">{blockedReason}</p>}
       {scan?.status === 'scanning' && (
         <div><LoadingState label="Checking for sensitive details…" compact
-          slowMessage="Suggestions are still being checked. Refresh to check their status." />
-          <p className="field-note">Use refresh to check when suggestions are ready.</p>
+          slowMessage="Suggestions are still being checked. Their status updates automatically." />
+          <p className="field-note">Suggestions will appear automatically when ready.</p>
         </div>
       )}
       {scan?.status === 'failed' && (

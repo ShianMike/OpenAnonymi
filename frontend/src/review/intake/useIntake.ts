@@ -1,4 +1,4 @@
-import { importPreview } from '../../imports/api'
+import { importPreview, type ImportPreview } from '../../imports/api'
 import { defaultDetectionCategories, extras } from '../../detection/categories'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
@@ -9,6 +9,7 @@ import {
   createFileDraft,
   getIntakeDefaults,
   getWorkspacePresets,
+  startScan,
   type IntakeDefaultsView,
   type PresetView,
   type SessionView,
@@ -44,6 +45,8 @@ export function useIntake(session: SessionView) {
   const [fileOriginalText, setFileOriginalText] = useState('')
   const [fileLoading, setFileLoading] = useState(false)
   const [fileNotes, setFileNotes] = useState<string[]>([])
+  const [filePagePreviews, setFilePagePreviews] = useState<NonNullable<ImportPreview['page_previews']>>([])
+  const [filePages, setFilePages] = useState<number | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
   const [csvDelimiter, setCsvDelimiter] = useState<CsvDelimiter | 'auto'>('auto')
   const [csvHeader, setCsvHeader] = useState<'auto' | 'true' | 'false'>('auto')
@@ -57,6 +60,7 @@ export function useIntake(session: SessionView) {
   const [presetId, setPresetId] = useState('')
   const [retentionDays, setRetentionDays] = useState(7)
   const [submitting, setPending] = useState(false)
+  const [findingSuggestions, setFindingSuggestions] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -94,6 +98,8 @@ export function useIntake(session: SessionView) {
     setFileOriginalText('')
     setFileError(null)
     setFileNotes([])
+    setFilePagePreviews([])
+    setFilePages(null)
     setCsvPreview(null)
     setFileLoading(false)
     if (!selected) return
@@ -118,6 +124,8 @@ export function useIntake(session: SessionView) {
       setFileText(result.text)
       setFileOriginalText(result.text)
       setFileNotes(result.notes)
+      setFilePagePreviews(result.page_previews ?? [])
+      setFilePages(result.pages)
       setCsvPreview(result.csv ?? null)
     } catch (cause) {
       if (fileAttempt.current === request) setFileError(messageFrom(cause))
@@ -130,6 +138,7 @@ export function useIntake(session: SessionView) {
     // A result from the old workspace must not populate the new workspace's draft.
     ++fileAttempt.current
     setFile(null); setFileText(''); setFileOriginalText(''); setFileNotes([])
+    setFilePagePreviews([]); setFilePages(null)
     setCsvPreview(null); setFileError(null); setFileLoading(false)
   }
 
@@ -152,6 +161,7 @@ export function useIntake(session: SessionView) {
     if (mode === 'file' && (!file || fileError || fileLoading || !fileText.trim())) return
     setPending(true)
     setError(null)
+    const findSuggestions = (event.nativeEvent as SubmitEvent).submitter?.getAttribute('value') !== 'save'
     const categories = [...(emailEnabled ? ['email'] : []), ...(phoneEnabled ? ['phone'] : []), ...extraCategories]
     try {
       const saved = mode === 'file' && file ? await createFileDraft(workspaceId, file, title.trim(), categories, phoneRegion, retentionDays, session.csrf_token, workspacePresetId(presetId) ?? undefined, language, csvDelimiter, csvHeader, fileText) : await createPastedDraft({ workspace_id: workspaceId,
@@ -160,12 +170,23 @@ export function useIntake(session: SessionView) {
         retention_days: retentionDays, preset_id: workspacePresetId(presetId),
       }, session.csrf_token)
       await recovery.clear().catch(() => undefined)
+      let scanError: string | null = null
+      if (findSuggestions) {
+        setFindingSuggestions(true)
+        try {
+          await startScan(saved.version.document_id, saved.version, session.csrf_token)
+        } catch (cause: unknown) {
+          // The draft already exists; open it for retry rather than create a duplicate.
+          scanError = `Your draft was saved, but suggestions could not start. ${messageFrom(cause)}`
+        }
+      }
       allowNavigationRef.current = true
-      navigate(`/documents/${saved.version.document_id}/edit`)
+      navigate(`/documents/${saved.version.document_id}/edit`, { state: scanError ? { scanError } : null })
     } catch (cause: unknown) {
       setError(messageFrom(cause))
     } finally {
       setPending(false)
+      setFindingSuggestions(false)
     }
   }
 
@@ -245,6 +266,8 @@ export function useIntake(session: SessionView) {
     fileLoading,
     fileError,
     fileNotes,
+    filePagePreviews,
+    filePages,
     csvDelimiter,
     csvHeader,
     csvPreview,
@@ -274,6 +297,7 @@ export function useIntake(session: SessionView) {
     overLimit,
     readyToSave,
     submitting,
+    findingSuggestions,
     intakeDirty,
     allowNavigationRef,
   }

@@ -22,10 +22,12 @@ it('keeps scanning gated by saved changes and ownership, and shows refresh only 
   expect(initial).toContain('Other categories won’t be scanned.')
   for (const blocked of [{ dirty: true }, { settingsDirty: true }, { conflict: true }, { actionPending: true }]) {
     expect(button(render({ ...review, ...blocked }), 'Find suggestions')).toContain('disabled=""')
+    expect(button(render({ ...review, ...blocked, scan: { ...review.scan!, status: 'completed' } }), 'Refresh scan status')).toContain('disabled=""')
   }
   const scanning = render({ ...review, scan: { ...review.scan!, status: 'scanning' } })
   expect(button(scanning, 'Scanning…')).toContain('disabled=""')
   expect(scanning).toContain('aria-label="Refresh scan status"')
+  expect(scanning).toContain('Suggestions will appear automatically when ready.')
   const completed = render({ ...review, scan: { ...review.scan!, status: 'completed' } })
   expect(completed).not.toContain('Find suggestions')
   expect(completed).toContain('No suggestions found. Review the full text before sharing.')

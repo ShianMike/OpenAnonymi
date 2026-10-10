@@ -26,12 +26,19 @@ logging.getLogger("pypdf").setLevel(logging.CRITICAL)
 
 
 @dataclass(frozen=True)
+class ImportedPagePreview:
+    page_number: int
+    data_url: str
+
+
+@dataclass(frozen=True)
 class ImportedText:
     source: ValidatedSource
     format: str
     pages: int | None
     notes: tuple[str, ...]
     layout: dict | None = None
+    page_previews: tuple[ImportedPagePreview, ...] = ()
 
 
 def _has_images(page, page_stream) -> bool:
@@ -78,7 +85,7 @@ def _has_images(page, page_stream) -> bool:
     return visit(page.get("/Resources"), page_stream)
 
 
-def _pdf(content: bytes) -> ImportedText:
+def _pdf(content: bytes, include_previews: bool = False) -> ImportedText:
     from pypdf import Configuration, PdfReader, apply_configuration
 
     if not content.startswith(b"%PDF-"):
@@ -121,12 +128,14 @@ def _pdf(content: bytes) -> ImportedText:
             if chars > MAX_CODE_POINTS:
                 raise SourceValidationError("Extracted text exceeds the 100,000-character limit.")
             pieces.append(text.rstrip("\n"))
+        previews = ()
         if ocr_pages:
             from app.intake.ocr import extract_ocr
 
             if len(ocr_pages) > 10:
                 raise SourceValidationError("OCR supports at most 10 scanned pages per file.")
-            result = extract_ocr(content, "pdf", tuple(ocr_pages))
+            result = extract_ocr(content, "pdf", tuple(ocr_pages), include_previews=include_previews)
+            previews = tuple(ImportedPagePreview(**page) for page in result.get("page_previews", []))
             for index in ocr_pages:
                 pieces[index] = result["pages"][str(index)]
         text = "\n\n".join(pieces)
@@ -141,7 +150,7 @@ def _pdf(content: bytes) -> ImportedText:
             notes.append(
                 f"Local English OCR checked {len(ocr_pages)} scanned or illustrated pages. Correct missing or misread text before saving."
             )
-        return ImportedText(validate_source(text), "pdf", count, tuple(notes))
+        return ImportedText(validate_source(text), "pdf", count, tuple(notes), page_previews=previews)
 
 
 def _docx(content: bytes) -> ImportedText:
@@ -196,7 +205,8 @@ def _docx(content: bytes) -> ImportedText:
 
 
 def extract_import(
-    filename: str | None, content: bytes, csv_delimiter="auto", csv_header="auto"
+    filename: str | None, content: bytes, csv_delimiter="auto", csv_header="auto",
+    *, include_previews: bool = False,
 ) -> ImportedText:
     suffix = PurePath(filename or "").suffix.lower()
     if suffix == ".csv":
@@ -235,7 +245,7 @@ def extract_import(
         if suffix in images:
             from app.intake.ocr import extract_ocr
 
-            result = extract_ocr(content, "image")
+            result = extract_ocr(content, "image", include_previews=include_previews)
             return ImportedText(
                 validate_source(result["text"]),
                 "image",
@@ -243,8 +253,9 @@ def extract_import(
                 (
                     "Local English OCR can miss or misread text. Correct the extracted text before saving.",
                 ),
+                page_previews=tuple(ImportedPagePreview(**page) for page in result.get("page_previews", [])),
             )
-        return _pdf(content) if suffix == ".pdf" else _docx(content)
+        return _pdf(content, include_previews) if suffix == ".pdf" else _docx(content)
     except SourceValidationError:
         raise
     except Exception:  # noqa: BLE001 -- parser errors must never disclose file content

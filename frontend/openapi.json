@@ -11074,6 +11074,13 @@
                 "type": "null"
               }
             ]
+          },
+          "page_previews": {
+            "items": {
+              "$ref": "#/components/schemas/ImportedPagePreview"
+            },
+            "type": "array",
+            "title": "Page Previews"
           }
         },
         "type": "object",
@@ -11086,6 +11093,24 @@
           "notes"
         ],
         "title": "ImportPreview"
+      },
+      "ImportedPagePreview": {
+        "properties": {
+          "page_number": {
+            "type": "integer",
+            "title": "Page Number"
+          },
+          "data_url": {
+            "type": "string",
+            "title": "Data Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "page_number",
+          "data_url"
+        ],
+        "title": "ImportedPagePreview"
       },
       "IntakeDefaultsView": {
         "properties": {

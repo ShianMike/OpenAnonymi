@@ -36,6 +36,10 @@ def test_actual_preview_edit_save_scan_confirm_outputs_preserve_corrected_source
         headers=headers,
     )
     assert preview.status_code == 200
+    assert "no-store" in preview.headers["cache-control"]
+    pages = preview.json()["page_previews"]
+    assert len(pages) == (1 if kind in ("png", "pdf") else 0)
+    assert all(page["data_url"].startswith("data:image/jpeg;base64,") for page in pages)
     with Session(engine) as session:
         assert (
             session.scalar(
@@ -63,6 +67,7 @@ def test_actual_preview_edit_save_scan_confirm_outputs_preserve_corrected_source
     base = "/api/v1/documents/" + version["document_id"]
     source = owner.get(base + "/source").json()
     assert source["text"] == edited and source["title"] is None
+    assert "page_previews" not in source
     assert other.get(base + "/source").status_code == 401
     with Session(engine) as session:
         revision = session.get(SourceRevision, UUID(version["source_revision_id"]))
@@ -114,8 +119,8 @@ def test_late_auth_change_after_actual_ocr_blocks_preview_or_persistence(
     target = "/api/v1/documents/" + route
     real_extract = imports.extract_import
 
-    def extract_then_revoke(*args):
-        value = real_extract(*args)
+    def extract_then_revoke(*args, **kwargs):
+        value = real_extract(*args, **kwargs)
         with Session(engine) as session, session.begin():
             if change == "session_revoked":
                 session.execute(
@@ -145,6 +150,7 @@ def test_late_auth_change_after_actual_ocr_blocks_preview_or_persistence(
     )
     assert response.status_code == 401
     assert "nora@example.test" not in response.text
+    assert "data:image/jpeg;base64," not in response.text
     with Session(engine) as session:
         assert (
             session.scalar(
