@@ -1,4 +1,4 @@
-import { CheckCircle2, Sparkles, ChevronDown } from 'lucide-react'
+import { ArrowRight, CheckCircle2, ScanLine, Sparkles, ChevronDown } from 'lucide-react'
 import type { ReviewController } from './useReviewController'
 import { ReviewSetup } from './ReviewSetup'
 import { LoadingState } from '../loading/LoadingState'
@@ -47,22 +47,26 @@ export function ReviewSuggestions({ review }: { review: ReviewController }) {
             disabled={blocked || scan?.status === 'scanning'}
             onClick={() => void review.scanDraft()}
           >
-            {review.scanPending
+            <ScanLine size={17} aria-hidden="true" />{review.scanPending || scan?.status === 'scanning'
               ? 'Scanning…'
               : scan?.status === 'failed'
                 ? 'Retry scan'
-                : 'Find suggestions'}
+                : 'Find suggestions'}<ArrowRight size={16} aria-hidden="true" />
           </button></DisabledReason>
         )}
-        <RefreshButton label="Refresh scan status" disabled={review.dirty || review.actionPending} onClick={() => void review.refreshScan()} />
+        {scan && scan.status !== 'not_started' && <RefreshButton label="Refresh scan status" disabled={review.dirty || review.actionPending} onClick={() => void review.refreshScan()} />}
       </div>
-      <p className="scan-blocked-note">Scanning for: {scanChoices.map(choice => choice.label).join(', ') || 'manual findings only'}.
-        {scanChoices.length < detectionChoices.length ? ' Other categories are excluded. ' : ' '}
-        {review.canEdit && <button type="button" className="button-link" onClick={() => {
+      <div className="scan-scope">
+        <div className="scan-scope-heading"><strong>Selected categories</strong>
+        {review.canEdit && <button type="button" className="button-link" aria-label="Change detection categories" onClick={() => {
           const settings = document.getElementById('review-suggestion-settings') as HTMLDetailsElement | null
           if (settings) { settings.open = true; settings.scrollIntoView({ block: 'nearest' }); settings.querySelector<HTMLElement>('summary')?.focus() }
-        }}>Change categories</button>}
-      </p>
+        }}>Change<ArrowRight size={14} aria-hidden="true" /></button>}</div>
+        {scanChoices.length ? <ul className="scan-categories" aria-label="Categories to scan">
+          {scanChoices.map(choice => <li key={choice.category}>{choice.label}</li>)}
+        </ul> : <p className="scan-blocked-note">Manual findings only</p>}
+        {scanChoices.length < detectionChoices.length && <p className="scan-scope-note">Other categories won’t be scanned.</p>}
+      </div>
       {blocked && <p className="scan-blocked-note" role="status">{blockedReason}</p>}
       {scan?.status === 'scanning' && (
         <div><LoadingState label="Checking for sensitive details…" compact

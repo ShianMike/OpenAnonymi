@@ -1,6 +1,6 @@
 :root {
   --motion-fast: 140ms;
-  --motion-ui: 220ms;
+  --motion-ui: 180ms;
   --motion-page: 280ms;
   --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -34,19 +34,22 @@
     .app-shell #main-content [role='tabpanel']:not([hidden]):not([data-state='inactive']) {
       animation: ui-enter var(--motion-ui) var(--motion-ease);
     }
+    :is(.history-timeline > ol, .comparison-result, .comparison-empty-state) {
+      animation: ui-enter var(--motion-ui) var(--motion-ease);
+    }
 
-    :is(.glass-select-menu, .topbar-account-menu, .document-action-menu, .activity-summary-breakdown) {
+    :is(.glass-select-menu, .topbar-account-menu, .document-action-menu, .app-credit-menu, .activity-summary-breakdown) {
       --motion-offset: -6px;
       transform-origin: var(--radix-select-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin, var(--radix-popover-content-transform-origin, top center)));
     }
-    :is(.glass-select-menu, .topbar-account-menu, .document-action-menu, .activity-summary-breakdown)[data-side='top'] {
+    :is(.glass-select-menu, .topbar-account-menu, .document-action-menu, .app-credit-menu, .activity-summary-breakdown)[data-side='top'] {
       --motion-offset: 6px;
     }
-    :is(.glass-select-menu, .topbar-account-menu, .document-action-menu, .activity-summary-breakdown,
+    :is(.glass-select-menu, .topbar-account-menu, .document-action-menu, .app-credit-menu, .activity-summary-breakdown,
         .workspace-dialog, .auth-dialog, .source-reload-dialog, .retention-dialog, .document-delete-dialog, .finding-popover, .global-search-dialog)[data-state='open'] {
       animation: ui-pop-in var(--motion-ui) var(--motion-ease);
     }
-    :is(.glass-select-menu, .topbar-account-menu, .document-action-menu, .activity-summary-breakdown,
+    :is(.glass-select-menu, .topbar-account-menu, .document-action-menu, .app-credit-menu, .activity-summary-breakdown,
         .workspace-dialog, .auth-dialog, .source-reload-dialog, .retention-dialog, .document-delete-dialog, .finding-popover, .global-search-dialog)[data-state='closed'] {
       animation: ui-pop-out var(--motion-fast) ease-in;
       pointer-events: none;
@@ -61,16 +64,23 @@
     .branch-children {
       transition: grid-template-rows var(--motion-ui) var(--motion-ease), opacity var(--motion-fast) ease-out, margin var(--motion-ui) var(--motion-ease);
     }
-    :is(.glass-select-chevron, .branch-heading > svg:last-child, .topbar-profile > svg:last-child, .activity-summary-trigger > svg:last-child) {
+    :is(.glass-select-chevron, .branch-heading > svg:last-child, .topbar-profile > svg:last-child,
+        .app-credit-trigger > svg, .activity-summary-trigger > svg:last-child, .review-setup summary > svg:last-child,
+        .scan-explanations summary > svg, .review-settings summary > svg) {
       transition: transform var(--motion-ui) var(--motion-ease);
     }
-    .topbar-profile[data-state='open'] > svg:last-child { transform: rotate(180deg); }
+    :is(.topbar-profile, .app-credit-trigger)[data-state='open'] > svg:last-child { transform: rotate(180deg); }
 
     :is(.glass-select-option, .topbar-account-menu [role='menuitem'], .document-action-menu [role='menuitem'],
-        .search-results a, .refresh-button, .quiet-button, .button-primary, [role='tab']) {
+        .app-credit-menu [role='menuitem'], .search-results a, .refresh-button, .quiet-button, .quiet-icon,
+        .button-primary, .button-link, .comparison-navigation button, button[type='submit'], [role='tab'],
+        .theme-choice, .theme-choice-check, .display-choice, .comparison-mobile-switch span, .choice-switch input[type='checkbox']) {
       transition: background-color var(--motion-fast) ease-out, color var(--motion-fast) ease-out, border-color var(--motion-fast) ease-out, scale var(--motion-fast) var(--motion-ease);
     }
-    :is(.refresh-button, .quiet-button, .button-primary):active:not(:disabled) { scale: 0.98; }
+    :is(.refresh-button, .quiet-button, .quiet-icon, .button-primary, .comparison-navigation button, button[type='submit']):active:not(:disabled) { scale: 0.98; }
+    .app-shell a { transition: color var(--motion-fast) ease-out; }
+    :is(.glass-checkbox-indicator, .glass-select-check > span, .theme-choice-check > svg,
+        .review-suggestions.is-complete .scan-heading) { animation: ui-fade-in var(--motion-fast) ease-out; }
     :is(.inline-notice, .review-feedback, .search-error) { animation: ui-fade-in var(--motion-ui) ease-out; }
 
     .disabled-reason-tooltip {
@@ -96,6 +106,10 @@
         height: auto;
         opacity: 1;
       }
+    }
+
+    @media (max-width: 760px) {
+      :is(.comparison-before, .comparison-after) { animation: ui-fade-in var(--motion-fast) ease-out; }
     }
 
     @media (max-width: 900px) {

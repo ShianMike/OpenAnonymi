@@ -145,11 +145,13 @@ export function Sidebar({ session, menuOpen, onClose, navRef }: Props) {
           </div>
         ))}
       </nav>
-      <div className="sidebar-note">
-        <ShieldCheck size={18} strokeWidth={1.6} aria-hidden="true" />
-        <div><strong>Share with care</strong><p>Read the reviewed text before you share.</p></div>
+      <div className="sidebar-footer">
+        <div className="sidebar-note">
+          <ShieldCheck size={18} strokeWidth={1.6} aria-hidden="true" />
+          <div><strong>Share with care</strong><p>Read the reviewed text before you share.</p></div>
+        </div>
+        <AppCredit />
       </div>
-      <AppCredit />
     </aside>
   )
 }

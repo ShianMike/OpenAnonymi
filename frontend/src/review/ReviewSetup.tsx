@@ -14,7 +14,7 @@ export function ReviewSetup({ review }: { review: ReviewController }) {
     <details className="review-details review-setup">
       <summary>
         <SlidersHorizontal size={16} aria-hidden="true" />
-        <span>Saved options<small>{choices.map((choice) => choice.label).join(', ') || 'Mark details yourself'}</small></span>
+        <span>Saved options<small>Language, phone region, and retention</small></span>
         <ChevronDown size={14} aria-hidden="true" />
       </summary>
       <dl className="review-setup-facts">

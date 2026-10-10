@@ -1,6 +1,6 @@
 [project]
 name = "openanonymi-backend"
-version = "0.1.5"
+version = "0.1.6"
 description = "Privacy review API"
 requires-python = ">=3.11,<3.12"
 dependencies = [

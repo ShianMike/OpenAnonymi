@@ -1,7 +1,7 @@
 import { LoadingMark } from '../loading/LoadingMark'
 import { useState, type FormEvent } from 'react'
 import { ArrowRight, ArrowUpRight, AtSign, ChevronDown, CircleHelp, KeyRound, LockKeyhole, Layers2, Mail } from 'lucide-react'
-import { signIn, signUp, verifySignUp, type ChallengeView, type SessionView } from '../api/client'
+import { ApiRequestError, signIn, signUp, verifySignUp, type ChallengeView, type SessionView } from '../api/client'
 import { GlassInput } from '../ui/GlassField'
 import { AuthNotice, CapsLockNote, PasswordRequirement } from './AuthNotice'
 import { AuthSecondStep } from './AuthSecondStep'
@@ -20,7 +20,7 @@ type Props = {
 
 export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover, onStageChange }: Props) {
   const [pending, setPending] = useState<'request' | 'complete' | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<Error | null>(null)
   const [email, setEmail] = useState(initialEmail)
   const [password, setPassword] = useState('')
   const [workspace, setWorkspace] = useState('')
@@ -29,6 +29,7 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
   const [message, setMessage] = useState<string | null>(null)
   const [challenge, setChallenge] = useState<ChallengeView | null>(null)
   const creating = mode === 'sign-up'
+  const credentialsRejected = !creating && error instanceof ApiRequestError && error.code === 'invalid_credentials'
   const busy = pending !== null
   const focus = usePendingFocus(busy)
   const { capsLock, capsLockProps } = useCapsLock()
@@ -65,7 +66,10 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
       }
       onSignedIn(session)
     } catch (cause: unknown) {
-      setError(cause instanceof Error ? cause.message : 'Please try again in a moment.')
+      setError(cause instanceof Error ? cause : new Error('Please try again in a moment.'))
+      if (!creating && cause instanceof ApiRequestError && cause.code === 'invalid_credentials') {
+        focus.remember(document.getElementById('auth-password'))
+      }
     } finally {
       setPending(null)
     }
@@ -96,11 +100,11 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
     )
   }
 
-  const passwordNotes = [creating && 'password-hint', capsLock && 'auth-password-caps'].filter(Boolean).join(' ')
+  const passwordNotes = [creating && 'password-hint', capsLock && 'auth-password-caps', credentialsRejected && 'auth-credentials-error'].filter(Boolean).join(' ')
 
   return (
     <form onSubmit={submit} className="auth-form" aria-busy={busy}>
-      {error && <AuthNotice tone="error">{error}</AuthNotice>}
+      {error && !credentialsRejected && <AuthNotice tone="error">{error.message}</AuthNotice>}
       {message && <p className="sr-only" role="status">{message}</p>}
       <fieldset disabled={busy} className="auth-fields">
         {!requested && (
@@ -116,7 +120,12 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
                 maxLength={320}
                 placeholder="you@example.com"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                aria-invalid={credentialsRejected || undefined}
+                aria-describedby={credentialsRejected ? 'auth-credentials-error' : undefined}
+                onChange={(event) => {
+                  setEmail(event.target.value)
+                  if (credentialsRejected) setError(null)
+                }}
               />
             </div>
             <div className="auth-field-row">
@@ -124,7 +133,7 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
                 <label htmlFor="auth-password">Password</label>
                 {!creating && (
                   <button type="button" className="auth-link" onClick={() => onRecover(email)}>
-                    Forgot password?
+                    {credentialsRejected ? 'Reset password' : 'Forgot password?'}
                   </button>
                 )}
               </div>
@@ -136,12 +145,25 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
                 autoComplete={creating ? 'new-password' : 'current-password'}
                 minLength={creating ? PASSWORD_MIN_LENGTH : undefined}
                 maxLength={1024}
+                aria-invalid={credentialsRejected || undefined}
                 aria-describedby={passwordNotes || undefined}
                 placeholder={creating ? 'Create a strong password' : 'Enter your password'}
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => {
+                  setPassword(event.target.value)
+                  if (credentialsRejected) setError(null)
+                }}
+                onFocus={(event) => {
+                  if (credentialsRejected) event.currentTarget.select()
+                }}
                 {...capsLockProps}
               />
+              {credentialsRejected && (
+                <AuthNotice id="auth-credentials-error" tone="error">
+                  <strong>Incorrect email or password.</strong>
+                  <span>Check your email and enter your password again.</span>
+                </AuthNotice>
+              )}
               {creating && (
                 <PasswordRequirement id="password-hint" value={password} tip="A few memorable words work well." />
               )}
@@ -211,7 +233,7 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
                 ? requested
                   ? 'Verify and create account'
                   : 'Send sign-up code'
-                : 'Sign in'}
+                : credentialsRejected ? 'Try again' : 'Sign in'}
           </span>
           {!pending && (requested ? <ArrowRight size={18} aria-hidden="true" /> : <ArrowUpRight size={18} aria-hidden="true" />)}
         </button>
@@ -237,7 +259,7 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
           </details>
         )}
       </fieldset>
-      {!creating && (
+      {!creating && !credentialsRejected && (
         <p className="auth-alt-action">
           <span>Invited to a workspace?</span>
           <button type="button" className="auth-link" disabled={busy} onClick={() => onRecover(email)}>

@@ -16,12 +16,14 @@ export function ComparisonPanes({ value }: { value: ComparisonView }) {
   }
   return <div className="comparison-result">
     <div className="comparison-summary">
-      <span role="status">{value.changes === 0 ? 'No source changes' : `${value.changes} changed ${value.changes === 1 ? 'section' : 'sections'}`}
-        <small> +{value.added_lines} lines · −{value.removed_lines} lines</small>
-      </span>
+      <div className="comparison-stats" role="status">
+        <strong>{value.changes === 0 ? 'No source changes' : `${value.changes} changed ${value.changes === 1 ? 'section' : 'sections'}`}</strong>
+        <span className="comparison-added">+{value.added_lines} lines added</span>
+        <span className="comparison-removed">−{value.removed_lines} lines removed</span>
+      </div>
       <div className="comparison-navigation" aria-label="Change navigation">
         <button type="button" onClick={() => move(-1)} disabled={!value.changes} aria-label="Previous change"><ArrowUp size={15} aria-hidden="true" /></button>
-        <span aria-live="polite">{selected || '—'} / {value.changes}</span>
+        <span aria-live="polite">{selected ? `${selected} of ${value.changes}` : 'Jump to change'}</span>
         <button type="button" onClick={() => move(1)} disabled={!value.changes} aria-label="Next change"><ArrowDown size={15} aria-hidden="true" /></button>
       </div>
     </div>
@@ -34,11 +36,12 @@ export function ComparisonPanes({ value }: { value: ComparisonView }) {
     </fieldset>
     <div className="comparison-scroll" ref={scrollRef} tabIndex={0} aria-label="Compared source revisions with aligned scrolling" data-side={side}>
       <div className="comparison-column-headings" aria-hidden="true">
-        <span>Before · Revision {value.before.number}</span><span>After · Revision {value.after.number}</span>
+        <span><strong>Before</strong>Revision {value.before.number}</span><span><strong>After</strong>Revision {value.after.number}</span>
       </div>
       {value.blocks.map((block, index) => <div key={index} className="comparison-block" data-kind={block.kind} data-change={block.change ?? undefined}
         data-selected={selected !== 0 && selected === block.change || undefined} tabIndex={block.change ? -1 : undefined}
         aria-label={block.change ? `Change ${block.change}: ${block.kind}` : undefined}>
+        {block.change && <div className="comparison-change-label">Changed section {block.change}</div>}
         <div className="comparison-before">
           <span className="comparison-line" aria-label={`Before line ${block.left_start}`}>{block.left_lines ? block.left_start : '—'}</span>
           <pre>{block.left_text || <span className="comparison-empty">No text in this revision</span>}</pre>
