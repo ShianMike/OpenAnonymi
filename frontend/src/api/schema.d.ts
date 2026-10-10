@@ -2668,6 +2668,15 @@ export interface components {
             /** Notes */
             notes: string[];
             csv?: components["schemas"]["CsvInfo"] | null;
+            /** Page Previews */
+            page_previews?: components["schemas"]["ImportedPagePreview"][];
+        };
+        /** ImportedPagePreview */
+        ImportedPagePreview: {
+            /** Page Number */
+            page_number: number;
+            /** Data Url */
+            data_url: string;
         };
         /** IntakeDefaultsView */
         IntakeDefaultsView: {

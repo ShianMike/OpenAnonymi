@@ -69,6 +69,8 @@
   line-height: 1.65;
   text-wrap: pretty;
 }
+.scan-categories { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 0; }
+.scan-categories li { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font-size: .74rem; line-height: 1.4; }
 .quiet-button,
 .quiet-icon {
   background: transparent;

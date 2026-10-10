@@ -3,6 +3,7 @@ import { useDecisionQueue } from './useDecisionQueue'
 import { createReviewCsvActions } from './reviewCsvActions'
 import { useUndoState } from './useUndoState'
 import { createReviewScanActions } from './reviewScanActions'
+import { pollScan } from './scanPolling'
 import { useReviewHandoff } from '../team/useReviewHandoff'
 import { useReviewStateLoader, type ReviewStateView } from './useReviewStateLoader'
 import { defaultDetectionCategories, extras } from '../detection/categories'
@@ -13,8 +14,8 @@ import { useReviewRecovery } from './useReviewRecovery'
 import { useReviewResume } from '../resume/useReviewResume'
 import { forgetReview } from '../resume/lastReview'
 import { createReviewNavigation } from './reviewNavigation'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   ApiConflictError,
   ApiRequestError,
@@ -48,6 +49,8 @@ import {
 
 export function useReviewController(session: SessionView) {
   const { documentId } = useParams<{ documentId: string }>()
+  const location = useLocation()
+  const navigate = useNavigate()
   const workspaceIds = session.memberships.map((item) => item.workspace_id).join(',')
   const [loadedState, setState] = useState<DraftState>({ kind: 'loading' })
   const state: DraftState = loadedState.kind === 'ready' &&
@@ -188,6 +191,21 @@ export function useReviewController(session: SessionView) {
   const decisionBlocked = mutationPending || sourceRecovery.pending
   const actionPending = decisionBlocked || decisions.pending
 
+  const scanPollReady = useEffectEvent(() => {
+    if (dirty || settingsDirty || actionPending || conflict) return
+    setState({ kind: 'loading' }); setNotice(null); setAttempt(value => value + 1)
+  })
+  const scanPollError = useEffectEvent((cause: unknown) => {
+    if (cause instanceof ApiRequestError && [401, 403, 404, 410].includes(cause.status)) {
+      clearUnavailable(messageFrom(cause))
+    } else setError(`${messageFrom(cause)} Scan status will retry automatically.`)
+  })
+  useEffect(() => {
+    if (!documentId || state.kind !== 'ready' || scan?.status !== 'scanning' ||
+      actionPending || dirty || settingsDirty || conflict) return
+    return pollScan(documentId, () => scanPollReady(), cause => scanPollError(cause))
+  }, [documentId, state.kind, scan?.status, actionPending, dirty, settingsDirty, conflict, session.csrf_token])
+
   useEffect(() => {
     if (actionPending) {
       wasPendingRef.current = true
@@ -237,7 +255,8 @@ export function useReviewController(session: SessionView) {
         setSelectedFindingId(null)
         setEditingSource(false)
         setPlainPreview(false)
-        setError(null)
+        setError(typeof location.state?.scanError === 'string' ? location.state.scanError : null)
+        if (location.state?.scanError) navigate(location.pathname + location.search + location.hash, { replace: true, state: null })
         setConflict(false)
     }, onError: setState,
   })

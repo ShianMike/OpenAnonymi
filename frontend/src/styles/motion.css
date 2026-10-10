@@ -34,7 +34,8 @@
     .app-shell #main-content [role='tabpanel']:not([hidden]):not([data-state='inactive']) {
       animation: ui-enter var(--motion-ui) var(--motion-ease);
     }
-    :is(.history-timeline > ol, .comparison-result, .comparison-empty-state) {
+    :is(.history-timeline > ol, .comparison-result, .comparison-empty-state,
+        .intake-writing-area, .intake-file-area, .intake-file-text) {
       animation: ui-enter var(--motion-ui) var(--motion-ease);
     }
 
@@ -66,7 +67,9 @@
     }
     :is(.glass-select-chevron, .branch-heading > svg:last-child, .topbar-profile > svg:last-child,
         .app-credit-trigger > svg, .activity-summary-trigger > svg:last-child, .review-setup summary > svg:last-child,
-        .scan-explanations summary > svg, .review-settings summary > svg) {
+        .scan-explanations summary > svg, .review-settings summary > svg,
+        .intake-detection-options > summary > svg:last-child, .intake-help > summary > svg:last-child,
+        .intake-technical-help > summary > svg:last-child, .intake-save > svg) {
       transition: transform var(--motion-ui) var(--motion-ease);
     }
     :is(.topbar-profile, .app-credit-trigger)[data-state='open'] > svg:last-child { transform: rotate(180deg); }
@@ -74,13 +77,24 @@
     :is(.glass-select-option, .topbar-account-menu [role='menuitem'], .document-action-menu [role='menuitem'],
         .app-credit-menu [role='menuitem'], .search-results a, .refresh-button, .quiet-button, .quiet-icon,
         .button-primary, .button-link, .comparison-navigation button, button[type='submit'], [role='tab'],
-        .theme-choice, .theme-choice-check, .display-choice, .comparison-mobile-switch span, .choice-switch input[type='checkbox']) {
+        .theme-choice, .theme-choice-check, .display-choice, .comparison-mobile-switch span, .choice-switch input[type='checkbox'],
+        .intake-coverage-presets button, .intake-mode span, .intake-file-picker > span) {
       transition: background-color var(--motion-fast) ease-out, color var(--motion-fast) ease-out, border-color var(--motion-fast) ease-out, scale var(--motion-fast) var(--motion-ease);
     }
-    :is(.refresh-button, .quiet-button, .quiet-icon, .button-primary, .comparison-navigation button, button[type='submit']):active:not(:disabled) { scale: 0.98; }
+    :is(.refresh-button, .quiet-button, .quiet-icon, .button-primary, .comparison-navigation button,
+        button[type='submit'], .intake-coverage-presets button):active:not(:disabled) { scale: 0.98; }
+    .intake-preset-check { scale: .75; transition: opacity var(--motion-fast) ease-out, scale var(--motion-fast) ease-out; }
+    .intake-coverage-presets button[aria-pressed='true'] .intake-preset-check { scale: 1; }
+    .intake-dropzone { transition: border-color var(--motion-fast) ease-out; }
+    .intake-save:focus-visible > svg { transform: translateX(3px); }
+    @media (hover: hover) {
+      .intake-save:hover:not(:disabled) > svg { transform: translateX(3px); }
+      .intake-file-picker:hover > span { background: var(--tone-accent-wash, var(--blue-tint)); }
+    }
     .app-shell a { transition: color var(--motion-fast) ease-out; }
     :is(.glass-checkbox-indicator, .glass-select-check > span, .theme-choice-check > svg,
-        .review-suggestions.is-complete .scan-heading) { animation: ui-fade-in var(--motion-fast) ease-out; }
+        .review-suggestions.is-complete .scan-heading, .intake-coverage-summary .scan-categories li,
+        .intake-scan-image) { animation: ui-fade-in var(--motion-fast) ease-out; }
     :is(.inline-notice, .review-feedback, .search-error) { animation: ui-fade-in var(--motion-ui) ease-out; }
 
     .disabled-reason-tooltip {

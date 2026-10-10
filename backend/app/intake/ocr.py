@@ -12,10 +12,12 @@ from app.intake.validation import SourceValidationError
 from app.workloads import render_slot
 
 OCR_TIMEOUT_SECONDS = 45
-MAX_REPLY_BYTES = 2 * 1024 * 1024
+MAX_REPLY_BYTES = 4 * 1024 * 1024  # Text plus at most ten bounded correction previews.
 
 
-def extract_ocr(content: bytes, kind: str, pages: tuple[int, ...] = ()) -> dict:
+def extract_ocr(
+    content: bytes, kind: str, pages: tuple[int, ...] = (), *, include_previews: bool = False
+) -> dict:
     if not render_slot.acquire(blocking=False):
         raise SourceValidationError("Another file or PDF is being processed. Try again shortly.")
     process = None
@@ -44,6 +46,7 @@ def extract_ocr(content: bytes, kind: str, pages: tuple[int, ...] = ()) -> dict:
                 "utf8",
                 "-m",
                 "app.intake.ocr_worker",
+                *(["--previews"] if include_previews else []),
                 kind,
                 ",".join(str(index) for index in pages),
             ],

@@ -7,6 +7,7 @@ import { GlassTextarea } from '../../ui/GlassTextarea'
 import { GlassSelect } from '../../ui/GlassSelect'
 import { cn } from '../../ui/cn'
 import type { CsvDelimiter } from '../../api/client'
+import { OriginalScan } from './OriginalScan'
 
 export function IntakeSource({ intake }: { intake: IntakeController }) {
   const [dragging, setDragging] = useState(false)
@@ -19,7 +20,7 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
         </span>
         <div>
           <h2>Your text or file</h2>
-          <p>A note, an interview, a document — start here.</p>
+          <p>Paste text or add a document to review.</p>
         </div>
         <span className="subtle-badge"><LockKeyhole size={12} aria-hidden="true" /> Private draft</span>
       </div>
@@ -65,7 +66,7 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
         </label>
       </fieldset>
       {intake.mode === 'paste' ? (
-        <div className="intake-writing-area">
+        <div key="paste" className="intake-writing-area">
           <label htmlFor="source-text" className="sr-only">
             Text to review
           </label>
@@ -83,7 +84,7 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
           />
         </div>
       ) : (
-        <div className="intake-file-area">
+        <div key="file" className="intake-file-area">
           <div
             className={cn('intake-dropzone', dragging && 'is-dragging', intake.file && 'has-file')}
             onDragOver={(event) => {
@@ -100,9 +101,15 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
               }
             }}
           >
-            <Upload size={27} strokeWidth={1.3} aria-hidden="true" />
-            <strong>{intake.file ? intake.file.name : 'Drop your document here'}</strong>
-            <span>Choose one file. We’ll turn it into text you can check.</span>
+            {intake.file ? <FileText size={24} strokeWidth={1.5} aria-hidden="true" />
+              : <Upload size={27} strokeWidth={1.3} aria-hidden="true" />}
+            <div className="intake-file-description">
+              <strong>{intake.file ? intake.file.name : 'Drop your document here'}</strong>
+              <span>{intake.file
+                ? <>{(intake.file.size / 1024).toLocaleString(undefined, { maximumFractionDigits: 0 })} KB
+                  {intake.filePages !== null && ` · ${intake.filePages} page${intake.filePages === 1 ? '' : 's'}`}</>
+                : 'One file at a time. We’ll extract the text for you.'}</span>
+            </div>
             <label className="intake-file-picker">
               <input
                 ref={inputRef}
@@ -114,7 +121,7 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
                 disabled={intake.pending}
                 onChange={(event) => void intake.chooseFile(event.currentTarget.files?.[0] ?? null)}
               />
-              <span>{intake.file ? 'Choose another file' : 'Choose file'}</span>
+              <span>{intake.file ? 'Change file' : 'Choose file'}</span>
             </label>
             {intake.file && (
               <button
@@ -149,28 +156,31 @@ export function IntakeSource({ intake }: { intake: IntakeController }) {
             {intake.csvPreview && <p role="status">Detected: {{ ',': 'comma', ';': 'semicolon', '\t': 'tab', '|': 'pipe' }[intake.csvPreview.delimiter]}-separated; first row {intake.csvPreview.has_header ? 'has column names' : 'is data'}. {intake.csvPreview.columns} columns · {intake.csvPreview.data_rows} data rows.</p>}
             <p className="field-note">Up to 50 columns, 1,000 data rows and 10,000 characters per cell. Suggestions stay inside a cell. Check these settings before saving.</p>
           </div>}
-          {intake.fileNotes.map((note) => <p key={note} className="field-note">{note}</p>)}
           {intake.hasFilePreview && (
-            <>
-              <label className="field-label" htmlFor="file-preview">
-                Check and edit the text before saving
-              </label>
-              <GlassTextarea id="file-preview" value={intake.fileText}
-                onChange={(event) => intake.setFileText(event.target.value)} disabled={intake.pending || intake.fileLoading}
-                spellCheck={false} aria-describedby="file-preview-help" />
-            </>
+            <div className={cn('intake-file-text', intake.filePagePreviews.length > 0 && 'intake-file-comparison')}>
+              {intake.filePagePreviews.length > 0 && <OriginalScan pages={intake.filePagePreviews} totalPages={intake.filePages} />}
+              <div className="intake-corrected-text">
+                <label className="field-label" htmlFor="file-preview">
+                  Text to review <span>{intake.filePagePreviews.length > 0 ? 'All pages · editable' : 'Editable'}</span>
+                </label>
+                <GlassTextarea id="file-preview" value={intake.fileText}
+                  onChange={(event) => intake.setFileText(event.target.value)} disabled={intake.pending || intake.fileLoading}
+                  spellCheck={false} aria-describedby="file-preview-help" />
+              </div>
+            </div>
           )}
-          {intake.hasFilePreview && <p id="file-preview-help" className="field-note">We’ll save this text with your corrections. {intake.file && /\.csv$/i.test(intake.file.name) ? 'Keep the same number of columns. Changing how columns are read resets this text.' : intake.file && /\.docx$/i.test(intake.file.name) ? 'Editing Word text may simplify its layout.' : 'Check for anything missing or misread.'}</p>}
+          {intake.hasFilePreview && <p id="file-preview-help" className="field-note">{intake.file && /\.csv$/i.test(intake.file.name) ? 'Keep the same number of columns. Changing how columns are read resets this text.' : intake.file && /\.docx$/i.test(intake.file.name) ? 'Editing Word text may simplify its layout.' : 'Check for anything missing or misread.'} We’ll save the text with your corrections.</p>}
           {intake.fileEdited && <p className="field-note" role="status">Your corrections will be saved.</p>}
-          <ul className="intake-file-formats" aria-label="Supported files and size limits">
+          {!intake.file && <ul className="intake-file-formats" aria-label="Supported files and size limits">
             <li><FileText size={17} aria-hidden="true" /><strong>Text</strong><span>TXT · Markdown · CSV</span><small>About 1 MB max</small></li>
             <li><Files size={17} aria-hidden="true" /><strong>Documents</strong><span>PDF · Word (DOCX)</span><small>About 8 MB max</small></li>
             <li><Image size={17} aria-hidden="true" /><strong>Images</strong><span>PNG · JPG · TIFF · WebP</span><small>About 8 MB max</small></li>
-          </ul>
+          </ul>}
           <details className="intake-file-help intake-help">
-            <summary><Info size={17} aria-hidden="true" /><span>Tips for uploading</span><ChevronDown size={16} aria-hidden="true" /></summary>
+            <summary><Info size={17} aria-hidden="true" /><span>{intake.file ? 'File notes & tips' : 'Upload tips & limits'}</span><ChevronDown size={16} aria-hidden="true" /></summary>
+            {intake.fileNotes.map((note) => <p key={note} className="field-note">{note}</p>)}
             <ul className="intake-help-list">
-              <li><Image size={18} aria-hidden="true" /><div><strong>Use a clear scan</strong><p>Printed text in English works best. Scans are read on this device.</p></div></li>
+              <li><Image size={18} aria-hidden="true" /><div><strong>Use a clear scan</strong><p>Printed text in English works best. Compare the scan with its extracted text before saving.</p></div></li>
               <li><FileText size={18} aria-hidden="true" /><div><strong>Check the text first</strong><p>Fix anything missing or misread before you save.</p></div></li>
             </ul>
             <details className="intake-technical-help">

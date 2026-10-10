@@ -13,6 +13,7 @@ result after confirmation.
 ## What it does
 
 - Imports text, Markdown, CSV, Word, and PDF, including bounded local English OCR.
+  Compare scanned pages with editable extracted text before saving.
 - Suggests names, contact details, identifiers, dates, addresses, URLs, and secrets
   with local rules and models. Document text is not sent to an external AI service.
 - Lets reviewers keep, replace, label, or remove findings, add missed details,

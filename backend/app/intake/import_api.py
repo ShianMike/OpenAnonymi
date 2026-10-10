@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from starlette.datastructures import UploadFile as StarletteUploadFile
@@ -17,7 +17,7 @@ from app.errors import ApiError
 from app.intake.access import require_current_intake_access
 from app.intake.csv_contracts import CsvInfo
 from app.intake.csv_structure import CsvError, Delimiter, Header, cell_value
-from app.intake.imports import MAX_FILE_BYTES, extract_import
+from app.intake.imports import MAX_FILE_BYTES, ImportedPagePreview, extract_import
 from app.intake.validation import SourceValidationError
 
 
@@ -29,6 +29,7 @@ class ImportPreview(BaseModel):
     utf8_bytes: int
     notes: list[str]
     csv: CsvInfo | None = None
+    page_previews: list[ImportedPagePreview] = Field(default_factory=list)
 
 
 def create_import_router(engine: Engine):
@@ -63,7 +64,7 @@ def create_import_router(engine: Engine):
         raw = await file.read(MAX_FILE_BYTES + 1)
         try:
             result = await run_in_threadpool(
-                extract_import, file.filename, raw, csv_delimiter, csv_header
+                extract_import, file.filename, raw, csv_delimiter, csv_header, include_previews=True
             )
         except CsvError as exc:
             raise ApiError(422, exc.code, str(exc)) from None
@@ -77,6 +78,7 @@ def create_import_router(engine: Engine):
             code_points=result.source.code_points,
             utf8_bytes=result.source.utf8_bytes,
             notes=list(result.notes),
+            page_previews=list(result.page_previews),
             csv=CsvInfo(
                 delimiter=result.layout["delimiter"],
                 has_header=result.layout["has_header"],
