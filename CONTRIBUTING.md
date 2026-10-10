@@ -31,6 +31,11 @@ The maintainer reviews PRs and the protected `main` branch requires passing
 checks. Do not force-push shared branches or change release settings as part of
 an unrelated PR.
 
+Dependency updates are maintained manually. Dependabot vulnerability alerts stay
+enabled, but automatic version and security update PRs are disabled to avoid
+recurring branches. Submit lockfile updates through protected CI, merge into
+`main`, and delete the temporary branch after merging.
+
 By contributing original material, you agree to license it under the project's
 [LICENSE](LICENSE) and attribution [NOTICE](NOTICE). Confirm that you have the
 right to submit it, and preserve the licenses of third-party material.
