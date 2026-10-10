@@ -14,9 +14,8 @@ export function usePendingFocus(pending: boolean) {
     if (element?.isConnected && (!active || active === document.body)) element.focus()
   }, [pending])
   return {
-    remember() {
-      const active = document.activeElement
-      saved.current = active instanceof HTMLElement && active !== document.body ? active : null
+    remember(target: Element | null = document.activeElement) {
+      saved.current = target instanceof HTMLElement && target !== document.body ? target : null
     },
     forget() {
       saved.current = null

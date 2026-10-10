@@ -5,10 +5,10 @@ import { passwordLongEnough, PASSWORD_MIN_LENGTH } from './authFieldHooks'
 const icons = { error: CircleAlert, success: CircleCheck, sent: MailCheck, info: Info }
 
 /** Errors interrupt (alert); confirmations and session messages wait their turn (status). */
-export function AuthNotice({ tone, children }: { tone: keyof typeof icons; children: ReactNode }) {
+export function AuthNotice({ tone, id, children }: { tone: keyof typeof icons; id?: string; children: ReactNode }) {
   const Icon = icons[tone]
   return (
-    <div className={`auth-notice auth-notice--${tone}`} role={tone === 'error' ? 'alert' : 'status'}>
+    <div id={id} className={`auth-notice auth-notice--${tone}`} role={tone === 'error' ? 'alert' : 'status'}>
       <Icon size={17} strokeWidth={1.8} aria-hidden="true" />
       <p>{children}</p>
     </div>

@@ -65,7 +65,7 @@
 .document-retention-col { width: 165px; }
 .document-actions-col { width: 170px; }
 .documents-table thead { background: var(--surface-subtle); }
-.documents-table thead th { position: sticky; top: calc(var(--document-header-offset) + var(--document-controls-height)); z-index: 5; height: 56px; padding: 6px 16px; background: var(--surface-subtle); font-size: .8rem; font-weight: 500; color: var(--muted); border-bottom: 1px solid var(--line); }
+.documents-table thead th { position: sticky; top: calc(var(--document-header-offset) + var(--document-controls-height)); z-index: 5; height: 56px; padding: 6px 16px; vertical-align: middle; background: var(--surface-subtle); font-size: .8rem; font-weight: 500; color: var(--muted); border-bottom: 1px solid var(--line); }
 .documents-table td, .documents-table tbody th { padding: 22px 16px; vertical-align: middle; border-bottom: 1px solid var(--line); }
 .documents-table .document-select-cell { padding: 6px 6px 6px 12px; }
 .document-select-cell .document-select-target { position: relative; display: inline-flex; justify-content: center; align-items: center; width: 44px; min-height: 44px; margin: 0; cursor: pointer; }

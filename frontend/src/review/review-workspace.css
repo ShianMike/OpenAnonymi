@@ -146,14 +146,23 @@
 .review-suggestions .scan-heading { min-width: 0; align-items: start; }
 .review-suggestions .scan-heading p { text-wrap: pretty; }
 .review-suggestions .scan-actions { display: flex; gap: 8px; width: 100%; }
+.review-suggestions .scan-actions:empty { display: none; }
 .review-suggestions .scan-actions > .disabled-reason { flex: 1; }
-.review-suggestions .scan-actions > .disabled-reason > button { width: 100%; min-height: 44px; justify-content: center; }
+.review-suggestions .scan-actions > .disabled-reason > button { width: 100%; min-height: 46px; justify-content: start; gap: 9px; border-radius: 10px; }
+.review-suggestions .scan-actions > .disabled-reason > button > svg:last-child { margin-left: auto; }
 .review-suggestions .scan-actions > button { min-width: 44px; min-height: 44px; border: 1px solid var(--line); }
 .review-suggestions.is-complete { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
 .review-suggestions.is-complete .scan-heading { grid-column: 1; }
 .review-suggestions.is-complete .scan-actions { grid-column: 2; grid-row: 1; align-self: start; width: auto; }
 .review-suggestions.is-complete > :not(.scan-heading, .scan-actions) { grid-column: 1 / -1; }
 .review-suggestions .scan-blocked-note, .review-suggestions .scan-empty-note { margin: 0; color: var(--muted); font-size: .8rem; line-height: 1.6; }
+.scan-scope { padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-subtle); }
+.scan-scope-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.scan-scope-heading strong { color: var(--muted); font-size: .75rem; font-weight: 500; }
+.review-suggestions .scan-scope-heading button { min-height: 44px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--blue-strong); font-size: .76rem; }
+.scan-categories { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 0; }
+.scan-categories li { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font-size: .74rem; line-height: 1.4; }
+.scan-scope-note { margin: 10px 0 0; color: var(--muted); font-size: .73rem; line-height: 1.5; }
 .review-suggestions .scan-explanations,
 .review-suggestions .review-setup {
   margin: 0;
