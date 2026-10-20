@@ -46,7 +46,7 @@ def email_html(subject: str, body: str, *, contact: str, code: str | None = None
 <tr><td align="center" style="padding:32px 16px">
 <table role="presentation" style="width:100%;max-width:560px;border-collapse:separate;background:#ffffff;border:1px solid #dbe3d9;border-radius:16px" cellpadding="0" cellspacing="0">
 <tr><td style="padding:24px;background:#173e30;border-radius:15px 15px 0 0">
-<span style="font-size:22px;font-weight:700;color:#ffffff">OpenAnonymi<span style="color:#b4e5cb">.</span></span>
+<span style="font-size:22px;font-weight:700;color:#ffffff">OpenAnonymi</span>
 <p style="margin:8px 0 0;font-size:11px;letter-spacing:1.5px;color:#c5ddcd">YOUR PRIVACY WORKSPACE</p>
 </td></tr>
 <tr><td style="padding:28px 24px">
