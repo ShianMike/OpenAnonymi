@@ -6,11 +6,7 @@ export function Brand({ compact = false }: { compact?: boolean }) {
       <span className="brand-mark" aria-hidden="true">
         <Fingerprint size={24} strokeWidth={1.6} />
       </span>
-      {!compact && (
-        <span className="brand-wordmark">
-          OpenAnonymi<span className="brand-dot">.</span>
-        </span>
-      )}
+      {!compact && <span className="brand-wordmark">OpenAnonymi</span>}
     </span>
   )
 }

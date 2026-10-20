@@ -37,9 +37,6 @@
   letter-spacing: -0.05em;
   color: var(--text, #e9eeec);
 }
-.brand-dot {
-  color: var(--tone-accent-soft, #add8ba);
-}
 .app-sidebar {
   position: sticky;
   top: 0;
