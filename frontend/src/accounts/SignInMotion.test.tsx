@@ -4,9 +4,21 @@ import { MemoryRouter } from 'react-router-dom'
 import { SignInPage } from './SignInPage'
 import { RecoveryForm } from './RecoveryForm'
 import { AuthSecondStep } from './AuthSecondStep'
+import { ExistingAccountNotice } from './AuthNotice'
 
 const preferences = vi.hoisted(() => ({ reducedMotion: false }))
 vi.mock('../appearance/useDisplayPreferences', () => ({ useDisplayPreferences: () => preferences }))
+
+it('gives an existing account a clear sign-in path, recovery and an email correction', () => {
+  const html = renderToStaticMarkup(<ExistingAccountNotice email="member@example.test" onSignIn={() => {}} onRecover={() => {}} onChangeEmail={() => {}} />)
+  expect(html).toContain('Already registered account')
+  expect(html.match(/member@example.test/g)).toHaveLength(1)
+  expect(html).toContain('Continue to sign in')
+  expect(html).toContain('Reset password')
+  expect(html).toContain('aria-label="Use a different email"')
+  expect(html).not.toContain('role="alert"')
+  expect(html).not.toContain('<form')
+})
 
 it.each([false, true])('honors reduced motion (%s) while preserving account form semantics', (reducedMotion) => {
   preferences.reducedMotion = reducedMotion

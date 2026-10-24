@@ -109,8 +109,8 @@ class EmailProofCode(BaseModel):
     @classmethod
     def validate_email_code(cls, value: SecretStr) -> SecretStr:
         code = value.get_secret_value().strip()
-        if not re.fullmatch(r"[A-Za-z0-9_-]{32}", code):
-            raise ValueError("Enter the complete email code.")
+        if not re.fullmatch(r"(?:[0-9]{6}|[A-Za-z0-9_-]{32})", code):
+            raise ValueError("Enter the six-digit email code, or the full code from an earlier email.")
         return SecretStr(code)
 
 
@@ -312,6 +312,10 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
         network_scope=False,
     )
     recovery_completion_limiter = AttemptLimiter(engine, settings, scope="recovery_complete")
+    recovery_completion_address = AttemptLimiter(
+        engine, settings, scope="recovery_complete_address", maximum=10,
+        window_seconds=1800, network_scope=False,
+    )
 
     def authorize_issued(session, issued):
         try:
@@ -395,6 +399,7 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
         status_code=202,
         response_model=RegistrationMessage,
         responses={
+            409: {"model": ErrorResponse},
             422: {"model": ErrorResponse},
             429: {"model": ErrorResponse},
             503: {"model": ErrorResponse},
@@ -432,6 +437,11 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
             )
         except EmailRuleError as exc:
             raise ApiError(exc.status, exc.code, exc.message) from None
+        except AccountUnavailable:
+            raise ApiError(
+                409, "account_exists",
+                "This email is already registered. Sign in or reset your password.",
+            ) from None
         except ValueError as exc:
             raise ApiError(422, "invalid_registration", str(exc)) from None
         if delivery:
@@ -528,7 +538,7 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
             )
         try:
             delivery = request_email_verification(
-                engine, user_id=identity.user_id, now=datetime.now(UTC),
+                engine, settings=settings, user_id=identity.user_id, now=datetime.now(UTC),
                 reauthorize=lambda: _same_session(request, identity),
             )
         except InvalidSession:
@@ -539,7 +549,7 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
         if delivery:
             def authorize_delivery():
                 _same_session(request, identity)
-                validate_email_delivery(engine, identity.user_id, delivery)
+                validate_email_delivery(engine, identity.user_id, delivery, settings=settings)
                 _same_session(request, identity)
 
             background.add_task(
@@ -565,6 +575,7 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
         try:
             confirm_email_verification(
                 engine,
+                settings=settings,
                 user_id=identity.user_id,
                 code=body.code.get_secret_value(),
                 now=datetime.now(UTC),
@@ -671,7 +682,10 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
             # Address throttling must not reveal whether an account exists.
             if recovery_address.take(subject):
                 with Session(engine) as session:
-                    request_recovery(session, email=body.email, now=datetime.now(UTC), mailer=mailer)
+                    request_recovery(
+                        session, settings=settings, email=body.email,
+                        now=datetime.now(UTC), mailer=mailer,
+                    )
         except RecoveryDeliveryError:
             raise ApiError(
                 503, "recovery_delivery_failed", "Recovery email could not be sent."
@@ -688,12 +702,17 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
     ) -> Response:
         require_mutation_origin(request)
         client_ip = request_client_ip(request)
-        if not recovery_completion_limiter.take(client_ip):
+        try:
+            subject = lookup_forms(body.email)[0]
+        except ValueError:
+            subject = "invalid"
+        if not recovery_completion_limiter.take(client_ip) or not recovery_completion_address.take(subject):
             raise ApiError(429, "recovery_limited", "Too many recovery attempts. Try again later.")
         try:
             with Session(engine) as session:
                 recipient = complete_recovery(
                     session,
+                    settings=settings,
                     email=body.email,
                     code=body.code,
                     new_password=body.new_password.get_secret_value(),

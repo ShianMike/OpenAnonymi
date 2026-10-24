@@ -269,8 +269,7 @@ function App() {
       )
     }
     return (
-      <PageLoadBoundary key={pathname} fullScreen tone="light"><Suspense fallback={<LoadingScreen label="Opening sign in…" description="Preparing secure access to your workspace." tone="light" />}><SignInPage
-        key={pathname}
+      <PageLoadBoundary key={authRoute ? 'account-entry' : pathname} fullScreen tone="light"><Suspense fallback={<LoadingScreen label="Opening sign in…" description="Preparing secure access to your workspace." tone="light" />}><SignInPage
         initialMode={pathname === '/sign-up' ? 'sign-up' : 'sign-in'}
         notice={signInNotice}
         onSignedIn={(session, creatingAccount) => {

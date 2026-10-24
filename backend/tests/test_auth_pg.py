@@ -1,6 +1,8 @@
 """Auth behavior against an explicitly chosen local PostgreSQL test server."""
 
+import hashlib
 import os
+import secrets
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -236,7 +238,8 @@ def _request_recovery(client: TestClient, email: str):
     )
 
 
-def test_recovery_requires_delivery_and_revokes_existing_sessions(auth_site):
+@pytest.mark.parametrize("legacy", (False, True))
+def test_recovery_requires_delivery_and_revokes_existing_sessions(auth_site, legacy):
     client, engine, _workspace_id, member_id, _other_id, _admin_id = auth_site
     assert _request_recovery(client, "member-a@example.invalid").status_code == 503
     mailer = CapturingMailer()
@@ -247,7 +250,13 @@ def test_recovery_requires_delivery_and_revokes_existing_sessions(auth_site):
     assert _request_recovery(client, "member-a@example.invalid").status_code == 202
     assert len(mailer.sent) == 1
     recipient, code = mailer.sent[0]
+    assert len(code) == 6 and code.isascii() and code.isdecimal()
     assert recipient == "member-a@example.invalid"
+    if legacy:
+        code = secrets.token_urlsafe(24)
+        with Session(engine) as session, session.begin():
+            token = session.scalar(select(RecoveryToken).where(RecoveryToken.user_id == member_id))
+            token.token_hash = hashlib.sha256(code.encode()).digest()
     with Session(engine) as session:
         token = session.scalar(select(RecoveryToken).where(RecoveryToken.user_id == member_id))
         assert token is not None
@@ -399,7 +408,7 @@ def test_registration_duplicate_is_atomic_and_never_takes_over_account(registere
         },
         headers={"Origin": ORIGIN},
     )
-    assert response.status_code == 202
+    assert response.status_code == 409 and response.json()["code"] == "account_exists"
     assert "set-cookie" not in response.headers
     assert client.get("/api/v1/auth/session").json()["user_id"] == identity["user_id"]
     with Session(engine) as session:

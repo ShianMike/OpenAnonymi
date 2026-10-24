@@ -1,7 +1,5 @@
 """One-time recovery codes delivered through configured SMTP."""
 
-import hashlib
-import secrets
 import smtplib
 import ssl
 from datetime import UTC, datetime, timedelta
@@ -14,6 +12,7 @@ from uuid import uuid4
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from app.accounts.email_codes import code_digests, issue_code
 from app.accounts.email_rules import lookup_forms
 from app.accounts.email_template import email_html
 from app.accounts.security import hash_password
@@ -142,26 +141,25 @@ class SmtpRecoveryMailer:
             raise RecoveryDeliveryError("Account recovery delivery failed.") from exc
 
 
-def _digest(code: str) -> bytes:
-    return hashlib.sha256(code.encode("ascii")).digest()
-
-
 def request_recovery(
-    session: Session, *, email: str, now: datetime, mailer: RecoveryMailer
+    session: Session, *, settings: Settings, email: str, now: datetime, mailer: RecoveryMailer
 ) -> None:
     try:
         forms = lookup_forms(email)
     except ValueError:
         return
     with session.begin():
-        user = session.scalar(select(User).where(User.email.in_(forms)))
+        user = session.scalar(select(User).where(User.email.in_(forms)).with_for_update())
         if user is None or user.disabled_at is not None:
             return
-        code = secrets.token_urlsafe(24)
+        used = set(session.scalars(select(RecoveryToken.token_hash).where(
+            RecoveryToken.user_id == user.id,
+        )))
+        code, digest = issue_code(settings, "recovery", user.email, used)
         token = RecoveryToken(
             id=uuid4(),
             user_id=user.id,
-            token_hash=_digest(code),
+            token_hash=digest,
             created_at=now,
             expires_at=now + RECOVERY_TTL,
         )
@@ -171,26 +169,24 @@ def request_recovery(
 
 
 def complete_recovery(
-    session: Session, *, email: str, code: str, new_password: str, now: datetime
+    session: Session, *, settings: Settings, email: str, code: str, new_password: str, now: datetime
 ) -> str:
     from app.db.second_factor import AuthChallenge, UserSecondFactor
 
     try:
         forms = lookup_forms(email)
-        digest = _digest(code)
+        code.encode("ascii")
     except (ValueError, UnicodeEncodeError):
         raise InvalidRecoveryCode("The recovery code is invalid or expired.") from None
     new_hash = hash_password(new_password)
     with session.begin():
-        user_id = session.scalar(select(RecoveryToken.user_id).where(RecoveryToken.token_hash == digest))
-        if user_id is None:
-            raise InvalidRecoveryCode("The recovery code is invalid or expired.")
         # Each completion consumes all account codes; lock the account before any token.
-        user = session.scalar(select(User).where(User.id == user_id).with_for_update())
+        user = session.scalar(select(User).where(User.email.in_(forms)).with_for_update())
         if user is None or user.disabled_at is not None or user.email not in forms:
             raise InvalidRecoveryCode("The recovery code is invalid or expired.")
         token = session.scalar(select(RecoveryToken).where(
-            RecoveryToken.token_hash == digest, RecoveryToken.user_id == user.id,
+            RecoveryToken.token_hash.in_(code_digests(settings, "recovery", user.email, code)),
+            RecoveryToken.user_id == user.id,
         ).with_for_update())
         if token is None or token.used_at is not None or token.expires_at <= datetime.now(UTC):
             raise InvalidRecoveryCode("The recovery code is invalid or expired.")

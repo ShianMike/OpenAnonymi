@@ -2,7 +2,6 @@
 
 import hashlib
 import hmac
-import secrets
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -13,6 +12,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.accounts.email_codes import code_digests, issue_code
 from app.accounts.email_rules import creation_email, lookup_forms
 from app.accounts.limits import AttemptLimiter
 from app.accounts.security import (
@@ -49,13 +49,6 @@ class CodeDelivery:
     code: str
 
 
-def digest(code: str) -> bytes:
-    try:
-        return hashlib.sha256(code.encode("ascii")).digest()
-    except UnicodeEncodeError:
-        return b"\0" * 32
-
-
 def _lock_address(session: Session, canonical: str):
     # Every pending-row transaction for an address uses one lock, avoiding a
     # deadlock when two different valid codes try to delete each other's rows.
@@ -85,7 +78,7 @@ def request_registration(
     with Session(engine) as session, session.begin():
         _lock_address(session, canonical)
         if session.scalar(select(User.id).where(User.email.in_(lookup_forms(email)))) is not None:
-            return None
+            raise AccountUnavailable
         if not AttemptLimiter(
             engine,
             settings,
@@ -95,13 +88,16 @@ def request_registration(
             network_scope=False,
         ).take(canonical, now=now, session=session):
             return None
-        code = secrets.token_urlsafe(24)
+        used = set(session.scalars(select(PendingRegistration.code_digest).where(
+            PendingRegistration.canonical_email == canonical,
+        )))
+        code, digest = issue_code(settings, "registration", canonical, used)
         protected = keys.encrypt_text(name)
         session.add(
             PendingRegistration(
                 id=uuid4(),
                 canonical_email=canonical,
-                code_digest=digest(code),
+                code_digest=digest,
                 password_hash=password_hash,
                 workspace_name_ciphertext=protected.ciphertext,
                 key_id=protected.key_id,
@@ -135,7 +131,10 @@ def verify_registration(
                 select(PendingRegistration)
                 .where(
                     PendingRegistration.canonical_email.in_(forms),
-                    PendingRegistration.code_digest == digest(code),
+                    PendingRegistration.code_digest.in_(
+                        candidate for address in forms
+                        for candidate in code_digests(settings, "registration", address, code)
+                    ),
                     PendingRegistration.expires_at > now,
                 )
                 .with_for_update()
@@ -198,7 +197,7 @@ def verify_registration(
 
 
 def request_email_verification(
-    engine: Engine, *, user_id: UUID, now: datetime,
+    engine: Engine, *, settings: Settings, user_id: UUID, now: datetime,
     reauthorize: Callable[[], object] | None = None,
 ) -> CodeDelivery | None:
     with Session(engine) as session, session.begin():
@@ -210,12 +209,13 @@ def request_email_verification(
         if user.email_verified_at is not None:
             return None
         row = session.get(EmailVerification, user_id)
+        used = {row.code_digest} if row is not None else set()
         if row is None:
             row = EmailVerification(user_id=user_id)
             session.add(row)
-        code = secrets.token_urlsafe(24)
+        code, digest = issue_code(settings, "email-verification", user.email, used)
         row.code_digest, row.created_at, row.expires_at, row.failed_attempts = (
-            digest(code),
+            digest,
             now,
             now + TTL,
             0,
@@ -227,11 +227,16 @@ def request_email_verification(
     return CodeDelivery(recipient, code)
 
 
-def validate_email_delivery(engine: Engine, user_id: UUID, delivery: CodeDelivery) -> None:
+def validate_email_delivery(
+    engine: Engine, user_id: UUID, delivery: CodeDelivery, *, settings: Settings,
+) -> None:
     """Only deliver the current, unexpired code to the current unverified address."""
     with Session(engine) as session:
         current = session.scalar(select(EmailVerification.user_id).join(User).where(
-            EmailVerification.user_id == user_id, EmailVerification.code_digest == digest(delivery.code),
+            EmailVerification.user_id == user_id,
+            EmailVerification.code_digest.in_(code_digests(
+                settings, "email-verification", delivery.recipient, delivery.code,
+            )),
             EmailVerification.expires_at > datetime.now(UTC), EmailVerification.failed_attempts < 5,
             User.email == delivery.recipient, User.disabled_at.is_(None), User.email_verified_at.is_(None),
         ))
@@ -240,7 +245,7 @@ def validate_email_delivery(engine: Engine, user_id: UUID, delivery: CodeDeliver
 
 
 def confirm_email_verification(
-    engine: Engine, *, user_id: UUID, code: str, now: datetime,
+    engine: Engine, *, settings: Settings, user_id: UUID, code: str, now: datetime,
     reauthorize: Callable[[], object] | None = None,
 ) -> None:
     invalid = False
@@ -254,7 +259,8 @@ def confirm_email_verification(
         current_time = datetime.now(UTC) if reauthorize is not None else now
         if row is None or row.expires_at <= current_time or row.failed_attempts >= 5:
             invalid = True
-        elif not hmac.compare_digest(row.code_digest, digest(code)):
+        elif not any(hmac.compare_digest(row.code_digest, candidate) for candidate in
+                     code_digests(settings, "email-verification", user.email, code)):
             row.failed_attempts += 1
             invalid = True
         else:

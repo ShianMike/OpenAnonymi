@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "OpenAnonymi API",
-    "version": "0.2.0"
+    "version": "0.2.1"
   },
   "paths": {
     "/api/v1/auth/sign-in": {
@@ -118,6 +118,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RegistrationMessage"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }

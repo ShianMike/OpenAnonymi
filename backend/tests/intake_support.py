@@ -65,6 +65,7 @@ def intake_site(intake_password_hashes):
         environment="test",
         active_key_id="test",
         content_keys={"test": Fernet.generate_key().decode()},
+        attempt_subject_key=Fernet.generate_key().decode(),
         _env_file=None,
     )
     try:

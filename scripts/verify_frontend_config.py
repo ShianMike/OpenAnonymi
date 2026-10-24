@@ -1,5 +1,6 @@
 """Exercise the real Vite build's public-environment boundary with synthetic values."""
 
+import hashlib
 import os
 import shutil
 import subprocess
@@ -75,9 +76,14 @@ def main():
             check=False,
         )
         assert result.returncode == 0, "Valid production build failed"
-        assert (
-            "https://api.example.invalid" in (Path(output) / "index.html").read_text()
-        )
+        html = (Path(output) / "index.html").read_text()
+        assert "https://api.example.invalid" in html
+        for name in ("theme-init.js", "startup.css", "startup.js"):
+            source = (ROOT / "frontend/public" / name).read_bytes()
+            original = Path(name)
+            hashed = f"assets/{original.stem}-{hashlib.sha256(source).hexdigest()[:12]}{original.suffix}"
+            assert f'"/{hashed}"' in html and f'"/{name}"' not in html
+            assert (Path(output) / hashed).read_bytes() == source
         assert all(
             "synthetic-provider-secret-canary" not in asset.read_text(encoding="utf-8")
             for asset in Path(output).rglob("*.js")

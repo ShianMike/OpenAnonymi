@@ -169,7 +169,7 @@ def test_delivery_requires_exact_current_unverified_mailbox_proof(intake_site, m
             elif change == "exhausted":
                 row.failed_attempts = 5
             elif change == "superseded":
-                row.code_digest = signup.digest("different-current-proof")
+                row.code_digest = b"\0" * 32
             elif change == "deleted":
                 session.delete(row)
             elif change == "verified":

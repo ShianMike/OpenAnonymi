@@ -149,7 +149,7 @@ export function RecoveryForm({
                 onChange={(event) => setCode(event.target.value)}
               />
               <small id="recovery-code-hint" className="field-hint">
-                Recovery codes expire after 30 minutes.
+                Recovery emails contain a six-digit code that expires after 30 minutes. If you were invited, paste the full invitation code instead.
               </small>
             </div>
             <div className="auth-field-row">

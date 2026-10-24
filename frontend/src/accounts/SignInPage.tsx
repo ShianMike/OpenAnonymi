@@ -17,7 +17,8 @@ const views = {
   'sign-in': { title: 'Sign in to OpenAnonymi', description: 'Welcome back. Your workspace is waiting.' },
   'sign-up': { title: 'A little more private.', description: 'Start with your email. Make room for thoughtful sharing.' },
   'signup-details': { title: 'Make it yours.', description: 'Choose a password and name your private workspace.' },
-  'signup-code': { title: 'Confirm your email.', description: 'Paste your email code to finish creating your account.' },
+  'signup-code': { title: 'Confirm your email.', description: 'Enter the six-digit email code to finish creating your account.' },
+  'existing-account': { title: 'Welcome back.', description: 'This email is already registered. Sign in to continue.' },
   'second-factor': {
     title: 'Verify it’s you.',
     description: 'Enter the six-digit code from your authenticator app, or use a backup code.',
@@ -66,8 +67,8 @@ export function SignInPage({
 
   function changeStage(next: CredentialStage) {
     setStage(next)
-    // Code steps focus their field; these two replace the form, so start from the heading.
-    if (next === 'credentials' || next === 'backup-codes') requestAnimationFrame(() => heading.current?.focus())
+    // Code steps focus their field; replacement views start from the heading.
+    if (next === 'credentials' || next === 'backup-codes' || next === 'existing-account') requestAnimationFrame(() => heading.current?.focus())
   }
 
   const recovering = mode === 'recovery'
@@ -94,7 +95,7 @@ export function SignInPage({
       <main id="main-content" className="auth-main" tabIndex={-1}>
         <motion.section className="auth-panel" aria-labelledby="auth-title"
           initial={reducedMotion ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={transition}>
-          <div className="auth-emblem" aria-hidden="true"><Icon size={28} strokeWidth={1.5} /></div>
+          {stage !== 'existing-account' && <div className="auth-emblem" aria-hidden="true"><Icon size={28} strokeWidth={1.5} /></div>}
           <motion.h1 key={`${mode}-${recovering ? recoveryStep : stage}`} id="auth-title" ref={heading} tabIndex={-1}
             initial={reducedMotion ? false : { opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={transition}>
             {view.title}
@@ -127,6 +128,10 @@ export function SignInPage({
               initialEmail={knownEmail}
               onStageChange={changeStage}
               onSignedIn={(session) => onSignedIn(session, mode === 'sign-up')}
+              onSignIn={(email) => {
+                setKnownEmail(email)
+                switchMode('sign-in')
+              }}
               onRecover={(email, hasCode) => {
                 setKnownEmail(email)
                 switchMode('recovery')

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import react from '@vitejs/plugin-react'
 import { loadEnv, type Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
@@ -51,6 +53,13 @@ function apiBaseFrom(env: Record<string, string>, onVercel: boolean): string {
  * API origin. frame-ancestors is sent by the API host's HTTP security headers.
  */
 function contentSecurityPolicy(apiBase: string): Plugin {
+  // Early boot assets must change URLs with their content, even behind a caching CDN.
+  const bootAssets = ['theme-init.js', 'startup.css', 'startup.js'].map((name) => {
+    const source = readFileSync(new URL(`./public/${name}`, import.meta.url))
+    const hash = createHash('sha256').update(source).digest('hex').slice(0, 12)
+    const dot = name.lastIndexOf('.')
+    return { name, source, fileName: `assets/${name.slice(0, dot)}-${hash}${name.slice(dot)}` }
+  })
   const apiOrigin = apiBase.startsWith('/') ? '' : ` ${new URL(apiBase).origin}`
   const policy = [
     "default-src 'self'",
@@ -68,7 +77,13 @@ function contentSecurityPolicy(apiBase: string): Plugin {
   return {
     name: 'openanonymi-content-security-policy',
     apply: 'build',
+    generateBundle() {
+      for (const asset of bootAssets) {
+        this.emitFile({ type: 'asset', fileName: asset.fileName, source: asset.source })
+      }
+    },
     transformIndexHtml(html) {
+      for (const asset of bootAssets) html = html.replace(`"/${asset.name}"`, `"/${asset.fileName}"`)
       const charset = /<meta charset=[^>]*>/i
       if (!charset.test(html)) throw new Error('index.html needs a charset meta element.')
       return html.replace(

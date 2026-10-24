@@ -54,7 +54,7 @@ def account_state(case):
 
 def expire_during_completion(case, phase, monkeypatch):
     with Session(case["engine"]) as session, session.begin():
-        token = session.scalar(select(RecoveryToken).where(RecoveryToken.token_hash == recovery._digest(case["codes"][0])))
+        token = session.scalar(select(RecoveryToken).where(RecoveryToken.user_id == case["actor"]))
         token.expires_at = datetime.now(UTC) + timedelta(seconds=1)
     fired = []
     if phase == "hash":
@@ -145,6 +145,15 @@ def test_mailbox_proof_can_recover_an_account_without_an_active_workspace(intake
     with Session(case["engine"]) as session:
         assert session.get(User, case["actor"]).email_verified_at is not None
     assert len(case["mailer"].notices) == 1
+
+
+def test_recovery_guess_limit_follows_mailbox_across_networks_and_restarts(intake_site):
+    case = recovery_case(intake_site)
+    for index in range(11):
+        with TestClient(case["client"].app, client=(f"203.0.113.{index + 1}", 5000)) as peer:
+            response = complete(case, client=peer, code="000000" if case["codes"][0] != "000000" else "000001")
+        assert response.status_code == (400 if index < 10 else 429)
+    assert case["client"].get("/api/v1/auth/session").status_code == 200
 
 
 def test_successful_recovery_keeps_real_factor_and_backup_codes(intake_site):

@@ -17,7 +17,7 @@ store.
 | `PRIVACY_REVIEW_DATABASE_URL` | PostgreSQL with certificate and hostname verification: `sslmode=verify-full`, using the provider's public CA or `sslrootcert=system` |
 | `PRIVACY_REVIEW_ALLOWED_ORIGINS` | JSON array of exact HTTPS website origins |
 | `PRIVACY_REVIEW_ACTIVE_KEY_ID`, `PRIVACY_REVIEW_CONTENT_KEYS` | Active Fernet key ID and keyring, outside Git and the database |
-| `PRIVACY_REVIEW_ATTEMPT_SUBJECT_KEY` | Separate, stable base64-encoded 32-byte authentication-limiter key; keep fixed when content keys rotate |
+| `PRIVACY_REVIEW_ATTEMPT_SUBJECT_KEY` | Stable base64-encoded 32-byte key for authentication budgets and purpose-bound email-code digests; keep fixed when content keys rotate |
 | `PRIVACY_REVIEW_HTTPS_REDIRECT_ENABLED` | `true` behind a correctly configured trusted HTTPS proxy |
 | `PRIVACY_REVIEW_TRUSTED_PROXY_HOPS` | Measured trusted proxy chain length; do not blindly trust visitor-supplied forwarding headers |
 | `PRIVACY_REVIEW_SMTP_*` | Authenticated SMTP with STARTTLS for registration, verification, recovery, and optional notification emails |

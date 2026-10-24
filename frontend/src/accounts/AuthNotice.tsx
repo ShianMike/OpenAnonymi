@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Check, CircleAlert, CircleCheck, Info, MailCheck } from 'lucide-react'
+import { ArrowRight, Check, CircleAlert, CircleCheck, Info, Mail, MailCheck } from 'lucide-react'
 import { passwordLongEnough, PASSWORD_MIN_LENGTH } from './authFieldHooks'
 
 const icons = { error: CircleAlert, success: CircleCheck, sent: MailCheck, info: Info }
@@ -13,6 +13,20 @@ export function AuthNotice({ tone, id, children }: { tone: keyof typeof icons; i
       <p>{children}</p>
     </div>
   )
+}
+
+export function ExistingAccountNotice({ email, onSignIn, onRecover, onChangeEmail }: {
+  email: string; onSignIn: () => void; onRecover: () => void; onChangeEmail: () => void
+}) {
+  return <section className="auth-existing-account" aria-label="Already registered account">
+    <div className="auth-existing-identity">
+      <span className="auth-existing-icon" aria-hidden="true"><Mail size={18} strokeWidth={1.6} /></span>
+      <div><span>Already registered</span><strong>{email}</strong></div>
+      <button type="button" className="auth-link" onClick={onChangeEmail} aria-label="Use a different email">Change</button>
+    </div>
+    <button type="button" className="auth-submit" onClick={onSignIn}>Continue to sign in <ArrowRight size={17} aria-hidden="true" /></button>
+    <p className="auth-existing-recovery">Forgot your password? <button type="button" className="auth-link" onClick={onRecover}>Reset password</button></p>
+  </section>
 }
 
 /** Live length check for new passwords; the rule itself is enforced by the field and the API. */

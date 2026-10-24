@@ -15,6 +15,20 @@ from app.config import Settings
 from app.db.durable import AttemptEvent
 
 
+def subject_key(settings: Settings) -> bytes:
+    if settings.attempt_subject_key is not None:
+        return base64.urlsafe_b64decode(settings.attempt_subject_key.get_secret_value())
+    if settings.active_key_id:
+        material = base64.urlsafe_b64decode(
+            settings.content_keys[settings.active_key_id].get_secret_value()
+        )
+        return HKDF(
+            algorithm=hashes.SHA256(), length=32, salt=None,
+            info=b"openanonymi-attempt-subjects-v1",
+        ).derive(material)
+    return settings._attempt_subject_key
+
+
 class AttemptLimiter:
     def __init__(
         self,
@@ -32,20 +46,7 @@ class AttemptLimiter:
         self.engine, self.scope = engine, scope
         self.maximum, self.window_seconds = maximum, window_seconds
         self.network_scope, self.subject_cap = network_scope, subject_cap
-        if settings.attempt_subject_key is not None:
-            self.key = base64.urlsafe_b64decode(settings.attempt_subject_key.get_secret_value())
-        elif settings.active_key_id:
-            material = base64.urlsafe_b64decode(
-                settings.content_keys[settings.active_key_id].get_secret_value()
-            )
-            self.key = HKDF(
-                algorithm=hashes.SHA256(),
-                length=32,
-                salt=None,
-                info=b"openanonymi-attempt-subjects-v1",
-            ).derive(material)
-        else:
-            self.key = settings._attempt_subject_key
+        self.key = subject_key(settings)
 
     def _digest(self, value: str) -> bytes:
         return hmac.digest(self.key, value.encode("utf-8"), "sha256")

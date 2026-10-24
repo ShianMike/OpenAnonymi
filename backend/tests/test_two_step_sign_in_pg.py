@@ -180,10 +180,11 @@ def test_short_budget_notice_once_per_day_daily_budget_and_hundred_failure_lock(
     assert locked.value.code == "second_factor_locked"
     mailer = Mailbox()
     with Session(engine) as session:
-        request_recovery(session, email="intake-owner@example.invalid", now=now, mailer=mailer)
+        request_recovery(session, settings=settings, email="intake-owner@example.invalid", now=now, mailer=mailer)
     with Session(engine) as session:
         complete_recovery(
             session,
+            settings=settings,
             email="intake-owner@example.invalid",
             code=mailer.latest("intake-owner@example.invalid"),
             new_password="recovered-long-password",
