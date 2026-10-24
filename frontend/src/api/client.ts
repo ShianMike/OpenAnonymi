@@ -17,12 +17,6 @@ export type CleanupHealthView = components['schemas']['CleanupHealthView']
 export type IntakeDefaultsView = components['schemas']['IntakeDefaultsView']
 export type SavedDraftView = components['schemas']['SavedDraftView']
 export type SourceView = components['schemas']['SourceView']
-export type CsvInfo = components['schemas']['CsvInfo']
-export type ColumnRule = components['schemas']['ColumnRule']
-export type CsvSettingsView = components['schemas']['CsvSettingsView']
-export type CsvDelimiter = CsvInfo['delimiter']
-export type CsvVariant = 'spreadsheet_safe' | 'unmodified'
-export type ColumnDecisionRequest = components['schemas']['ColumnDecisionRequest']
 export type VersionRef = components['schemas']['VersionRef']
 export type CreateDraftRequest = components['schemas']['CreateDraftRequest']
 export type ScanView = components['schemas']['ScanView']
@@ -443,7 +437,6 @@ export async function createFileDraft(
   workspaceId: string, file: File, title: string, categories: string[],
   phoneRegion: string, retentionDays: number, csrfToken: string, presetId?: string,
   language = 'en',
-  csvDelimiter: CsvDelimiter | 'auto' = 'auto', csvHeader: 'auto' | 'true' | 'false' = 'auto',
   editedText?: string,
 ): Promise<SavedDraftView> {
   const form = new FormData()
@@ -453,8 +446,6 @@ export async function createFileDraft(
   form.append('categories', categories.join(','))
   form.append('phone_region', phoneRegion)
   form.append('language', language)
-  form.append('csv_delimiter', csvDelimiter)
-  form.append('csv_header', csvHeader)
   // A JSON string preserves LF/CRLF; browser multipart text fields normalize them.
   if (editedText !== undefined) form.append('edited_text_json', JSON.stringify(editedText))
   form.append('retention_days', String(retentionDays))
@@ -473,29 +464,6 @@ export async function createFileDraft(
 
 export function getDraft(documentId: string, signal?: AbortSignal): Promise<SourceView> {
   return get<SourceView>(`/documents/${encodeURIComponent(documentId)}/source`, signal)
-}
-
-export function updateCsvSettings(documentId: string, expected: number, delimiter: CsvDelimiter, hasHeader: boolean, csrf: string): Promise<CsvSettingsView> {
-  return sendJson<CsvSettingsView>('PUT', `/documents/${encodeURIComponent(documentId)}/csv-settings`,
-    { expected_settings_version: expected, delimiter, has_header: hasHeader }, csrf)
-}
-export function updateColumnRules(documentId: string, expected: number, rules: ColumnRule[], csrf: string): Promise<CsvSettingsView> {
-  return sendJson<CsvSettingsView>('PUT', `/documents/${encodeURIComponent(documentId)}/column-rules`,
-    { expected_settings_version: expected, rules }, csrf)
-}
-export function decideColumn(documentId: string, column: number, body: ColumnDecisionRequest, csrf: string): Promise<FindingsView> {
-  return post<FindingsView>(`/documents/${encodeURIComponent(documentId)}/columns/${column}/decision`, body, csrf)
-}
-export function downloadReviewedCsv(documentId: string, expected: VersionRef, eventId: string, csrf: string, variant: CsvVariant): Promise<{ file: Blob; prefixed: number }> {
-  return trackedRequest(apiUrl(`/documents/${encodeURIComponent(documentId)}/exports/csv`), {
-    method: 'POST', credentials: API_CREDENTIALS, cache: 'no-store',
-    headers: { Accept: 'text/csv', 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
-    body: JSON.stringify({ expected, event_id: eventId, variant }),
-  }, async (response) => {
-    await requireSuccess(response)
-    const prefixed = Number(response.headers.get('X-CSV-Prefixed-Cells'))
-    return { file: await response.blob(), prefixed: Number.isFinite(prefixed) ? prefixed : 0 }
-  })
 }
 
 export function saveDraftSource(
@@ -676,7 +644,12 @@ export async function downloadReviewedTxt(
   return downloadReviewedFile(documentId, expected, eventId, csrfToken, 'txt')
 }
 
-export type ReviewedFormat = 'txt' | 'docx' | 'csv' | 'pdf' | 'report'
+export type ReviewedFormat = 'txt' | 'docx' | 'pdf' | 'report'
+export type FileLayout = components['schemas']['FileLayout']
+export type FileLayoutView = components['schemas']['FileLayoutView']
+export function getFileLayout(documentId: string, variant: 'original' | 'preview', signal?: AbortSignal): Promise<FileLayoutView> {
+  return get(`/documents/${encodeURIComponent(documentId)}/layout?variant=${variant}`, signal)
+}
 
 const reviewedMediaTypes = {
   txt: 'text/plain', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -685,7 +658,7 @@ const reviewedMediaTypes = {
 
 export async function downloadReviewedFile(
   documentId: string, expected: VersionRef, eventId: string, csrfToken: string,
-  format: Exclude<ReviewedFormat, 'csv'>,
+  format: ReviewedFormat,
 ): Promise<Blob> {
   return trackedRequest(apiUrl(`/documents/${encodeURIComponent(documentId)}/exports/${format}`), {
     method: 'POST',
@@ -716,7 +689,7 @@ export function getAdminActivity(workspaceId: string, body: AdminActivityRequest
   }, async response => { await requireSuccess(response); return response.json() })
 }
 export function downloadAdminActivity(workspaceId: string, body: AdminActivityRequest, csrf: string, signal?: AbortSignal): Promise<Blob> {
-  return trackedRequest(apiUrl(`/workspaces/${encodeURIComponent(workspaceId)}/activity/admin/csv`), {
+  return trackedRequest(apiUrl(`/workspaces/${encodeURIComponent(workspaceId)}/activity/admin/export`), {
     method: 'POST', credentials: API_CREDENTIALS, cache: 'no-store', signal,
     headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf }, body: JSON.stringify(body),
   }, async response => { await requireSuccess(response); return response.blob() })

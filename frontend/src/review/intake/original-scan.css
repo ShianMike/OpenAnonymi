@@ -1,0 +1,20 @@
+.intake-original-scan { min-width: 0; margin: 0; }
+.intake-original-scan figcaption { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; margin-bottom: 10px; }
+.intake-original-scan figcaption strong { font-size: 13px; font-weight: 500; }
+.intake-original-scan figcaption button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 6px 10px; margin: 0; font-size: 12px; }
+.intake-scan-image { display: flex; align-items: center; justify-content: center; min-width: 0; height: min(440px, 60dvh); min-height: 220px; padding: 16px; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-subtle); }
+.intake-scan-image img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; box-shadow: 0 2px 8px var(--tone-shadow-medium); }
+.intake-scan-image.is-zoomed { align-items: start; justify-content: start; }
+.intake-scan-image.is-zoomed img { flex: none; width: 200%; max-width: none; max-height: none; }
+.intake-scan-pages { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 10px; }
+.intake-scan-pages button { display: grid; place-items: center; width: 36px; min-height: 36px; margin: 0; padding: 0; border-color: transparent; background: transparent; box-shadow: none; }
+.intake-scan-pages button:hover:not(:disabled) { background: var(--surface-subtle); border-color: var(--line); }
+.intake-scan-pages [role='status'] { min-width: 80px; text-align: center; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.intake-original-scan > .field-note { margin-top: 12px; font-size: 12px; line-height: 1.6; }
+@media (max-width: 600px) {
+  .intake-original-scan figcaption button, .intake-scan-pages button { min-width: 44px; min-height: 44px; }
+  .intake-scan-image { height: clamp(260px, 100vw, 380px); padding: 12px; }
+}
+@media (forced-colors: active) {
+  .intake-scan-image, .intake-scan-pages button { border-color: CanvasText; }
+}

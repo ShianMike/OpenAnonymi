@@ -1,18 +1,20 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { categoryPresentation, findingCategories } from '../rules/categoryPresentation'
-import { FileText, Pencil, Check, MousePointer2, CircleHelp, Tag, Eye } from 'lucide-react'
+import { Pencil, Check, MousePointer2, CircleHelp, Tag, Eye } from 'lucide-react'
 import type { ReviewController } from './useReviewController'
-import { GlassTextarea } from '../ui/GlassTextarea'
-import { GlassSelect } from '../ui/GlassSelect'
+import { StudioSelect } from './studio/StudioControls'
 import { ReviewText } from './ReviewText'
 import { SourceConflictRecovery } from './SourceConflictRecovery'
 import { ReviewReloadButton } from './ReviewReloadButton'
+import { FileLayoutView } from './layout/FileLayoutView'
 
 export function ReviewSource({ review }: { review: ReviewController }) {
+  const [layoutVisible, setLayoutVisible] = useState(true)
   const { state, editingSource, setEditingSource, text, dirty, pending, sourceRef, selection } =
     review
   const marks = useMemo(() => review.activeFindings.map((finding) => ({ span: finding.span, finding })), [review.activeFindings])
   if (state.kind !== 'ready') return null
+  const fixedLayout = state.saved.file_format === 'pdf'
   return (
     <form
       className="review-source"
@@ -23,39 +25,45 @@ export function ReviewSource({ review }: { review: ReviewController }) {
     >
       <div className="document-panel-heading">
         <div>
-          <FileText size={19} strokeWidth={1.5} aria-hidden="true" />
-          <h2>Original text</h2>
+          <h2>{fixedLayout ? 'PDF document' : 'Source text'}</h2>
           <span className="document-badge">{dirty ? 'Unsaved edits' : 'Private source'}</span>
         </div>
-        <button
-          type="button"
-          className="document-edit-button"
-          disabled={dirty || review.actionPending}
-          onClick={() => {
-            setEditingSource(!editingSource)
-            review.setSelection(null)
-          }}
-        >
-          {editingSource ? (
-            <Check size={15} aria-hidden="true" />
-          ) : (
-            <Pencil size={15} aria-hidden="true" />
-          )}
-          {editingSource ? 'View highlights' : review.canEdit ? 'Edit / mark text' : 'Mark text'}
-        </button>
+        <div className="document-heading-actions">
+          {fixedLayout && !editingSource && <div className="file-view-switch" role="group" aria-label="Source display">
+            <button type="button" aria-pressed={layoutVisible} onClick={() => setLayoutVisible(true)}>Page layout</button>
+            <button type="button" aria-pressed={!layoutVisible} onClick={() => setLayoutVisible(false)}>Text view</button>
+          </div>}
+          <button
+            type="button"
+            className="document-edit-button"
+            disabled={dirty || review.actionPending}
+            onClick={() => {
+              setEditingSource(!editingSource)
+              review.setSelection(null)
+            }}
+          >
+            {editingSource ? (
+              <Check size={15} aria-hidden="true" />
+            ) : (
+              <Pencil size={15} aria-hidden="true" />
+            )}
+            {editingSource ? 'View document' : review.canEdit && !fixedLayout ? 'Edit text' : 'Mark text'}
+          </button>
+        </div>
       </div>
       {!editingSource && (
         <>
           <p className="document-help">
-            <MousePointer2 size={14} aria-hidden="true" /> Click a highlighted detail to choose what
-            to share.
+            <MousePointer2 size={14} aria-hidden="true" />
+            {fixedLayout ? 'Select a highlighted detail to review it, or use Mark text to add one.' : 'Click a highlighted detail to choose what to share.'}
           </p>
+          {fixedLayout && layoutVisible ? review.mobilePanel === 'original' ? <FileLayoutView review={review} variant="original"/> : null :
           <ReviewText
             text={state.saved.text}
             marks={marks}
             review={review}
             variant="original"
-          />
+          />}
           <div className="document-legend" aria-label="Highlight legend">
             <strong>Highlights</strong>
             <span data-action="pending"><CircleHelp size={15} aria-hidden="true" /> Needs a choice</span>
@@ -67,16 +75,16 @@ export function ReviewSource({ review }: { review: ReviewController }) {
       <div hidden={!editingSource} className="document-editor">
         {state.saved.structure === 'simplified' && <p className="field-note" role="status">This edit changed the Word layout; the Word download will use plain paragraphs.</p>}
         <p className="document-help">
-          {review.canEdit ? 'Select text to mark a detail, or edit the source and save a new revision.' : 'Select text to mark a detail. The owner manages source revisions.'}
+          {fixedLayout ? 'Select text to mark a detail. Upload a revised file to change the source while keeping its layout.' : review.canEdit ? 'Select text to mark a detail, or edit the source and save a new revision.' : 'Select text to mark a detail. The owner manages source revisions.'}
         </p>
         <label htmlFor="saved-source" className="sr-only">
           Text to review
         </label>
-        <GlassTextarea
+        <textarea
           id="saved-source"
           className="source-editor"
           value={text}
-          readOnly={!review.canEdit}
+          readOnly={!review.canEdit || fixedLayout}
           ref={sourceRef}
           disabled={review.actionPending}
           aria-describedby={
@@ -101,7 +109,7 @@ export function ReviewSource({ review }: { review: ReviewController }) {
             <label className="sr-only" htmlFor="selection-category">
               Finding category
             </label>
-            <GlassSelect
+            <StudioSelect
               id="selection-category"
               value={review.manualCategory}
               onValueChange={(value) =>
@@ -115,7 +123,7 @@ export function ReviewSource({ review }: { review: ReviewController }) {
                   </option>
                 ),
               )}
-            </GlassSelect>
+            </StudioSelect>
             <button
               type="button"
               className="button-primary"
@@ -142,7 +150,7 @@ export function ReviewSource({ review }: { review: ReviewController }) {
             {dirty ? 'Unsaved edits' : 'Saved'}
           </span>
           <div>
-            {review.canEdit && <button
+            {review.canEdit && !fixedLayout && <button
               type="submit"
               className="button-primary"
               disabled={!review.canEdit || !dirty || review.actionPending || review.conflict}

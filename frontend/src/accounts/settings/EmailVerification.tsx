@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { ArrowRight, CheckCircle2, Mail } from 'lucide-react'
+import { ArrowRight, CheckCircle2 } from 'lucide-react'
 import { confirmEmailVerification, getSession, requestEmailVerification, type SessionView } from '../../api/client'
 import { GlassInput } from '../../ui/GlassField'
 import { InlineNotice } from '../../ui/WorkspaceControls'
@@ -35,14 +35,13 @@ export function EmailVerification({ session, onVerified }: {
   }
   return <section className="email-verification" aria-labelledby="account-email-title" aria-busy={!!pending}>
     <div className="email-verification-heading">
-      <span className="email-verification-icon"><Mail size={20} aria-hidden="true" /></span>
       <div className="account-email"><h3 id="account-email-title">Email address</h3><strong>{session.email}</strong></div>
       <span className="email-verification-status" data-verified={session.email_verified}>
         {session.email_verified && <CheckCircle2 size={14} aria-hidden="true" />}
         {session.email_verified ? 'Verified' : 'Not verified'}
       </span>
     </div>
-    {session.email_verified ? <p className="email-verification-help" role="status">Your email address is verified.</p> : <>
+    {session.email_verified ? <p className="sr-only" role="status">Your email address is verified.</p> : <>
       {requested ? <div className="email-verification-entry">
         <div><h4>Check your inbox</h4><p className="email-verification-help" id="email-verification-help">Paste the code from your verification email. Use the latest code; it expires after 15 minutes.</p></div>
         <form onSubmit={confirm} className="email-verification-form">
@@ -52,7 +51,7 @@ export function EmailVerification({ session, onVerified }: {
               aria-describedby={`email-verification-help${error?.action === 'confirm' ? ' email-verification-error' : ''}`}
               aria-invalid={error?.action === 'confirm'} onChange={event => { setCode(event.target.value); setError(null) }} />
           </div>
-          {error && <div id="email-verification-error"><InlineNotice error>{error.message}</InlineNotice></div>}
+          {error && <div id="email-verification-error"><InlineNotice error title={error.action === 'confirm' ? 'Email couldn’t be verified' : 'Verification code couldn’t be sent'}>{error.message}</InlineNotice></div>}
           <div className="email-verification-actions">
             <button type="submit" className="button-primary" disabled={!!pending || !code.trim()}>
               {pending === 'confirm' ? 'Verifying…' : 'Verify email'}<ArrowRight size={16} aria-hidden="true" />
@@ -74,7 +73,7 @@ export function EmailVerification({ session, onVerified }: {
             requestAnimationFrame(() => document.getElementById('email-verification-code')?.focus())
           }}>Enter a code</button>
         </div>}
-        {error && <InlineNotice error>{error.message}</InlineNotice>}
+        {error && <InlineNotice error title="Verification code couldn’t be sent">{error.message}</InlineNotice>}
       </div>}
     </>}
   </section>

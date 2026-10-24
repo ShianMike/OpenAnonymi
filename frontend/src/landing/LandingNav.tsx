@@ -1,31 +1,20 @@
-import { ArrowUpRight, Moon, Sun } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Brand } from '../ui/Brand'
-import { useAppearance } from '../appearance/useAppearance'
+import { landingSections } from './links'
 
-export function LandingNav({ signedIn }: { signedIn: boolean }) {
-  const { theme, saved, setAppearance } = useAppearance()
+export function LandingNav({ signedIn, startTo, scrolled }: { signedIn: boolean; startTo: string; scrolled: boolean }) {
   return (
-    <header className="landing-nav">
-      <div className="landing-nav-inner">
+    <header className="landing-nav" data-scrolled={scrolled}>
+      <div className="landing-container landing-nav-inner">
         <Link className="landing-brand" to="/welcome" aria-label="OpenAnonymi home"><Brand /></Link>
-        <nav className="landing-section-links" aria-label="Explore OpenAnonymi">
-          <a href="#try-review">Try the demo</a>
-          <a href="#how-it-works">How it works</a>
-          <a href="#questions">Questions</a>
+        <nav className="landing-nav-links" aria-label="Explore OpenAnonymi">
+          {landingSections.map(({ href, label }) => <a key={href} href={href}>{label}</a>)}
         </nav>
         <div className="landing-nav-actions">
-          <button type="button" className="landing-theme-button" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-            onClick={() => setAppearance(theme === 'dark' ? 'light' : 'dark')}>
-            {theme === 'dark' ? <Sun size={19} aria-hidden="true" /> : <Moon size={19} aria-hidden="true" />}
-          </button>
-          <Link className="landing-sign-in" to={signedIn ? '/continue' : '/sign-in'}>{signedIn ? 'Continue review' : 'Sign in'}</Link>
-          <Link className="landing-button landing-button-small" to={signedIn ? '/new' : '/sign-up'}>
-            {signedIn ? 'New review' : 'Get started'} <ArrowUpRight size={16} aria-hidden="true" />
-          </Link>
+          <Link className="landing-nav-link" to={signedIn ? '/documents' : '/sign-in'}>{signedIn ? 'Open documents' : 'Sign in'}</Link>
+          <Link className="landing-button landing-button-sm landing-nav-start" to={startTo}>Start a review</Link>
         </div>
       </div>
-      {!saved && <p role="status" className="landing-preference-notice">Appearance changed for this visit. This browser couldn’t save the preference.</p>}
     </header>
   )
 }

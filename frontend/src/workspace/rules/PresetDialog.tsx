@@ -1,8 +1,7 @@
-import { defaultDetectionCategories, extras } from '../../detection/categories'
-import { DetectionControls } from '../../detection/DetectionControls'
+import { defaultDetectionCategories, detectionChoices, extras } from '../../detection/categories'
 import type { FindingCategory } from '../../api/client'
 import { phoneRegions } from '../../ui/phoneRegions'
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import type { PresetInput, PresetView } from '../../api/client'
 import { GlassSelect } from '../../ui/GlassSelect'
@@ -33,10 +32,13 @@ export function PresetDialog({
   const [categoryDefaults, setCategoryDefaults] = useState<Record<string, CategoryDefault>>({})
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const fieldId = preset?.id ?? 'new'
+  const fieldId = useId()
+  const loaded = useRef<string | null>(null)
+  const categories: FindingCategory[] = [...(email ? ['email' as const] : []), ...(phone ? ['phone' as const] : []), ...extraCategories]
   function changeOpen(next: boolean) {
     if (pending) return
-    if (next) {
+    const origin = preset ? `${preset.id}:${preset.version}` : 'new'
+    if (next && loaded.current !== origin) {
       const setup = preset ?? initial
       setName(setup?.name ?? '')
       const categories = setup?.categories ?? defaultDetectionCategories
@@ -48,6 +50,7 @@ export function PresetDialog({
       setIsDefault(setup?.is_default ?? false)
       setCategoryDefaults(setup?.category_defaults ?? {})
       setError(null)
+      loaded.current = origin
     }
     setOpen(next)
   }
@@ -59,7 +62,7 @@ export function PresetDialog({
     try {
       await onSave({
         name: name.trim(),
-        categories: [...(email ? ['email' as const] : []), ...(phone ? ['phone' as const] : []), ...extraCategories],
+        categories,
         phone_region: phoneRegion,
         preferred_action: preferredAction,
         is_default: isDefault,
@@ -68,7 +71,7 @@ export function PresetDialog({
             .find((candidate) => choiceKey(candidate) === choiceKey(choice)) ?? tokenChoice),
         }])),
       })
-      setOpen(false)
+      loaded.current = null; setOpen(false)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Preset could not be saved.')
     } finally {
@@ -79,11 +82,13 @@ export function PresetDialog({
     <Dialog.Root open={open} onOpenChange={changeOpen}>
       <Dialog.Trigger asChild>{trigger}</Dialog.Trigger>
       <DialogFrame
-        title={preset ? 'Edit preset' : initial ? 'Customize built-in preset' : 'Create a preset'}
+        title={preset ? 'Edit review preset' : initial ? 'Save a preset copy' : 'New review preset'}
         description="A reusable starting point for new reviews. You still decide every finding."
         busy={pending}
+        className="workspace-side-dialog preset-editor-dialog"
       >
         <form onSubmit={save} className="preset-form">
+          <div className="preset-editor-body">
           <div>
             <label className="field-label" htmlFor={`preset-name-${fieldId}`}>
               Preset name
@@ -99,13 +104,13 @@ export function PresetDialog({
             />
           </div>
           <div className="preset-detection-group">
-            <span className="field-label">Automatic suggestions</span>
-            <DetectionControls prefix={`preset-${fieldId}`} disabled={pending}
-              disabledReason="Wait for this preset to finish saving."
-              categories={[...(email ? ['email' as const] : []), ...(phone ? ['phone' as const] : []), ...extraCategories]}
-              onChange={(categories) => {
-                setEmail(categories.includes('email')); setPhone(categories.includes('phone')); setExtraCategories(extras(categories))
-              }} />
+            <div className="preset-coverage-heading"><span className="field-label">Detection categories</span><span>{categories.length} selected</span></div>
+            <div className="preset-coverage-grid">{detectionChoices.map(choice => <label key={choice.category} title={choice.description}>
+              <input type="checkbox" checked={categories.includes(choice.category)} disabled={pending} onChange={event => {
+                const next = event.target.checked ? [...categories, choice.category] : categories.filter(category => category !== choice.category)
+                setEmail(next.includes('email')); setPhone(next.includes('phone')); setExtraCategories(extras(next))
+              }} /><span>{choice.label}</span></label>)}</div>
+            <p className="rule-field-note">Only selected categories are scanned. Workspace detection rules are added separately.</p>
           </div>
           <div className="dialog-field-pair">
             <div>
@@ -136,10 +141,10 @@ export function PresetDialog({
                 disabled={pending}
               >
                 <option value="label" data-description="Replace with a category label.">
-                  Label
+                  Readable labels
                 </option>
                 <option value="redact" data-description="Hide the selected text.">
-                  Redact
+                  Redacted text
                 </option>
               </GlassSelect>
             </div>
@@ -152,17 +157,21 @@ export function PresetDialog({
             disabled={pending}
           />
           <PresetDefaults value={categoryDefaults} onChange={setCategoryDefaults} region={phoneRegion} disabled={pending} />
+          </div>
+          <footer className="preset-editor-footer">
           {error && <InlineNotice error>{error}</InlineNotice>}
+          <p>Applies to new reviews. Existing reviews keep their saved settings.</p>
           <div className="dialog-actions">
             <Dialog.Close asChild>
               <button className="quiet-button" type="button" disabled={pending}>
-                Cancel
+                Close
               </button>
             </Dialog.Close>
             <button type="submit" className="button-primary" disabled={pending || !name.trim()}>
               {pending ? 'Saving…' : preset ? 'Save preset' : 'Create preset'}
             </button>
           </div>
+          </footer>
         </form>
       </DialogFrame>
     </Dialog.Root>

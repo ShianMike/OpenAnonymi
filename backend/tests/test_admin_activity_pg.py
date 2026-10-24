@@ -1,7 +1,5 @@
-"""Actual decision history, metadata isolation and bounded administrator CSV."""
+"""Actual decision history, metadata isolation and bounded administrator JSON exports."""
 
-import csv
-import io
 import json
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
@@ -12,11 +10,10 @@ from sqlalchemy import delete, event, select
 from sqlalchemy.orm import Session
 
 from app.accounts.limits import AttemptLimiter
-from app.db.models import AuditEvent, Decision, Membership, User, Workspace
+from app.db.models import AuditEvent, Decision, EntityGroup, Finding, Membership, User, Workspace
 from app.db.models import Session as StoredSession
 from app.errors import ApiError
 from app.factory import create_app
-from tests.csv_support import set_rules, upload_csv
 from tests.intake_support import _login
 from tests.styles_support import decide, draft
 
@@ -50,7 +47,7 @@ def changes(engine, document_id):
         ).all()
 
 
-def test_real_decisions_style_changes_and_undo_are_source_free_in_admin_json_csv(intake_site):
+def test_real_decisions_style_changes_and_undo_are_source_free_in_admin_json_export(intake_site):
     owner, admin, _engine, workspace, actor, _, headers, ah, path = setup(intake_site)
     base, state = draft(
         owner,
@@ -90,17 +87,18 @@ def test_real_decisions_style_changes_and_undo_are_source_free_in_admin_json_csv
     assert diffs[1]["decision_changes"][0]["after_style"] == "partial_mask"
     assert diffs[1]["decision_changes"][0]["after_option"] == "email_domain"
     assert all(row["decision_change_count"] == 1 for row in diffs)
-    response = admin.post(path + "/csv", json={"days": 30}, headers=ah)
+    response = admin.post(path + "/export", json={"days": 30}, headers=ah)
     assert response.status_code == 200
-    assert response.content.startswith(b"\xef\xbb\xbf")
+    assert response.headers["content-type"].startswith("application/json")
+    assert "workspace-activity.json" in response.headers["content-disposition"]
     assert "attachment" in response.headers["content-disposition"]
     assert response.headers["cache-control"] == "no-store"
-    rows = list(csv.DictReader(io.StringIO(response.content.decode("utf-8-sig"))))
+    rows = response.json()["events"]
     assert len(rows) == len(saved["events"])
-    csv_diffs = [
-        json.loads(row["decision_changes"]) for row in rows if row["decision_change_count"] != "0"
+    exported_diffs = [
+        row["decision_changes"] for row in rows if row["decision_change_count"] != 0
     ]
-    assert len(csv_diffs) == 3
+    assert len(exported_diffs) == 3
     for payload in (json.dumps(saved), response.content.decode("utf-8-sig")):
         for private in (
             "PRIVATE SOURCE CANARY",
@@ -123,19 +121,14 @@ def test_real_decisions_style_changes_and_undo_are_source_free_in_admin_json_csv
         "after_style",
         "after_option",
     }
-    assert all(set(change) == allowed for changes_ in csv_diffs for change in changes_)
-    assert all(
-        not value.lstrip().startswith(("=", "+", "-", "@"))
-        for row in rows
-        for value in row.values()
-    )
+    assert all(set(change) == allowed for changes_ in exported_diffs for change in changes_)
     assert admin.get(base + "/source").status_code == 404
     assert admin.get(base + "/findings").status_code == 404
     assert admin.get(f"/api/v1/workspaces/{workspace}/documents").json() == []
     personal = owner.get(f"/api/v1/workspaces/{workspace}/activity").json()
     assert "decision_changes" not in json.dumps(personal)
     assert owner.post(path, json={}, headers=headers).status_code == 404
-    assert owner.post(path + "/csv", json={}, headers=headers).status_code == 404
+    assert owner.post(path + "/export", json={}, headers=headers).status_code == 404
 
 
 @pytest.mark.parametrize("operation", ["removed", "corrected"])
@@ -195,37 +188,31 @@ def test_stale_or_repeated_identical_decision_does_not_fabricate_diff(intake_sit
     assert events[1].decision_changes == [] and events[1].decision_change_count == 0
 
 
-def test_actual_column_bulk_diff_is_bounded_with_total_and_undo(intake_site):
+def test_actual_group_bulk_diff_is_bounded_with_total_and_undo(intake_site):
     owner, admin, engine, workspace, _, _, headers, ah, path = setup(intake_site)
-    base, _state, _source = upload_csv(
-        owner,
-        headers,
-        workspace,
-        "Name\n" + "Nora\n" * 260,
-        header="true",
-        delimiter=",",
-        scan=False,
+    response = owner.post(
+        "/api/v1/documents", headers=headers,
+        json={"workspace_id": str(workspace), "source": "nora@example.test\n" * 260,
+              "categories": ["email"], "phone_region": "GB"},
     )
-    configured = set_rules(
-        owner, headers, base, [{"column": 0, "mode": "category", "category": "person"}]
-    )
-    assert configured.status_code == 200
-    assert (
-        owner.post(
-            base + "/scan", json={"expected": configured.json()["version"]}, headers=headers
-        ).status_code
-        == 200
-    )
+    assert response.status_code == 201
+    base = "/api/v1/documents/" + response.json()["version"]["document_id"]
+    scan = owner.post(base + "/scan", headers=headers, json={"expected": response.json()["version"]})
+    assert scan.status_code == 200
     state = owner.get(base + "/findings").json()
     assert len(state["findings"]) == 260
+    with Session(engine) as session, session.begin():
+        group = EntityGroup(id=uuid4(), document_id=UUID(state["version"]["document_id"]),
+                            source_revision_id=UUID(state["version"]["source_revision_id"]),
+                            category="email", label="EMAIL_999999")
+        session.add(group)
+        session.flush()
+        for finding in session.scalars(select(Finding).where(Finding.document_id == group.document_id)):
+            finding.group_id = group.id
     response = owner.post(
-        base + "/columns/0/decision",
-        json={
-            "expected": state["version"],
-            "action": "redact",
-            "affected_finding_ids": [row["finding_id"] for row in state["findings"]],
-            "same_text_same_entity": False,
-        },
+        base + "/findings/" + state["findings"][0]["finding_id"] + "/decision",
+        json={"expected": state["version"], "action": "redact", "group_scope": True,
+              "affected_finding_ids": [row["finding_id"] for row in state["findings"]]},
         headers=headers,
     )
     assert response.status_code == 200
@@ -326,8 +313,8 @@ def test_filters_cursor_time_retention_legacy_and_workspace_isolation(intake_sit
         )
         outside = admin.post(f"/api/v1/workspaces/{alternate}/activity/admin", json={}, headers=ah)
         assert outside.status_code == 404
-        csv_response = admin.post(
-            path + "/csv",
+        exported = admin.post(
+            path + "/export",
             json={
                 "days": 90,
                 "event_code": "review_decision_saved",
@@ -336,8 +323,8 @@ def test_filters_cursor_time_retention_legacy_and_workspace_isolation(intake_sit
             },
             headers=ah,
         )
-        assert csv_response.status_code == 200
-        assert len(list(csv.DictReader(io.StringIO(csv_response.content.decode("utf-8-sig"))))) == 5
+        assert exported.status_code == 200
+        assert len(exported.json()["events"]) == 5
     finally:
         with Session(engine) as session, session.begin():
             session.execute(delete(Workspace).where(Workspace.id == alternate))
@@ -357,14 +344,14 @@ def test_filters_cursor_time_retention_legacy_and_workspace_isolation(intake_sit
 )
 def test_strict_bounded_activity_requests_never_echo_private_input(intake_site, body):
     _, admin, _, _, _, _, _, ah, path = setup(intake_site)
-    for endpoint in (path, path + "/csv"):
+    for endpoint in (path, path + "/export"):
         response = admin.post(endpoint, json=body, headers=ah)
         assert response.status_code == 422 and "PRIVATE CANARY" not in response.text
 
 
 def test_exact_origin_csrf_and_member_access(intake_site):
     owner, admin, _, _, _, _, headers, ah, path = setup(intake_site)
-    for endpoint in (path, path + "/csv"):
+    for endpoint in (path, path + "/export"):
         for bad in (
             {},
             {"Origin": ah["Origin"]},
@@ -376,8 +363,8 @@ def test_exact_origin_csrf_and_member_access(intake_site):
 
 
 @pytest.mark.parametrize("change", ["role", "membership", "disabled", "session"])
-@pytest.mark.parametrize("endpoint", ["list", "csv"])
-def test_late_access_change_after_list_or_csv_render_refuses_metadata(
+@pytest.mark.parametrize("endpoint", ["list", "export"])
+def test_late_access_change_after_list_or_json_render_refuses_metadata(
     intake_site, monkeypatch, change, endpoint
 ):
     from app.workspace import admin_activity
@@ -398,16 +385,17 @@ def test_late_access_change_after_list_or_csv_render_refuses_metadata(
                 ):
                     row.revoked_at = datetime.now(UTC)
 
-    name = "read_admin_activity" if endpoint == "list" else "activity_csv"
-    original = getattr(admin_activity, name)
+    target = admin_activity if endpoint == "list" else admin_activity.AdminActivityView
+    name = "read_admin_activity" if endpoint == "list" else "model_dump_json"
+    original = getattr(target, name)
 
     def finish_then_revoke(*args, **kwargs):
         value = original(*args, **kwargs)
         revoke()
         return value
 
-    monkeypatch.setattr(admin_activity, name, finish_then_revoke)
-    response = admin.post(path + ("/csv" if endpoint == "csv" else ""), json={}, headers=ah)
+    monkeypatch.setattr(target, name, finish_then_revoke)
+    response = admin.post(path + ("/export" if endpoint == "export" else ""), json={}, headers=ah)
     assert response.status_code == (404 if change == "role" else 401)
     assert "events" not in response.text and "occurred_at" not in response.text
 
@@ -446,12 +434,12 @@ def test_invalid_stored_diff_fails_closed_without_serializing_extra_content(inta
                 decision_changes=[{"source": "STORED PRIVATE CANARY"}],
             )
         )
-    for endpoint in (path, path + "/csv"):
+    for endpoint in (path, path + "/export"):
         response = admin.post(endpoint, json={}, headers=ah)
         assert response.status_code == 503 and "STORED PRIVATE CANARY" not in response.text
 
 
-def test_csv_event_bound_refuses_partial_export_and_persistent_limit(intake_site):
+def test_json_event_bound_refuses_partial_export_and_persistent_limit(intake_site):
     _, admin, engine, workspace, actor, admin_id, _, ah, path = setup(intake_site)
     now = datetime.now(UTC)
     with Session(engine) as session, session.begin():
@@ -466,9 +454,9 @@ def test_csv_event_bound_refuses_partial_export_and_persistent_limit(intake_site
             )
             for _ in range(1001)
         )
-    response = admin.post(path + "/csv", json={}, headers=ah)
+    response = admin.post(path + "/export", json={}, headers=ah)
     assert response.status_code == 413 and response.json()["code"] == "activity_export_limit"
-    narrowed = admin.post(path + "/csv", json={"event_code": "document_deleted"}, headers=ah)
+    narrowed = admin.post(path + "/export", json={"event_code": "document_deleted"}, headers=ah)
     assert narrowed.status_code == 200 and len(narrowed.content.splitlines()) == 1
     limiter = AttemptLimiter(
         engine,
@@ -483,13 +471,13 @@ def test_csv_event_bound_refuses_partial_export_and_persistent_limit(intake_site
         restarted.cookies.update(admin.cookies)
         assert (
             restarted.post(
-                path + "/csv", json={"event_code": "document_deleted"}, headers=ah
+                path + "/export", json={"event_code": "document_deleted"}, headers=ah
             ).status_code
             == 429
         )
 
 
-def test_csv_byte_bound_refuses_before_loading_large_diff_payloads(intake_site):
+def test_json_byte_bound_refuses_before_loading_large_diff_payloads(intake_site):
     _, admin, engine, workspace, actor, _, _, ah, path = setup(intake_site)
     change = {
         "finding_id": str(uuid4()),
@@ -523,7 +511,7 @@ def test_csv_byte_bound_refuses_before_loading_large_diff_payloads(intake_site):
 
     event.listen(engine, "before_cursor_execute", observe)
     try:
-        response = admin.post(path + "/csv", json={}, headers=ah)
+        response = admin.post(path + "/export", json={}, headers=ah)
         assert response.status_code == 413 and response.json()["code"] == "activity_export_limit"
         assert not loaded
     finally:

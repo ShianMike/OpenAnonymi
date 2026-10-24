@@ -22,27 +22,24 @@ from app.db.rotate_keys import (
 )
 from app.db.source_structures import SourceStructure
 from app.intake.csv_structure import CsvError
-from tests.csv_support import set_rules, upload_csv
+from tests.csv_support import legacy_csv, set_legacy_rules
 from tests.intake_support import _login
 
 
 def admin_preset(owner, headers, engine, workspace, actor):
     with Session(engine) as session, session.begin():
         session.get(Membership, (workspace, actor)).role = "administrator"
-    response = owner.post(
-        f"/api/v1/workspaces/{workspace}/presets",
-        json={
-            "name": "CSV rotation",
-            "categories": [],
-            "phone_region": "GB",
-            "column_rules": [
-                {"column": 0, "header": "Name", "mode": "category", "category": "person"}
-            ],
-        },
-        headers=headers,
-    )
-    assert response.status_code == 201
-    return UUID(response.json()["id"])
+    from app.workspace.presets import save_preset
+
+    with Session(engine) as session:
+        preset = save_preset(
+            session, workspace_id=workspace, actor_id=actor, preset_id=None, expected_version=None,
+            name="Legacy rotation", categories=set(), phone_region="GB", preferred_action="label",
+            is_default=False, now=datetime.now(UTC), keys=KeyRing.from_settings(owner.app.state.settings),
+            column_rules=[{"column": 0, "header": "Name", "mode": "category", "category": "person"}],
+        )
+    return preset.id
+
 
 
 def test_csv_rules_and_maps_immutable_rotated_readable_with_only_new_key_then_purged(intake_site):
@@ -50,14 +47,13 @@ def test_csv_rules_and_maps_immutable_rotated_readable_with_only_new_key_then_pu
     headers = _login(owner, "intake-owner@example.invalid")
     preset_id = admin_preset(owner, headers, engine, workspace, actor)
     source = "Name,Notes\nAda,東京\n"
-    base, state, saved = upload_csv(owner, headers, workspace, source, scan=False, preset=preset_id)
-    result = set_rules(
+    base, state, saved = legacy_csv(owner, headers, workspace, source, scan=False, preset=preset_id)
+    result = set_legacy_rules(
         owner, headers, base, [{"column": 0, "mode": "keep", "keep_reason": "intended_disclosure"}]
     )
-    assert result.status_code == 200
     edited = owner.put(
         base + "/source",
-        json={"expected": result.json()["version"], "source": source.replace("Ada", "😀 Ada")},
+        json={"expected": result["version"], "source": source.replace("Ada", "😀 Ada")},
         headers=headers,
     )
     assert edited.status_code == 200
@@ -66,7 +62,7 @@ def test_csv_rules_and_maps_immutable_rotated_readable_with_only_new_key_then_pu
     with Session(engine) as session:
         document = session.get(Document, document_id)
         rules = load_rules(session, document, old)
-        preset_rules = load_preset_rules(session.get(Preset, preset_id), old)
+        preset_legacy_rules = load_preset_rules(session.get(Preset, preset_id), old)
         rows = session.scalars(
             select(DocumentColumnRules)
             .where(DocumentColumnRules.document_id == document_id)
@@ -102,7 +98,7 @@ def test_csv_rules_and_maps_immutable_rotated_readable_with_only_new_key_then_pu
         assert rotate_sources(session, new) == 2
     with Session(engine) as session:
         assert load_rules(session, session.get(Document, document_id), new) == rules
-        assert load_preset_rules(session.get(Preset, preset_id), new) == preset_rules
+        assert load_preset_rules(session.get(Preset, preset_id), new) == preset_legacy_rules
         rows = session.scalars(
             select(DocumentColumnRules)
             .where(DocumentColumnRules.document_id == document_id)
@@ -114,12 +110,12 @@ def test_csv_rules_and_maps_immutable_rotated_readable_with_only_new_key_then_pu
         )
     owner.app.state.settings.active_key_id = "new"
     owner.app.state.settings.content_keys = {"new": SecretStr(new_value.decode())}
-    assert owner.get(base + "/source").json()["csv"]["rules"] == rules
+    assert owner.get(base + "/source").json()["text"] == source.replace("Ada", "😀 Ada")
     with Session(engine) as session, session.begin():
         document = session.get(Document, document_id)
         document.created_at = datetime.now(UTC) - timedelta(days=2)
         document.expires_at = datetime.now(UTC) - timedelta(seconds=1)
-    for path in ("/source", "/csv-settings", "/column-rules"):
+    for path in ("/source",):
         assert owner.get(base + path).status_code == 410
     assert (
         purge_unavailable_content(engine, now=datetime.now(UTC), batch_size=100).documents_purged
@@ -137,7 +133,7 @@ def test_csv_rules_and_maps_immutable_rotated_readable_with_only_new_key_then_pu
             session.get(SourceStructure, UUID(edited.json()["version"]["source_revision_id"]))
             is None
         )
-        assert load_preset_rules(session.get(Preset, preset_id), new) == preset_rules
+        assert load_preset_rules(session.get(Preset, preset_id), new) == preset_legacy_rules
 
 
 @pytest.mark.parametrize("protected", ["map", "rules", "preset"])
@@ -147,7 +143,7 @@ def test_corrupt_protected_csv_content_is_generic_503_and_cannot_import_or_revie
     owner, _, engine, workspace, actor = intake_site
     headers = _login(owner, "intake-owner@example.invalid")
     preset_id = admin_preset(owner, headers, engine, workspace, actor)
-    base, state, _ = upload_csv(
+    base, state, _ = legacy_csv(
         owner, headers, workspace, "Name,Other\nAda,value\n", scan=False, preset=preset_id
     )
     with Session(engine) as session, session.begin():
@@ -164,12 +160,7 @@ def test_corrupt_protected_csv_content_is_generic_503_and_cannot_import_or_revie
         else:
             session.get(Preset, preset_id).column_rules_ciphertext = b"invalid-ciphertext"
     if protected == "preset":
-        response = owner.post(
-            "/api/v1/documents/from-file",
-            data={"workspace_id": str(workspace), "preset_id": str(preset_id)},
-            files={"file": ("fictional.csv", b"Name,Other\nAda,value\n", "text/csv")},
-            headers=headers,
-        )
+        response = owner.get(f"/api/v1/workspaces/{workspace}/presets")
     else:
         response = owner.get(base + "/source")
         denied = owner.post(base + "/scan", json={"expected": state["version"]}, headers=headers)

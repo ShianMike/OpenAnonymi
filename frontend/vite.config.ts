@@ -1,5 +1,6 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig, loadEnv, type Plugin } from 'vite'
+import { loadEnv, type Plugin } from 'vite'
+import { defineConfig } from 'vitest/config'
 
 const DEFAULT_API_BASE = '/api/v1'
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]'])
@@ -87,6 +88,7 @@ export default defineConfig(({ mode }) => {
   const apiBase = apiBaseFrom(env, Boolean(process.env.VERCEL))
   return {
     plugins: [react(), contentSecurityPolicy(apiBase)],
+    test: { fsModuleCache: true },
     // Disable Vite's implicit public-env injection. API_BASE is defined explicitly.
     envPrefix: [],
     // Bundle the validated, normalized value rather than the raw environment string.

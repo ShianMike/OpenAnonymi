@@ -1,191 +1,88 @@
-import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowUpRight, Bell, Check, CheckCheck, MessageSquare, RefreshCw, ShieldCheck, UserCheck, UserMinus, type LucideIcon } from 'lucide-react'
+import * as Dialog from '@radix-ui/react-dialog'
+import * as Tabs from '@radix-ui/react-tabs'
+import { useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { ArrowDown, ArrowUpRight, Bell, CheckCheck, CircleAlert, RefreshCw, Settings2 } from 'lucide-react'
 import type { SessionView } from '../api/client'
 import { LoadingState } from '../loading/LoadingState'
-import { PageHeader } from '../ui/PageHeader'
-import { InlineNotice, RefreshButton } from '../ui/WorkspaceControls'
-import { ListPagination } from '../ui/ListPagination'
-import { pageWindow } from '../ui/pagination'
-import { cn } from '../ui/cn'
-import { dayKey, dayLabel } from '../workspace/activity/activityPresentation'
-import { relativeEdit } from '../workspace/documents/documentPresentation'
-import { getNotifications, markAllNotificationsRead, markNotificationRead, notificationChanged, type Notification, type NotificationPage } from './api'
+import { DialogFrame } from '../ui/WorkspaceControls'
+import { NotificationList } from './NotificationList'
+import { NotificationPreview } from './NotificationPreview'
+import { NotificationPreferencesPanel } from './NotificationPreferencesPanel'
+import { useNotifications } from './useNotifications'
 import './notifications.css'
 
-const messages: Record<Notification['event_code'], string> = {
-  review_assigned: 'A review was assigned to you',
-  review_unassigned: 'Your reviewer assignment was removed',
-  approval_requested: 'Your approval was requested',
-  review_approved: 'Your review was approved',
-  approval_invalidated: 'A review changed and needs fresh approval',
-  comment_added: 'A comment was added to a review',
-}
-
-const icons: Record<Notification['event_code'], LucideIcon> = {
-  review_assigned: UserCheck,
-  review_unassigned: UserMinus,
-  approval_requested: ShieldCheck,
-  review_approved: CheckCheck,
-  approval_invalidated: RefreshCw,
-  comment_added: MessageSquare,
-}
-
-const PAGE_SIZE = 5
-
-export function NotificationList({ items, pending, onRead, now }: {
-  items: Notification[]
-  pending: string | null
-  onRead: (id: string) => void
-  now: number
-}) {
-  const days = new Map<string, Notification[]>()
-  for (const item of items) {
-    const key = dayKey(item.created_at)
-    const rows = days.get(key) ?? []
-    rows.push(item)
-    days.set(key, rows)
-  }
-  return <>{Array.from(days, ([key, rows]) => {
-    const label = dayLabel(rows[0].created_at, new Date(now).toISOString())
-    return <section className="notification-day" key={key} aria-label={`${label} notifications`}>
-      <h2 className="notification-day-heading">{label}</h2>
-      <ul className="notification-list">{rows.map((item) => {
-        const Icon = icons[item.event_code]
-        return <li key={item.id} className={cn('notification', item.read_at && 'is-read')}>
-          <span className="notification-event-icon" aria-hidden="true"><Icon size={20} strokeWidth={1.6} /></span>
-          <div className="notification-details">
-            <h3>{messages[item.event_code]}</h3>
-            {item.document_available && item.document_id ? <Link to={`/documents/${encodeURIComponent(item.document_id)}/edit`}><span>{item.title || 'Untitled document'}</span><ArrowUpRight size={14} aria-hidden="true" /></Link>
-              : <p className="notification-unavailable">Document unavailable. Its access may have changed, or it may have expired or been deleted.</p>}
-            <div className="notification-meta">
-              {!item.read_at && <span className="notification-unread"><span aria-hidden="true" />Unread</span>}
-              <time dateTime={item.created_at} title={new Date(item.created_at).toLocaleString()}>{relativeEdit(item.created_at, now)}</time>
-            </div>
-          </div>
-          <button type="button" className="notification-read" disabled={!!pending}
-            aria-disabled={!!item.read_at} tabIndex={item.read_at ? -1 : undefined}
-            onClick={() => { if (!item.read_at) onRead(item.id) }}
-            aria-label={`${item.read_at ? 'Read' : 'Mark as read'}: ${messages[item.event_code]}`}>
-            <Check size={16} aria-hidden="true" />{pending === item.id ? 'Saving…' : item.read_at ? 'Read' : 'Mark as read'}
-          </button>
-        </li>
-      })}</ul>
-    </section>
-  })}</>
-}
+const VISIBLE_BATCH = 20
 
 export function NotificationsPage({ session }: { session: SessionView }) {
-  const [page, setPage] = useState<NotificationPage | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
-  const [attempt, setAttempt] = useState(0)
-  const [pending, setPending] = useState<string | null>(null)
-  const [view, setView] = useState<'all' | 'unread'>('all')
-  const [pageIndex, setPageIndex] = useState(0)
-  const [checkedAt, setCheckedAt] = useState(() => Date.now())
-  const activeFilter = useRef<HTMLButtonElement>(null)
-  const mounted = useRef(false)
-  const generation = useRef(0)
-  useEffect(() => {
-    mounted.current = true
-    return () => { mounted.current = false; generation.current += 1 }
-  }, [])
-  useEffect(() => {
-    let controller: AbortController | undefined
-    function refresh() {
-      controller?.abort()
-      generation.current += 1
-      // Remove previously decrypted titles before an access recheck, including
-      // when a tab is hidden. A failed recheck never retains old title data.
-      setPage(null)
-      setError(null)
-      if (document.visibilityState !== 'visible') return
-      controller = new AbortController()
-      const current = controller
-      getNotifications(current.signal).then((result) => {
-        if (!current.signal.aborted) { setCheckedAt(Date.now()); setPage(result) }
-      }).catch((cause: unknown) => {
-        if (!current.signal.aborted) setError(cause instanceof Error ? cause.message : 'Notifications could not be loaded.')
-      })
-    }
-    refresh()
-    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') refresh() }, 60_000)
-    document.addEventListener('visibilitychange', refresh)
-    window.addEventListener('focus', refresh)
-    return () => {
-      controller?.abort()
-      window.clearInterval(timer)
-      document.removeEventListener('visibilitychange', refresh)
-      window.removeEventListener('focus', refresh)
-    }
-  }, [session.user_id, attempt])
-  async function read(id?: string) {
-    if (pending) return
-    setPending(id ?? 'all'); setError(null); setNotice(null)
-    try {
-      if (id) await markNotificationRead(id, session.csrf_token)
-      else await markAllNotificationsRead(session.csrf_token)
-      if (!mounted.current) return
-      setPage((current) => current && { ...current, items: current.items.map((item) =>
-        !item.read_at && (!id || item.id === id) ? { ...item, read_at: new Date().toISOString() } : item) })
-      setNotice(id ? 'Notification marked as read.' : 'All notifications marked as read.')
-      notificationChanged()
-      if (view === 'unread' || !id) activeFilter.current?.focus()
-    } catch (cause: unknown) {
-      if (mounted.current) setError(cause instanceof Error ? cause.message : 'Read status could not be saved.')
-    } finally { if (mounted.current) setPending(null) }
+  const [params, setParams] = useSearchParams()
+  const view = params.get('view') === 'unread' ? 'unread' : 'all'
+  const [limit, setLimit] = useState(VISIBLE_BATCH)
+  const activeTab = useRef<HTMLButtonElement>(null)
+  const previewTrigger = useRef<HTMLButtonElement | null>(null)
+  const [selected, setSelected] = useState<string | null>(null)
+  const [acknowledged, setAcknowledged] = useState<string | null>(null)
+  const { data, pending, notice, actionError, read, loadOlder, refresh } = useNotifications(session)
+  const ready = data.kind === 'ready' ? data : null
+  const visible = ready?.page.items.filter(item => view === 'all' || !item.read_at) ?? []
+  const more = visible.length > limit || !!ready?.page.next_cursor && (view === 'all' || !!ready.unread)
+  function changeView(next: string) {
+    setLimit(VISIBLE_BATCH)
+    setParams(current => { const search = new URLSearchParams(current); if (next === 'unread') search.set('view', next); else search.delete('view'); return search }, { replace: true })
   }
-  async function nextPage() {
-    if (pending) return
-    if (range.end < visible.length) { setPageIndex(range.page + 1); return }
-    if (!page?.next_cursor) return
-    const expected = generation.current
-    setPending('more'); setError(null)
-    try {
-      const next = await getNotifications(undefined, page.next_cursor)
-      if (!mounted.current || generation.current !== expected) return
-      setPage((current) => current && { next_cursor: next.next_cursor, items: [...current.items, ...next.items.filter((row) => !current.items.some((item) => item.id === row.id))] })
-      // Fill a partial filtered page before advancing, so older unread rows are never skipped.
-      setPageIndex(Math.floor(range.end / PAGE_SIZE))
-    } catch (cause: unknown) {
-      if (mounted.current && generation.current === expected) setError(cause instanceof Error ? cause.message : 'More notifications could not be loaded.')
-    } finally { if (mounted.current) setPending(null) }
+  async function acknowledge(id?: string) {
+    if (await read(id)) activeTab.current?.focus()
   }
-  const unread = page?.items.filter((item) => !item.read_at).length ?? 0
-  const visible = page?.items.filter((item) => view === 'all' || !item.read_at) ?? []
-  const range = pageWindow(visible.length, pageIndex, PAGE_SIZE)
-  function refreshInbox() { setPageIndex(0); setAttempt((value) => value + 1); notificationChanged() }
-  function changeView(value: 'all' | 'unread') { setView(value); setPageIndex(0) }
+  async function showOlder() {
+    if (visible.length <= limit) await loadOlder()
+    setLimit(current => current + VISIBLE_BATCH)
+  }
   return <section className="notifications-page" aria-labelledby="notifications-title">
-    <PageHeader title="Notifications" titleId="notifications-title" description="Assignments, approvals, and comments across your workspaces."
-      action={<div className="notification-heading-actions">
-        <RefreshButton label="Refresh notifications" disabled={!!pending || !page} onClick={refreshInbox} />
-        <button type="button" className="button-secondary" disabled={!!pending || !unread} onClick={() => void read()}><CheckCheck size={17} aria-hidden="true" />{pending === 'all' ? 'Saving…' : 'Mark all as read'}</button>
-      </div>} />
-    {notice && <InlineNotice>{notice}</InlineNotice>}
-    {error && <InlineNotice error>{error} <RefreshButton label="Retry notification refresh" disabled={!!pending} onClick={refreshInbox} /></InlineNotice>}
-    <div className="notification-inbox">
+    <header className="notification-heading">
+      <div><h1 id="notifications-title">Notifications</h1><p>Assignments, approvals and comments, in one inbox.</p></div>
+      <Dialog.Root>
+        <Dialog.Trigger className="notification-settings"><Settings2 size={15} aria-hidden="true" /><span>Preferences</span></Dialog.Trigger>
+        <DialogFrame className="notification-preferences-dialog" title="Notification preferences" description="Choose how review updates reach you.">
+          <NotificationPreferencesPanel key={session.user_id} session={session} />
+        </DialogFrame>
+      </Dialog.Root>
+    </header>
+    <Tabs.Root value={view} onValueChange={changeView}>
       <div className="notification-toolbar">
-        <div className="notification-filters" role="group" aria-label="Notification views">
-          <button type="button" aria-pressed={view === 'all'} ref={view === 'all' ? activeFilter : undefined} onClick={() => changeView('all')}>All notifications</button>
-          <button type="button" aria-pressed={view === 'unread'} ref={view === 'unread' ? activeFilter : undefined} onClick={() => changeView('unread')}>Unread{page && <span className="notification-filter-count" aria-label={`${unread} unread in loaded updates`}>{unread}</span>}</button>
+        <Tabs.List className="notification-views" aria-label="Notification views">
+          <Tabs.Trigger value="all" ref={view === 'all' ? activeTab : undefined}>All</Tabs.Trigger>
+          <Tabs.Trigger value="unread" ref={view === 'unread' ? activeTab : undefined}>Unread{ready && <span>{ready.unread}</span>}</Tabs.Trigger>
+        </Tabs.List>
+        <div className="notification-inbox-tools">
+          <button type="button" className="notification-mark-all" disabled={!!pending || !ready?.unread} onClick={() => void acknowledge()}><CheckCheck size={15} aria-hidden="true" /><span>{pending === 'all' ? 'Saving…' : 'Mark all read'}</span></button>
+          <button type="button" className="notification-refresh" aria-label="Refresh notifications" title="Refresh notifications" disabled={!!pending || data.kind === 'loading'} onClick={() => { setLimit(VISIBLE_BATCH); refresh() }}><RefreshCw size={15} aria-hidden="true" /></button>
         </div>
-        <p className="notification-view-count">Newest first</p>
       </div>
-      {!page && !error && <LoadingState label="Checking notifications…" shape="list" />}
-      {page && <>
-        <ListPagination page={range.page} total={visible.length} pageSize={PAGE_SIZE} label="Updates" hasMore={!!page.next_cursor} pending={!!pending}
-          onPrevious={() => setPageIndex(range.page - 1)} onNext={() => void nextPage()} />
-        {visible.length ? <NotificationList items={visible.slice(range.start, range.end)} pending={pending} onRead={(id) => void read(id)} now={checkedAt} />
-          : <div className="notification-empty"><span className="notification-empty-icon">{view === 'unread' ? <CheckCheck size={24} aria-hidden="true" /> : <Bell size={24} aria-hidden="true" />}</span>
-            <h2>{view === 'unread' ? page.next_cursor ? 'No unread updates in this view' : 'You’re all caught up' : 'No notifications yet'}</h2>
-            <p>{view === 'unread' ? page.next_cursor ? 'Use Next to check older notifications.' : 'Your earlier updates are still here whenever you need them.' : 'Review assignments, approvals, and comments will appear here.'}</p>
-            {view === 'unread' ? <button type="button" className="button-secondary" onClick={() => changeView('all')}>View all notifications</button>
-              : <Link className="button-secondary" to="/documents">Go to documents <ArrowUpRight size={15} aria-hidden="true" /></Link>}
-          </div>}
-      </>}
-    </div>
-    <p className="notification-retention">Updates stay here for 30 days, or until the review’s content is removed. Review access is checked each time you open it.</p>
+      <Tabs.Content value={view} className="notification-feed">
+        <div className="notification-feed-meta"><span role="status">{notice || 'Newest first'}</span>{ready && view === 'unread' && ready.unread > 0 && <span>Unread updates</span>}</div>
+        {data.kind === 'loading' && <LoadingState label="Checking your inbox…" description="Loading updates you can access." shape="list" onRetry={refresh} />}
+        {data.kind === 'error' && <div className="notification-error" role="alert"><CircleAlert size={24} strokeWidth={1.5} aria-hidden="true" /><h2>Inbox couldn’t be loaded</h2><p>{data.message}</p><button type="button" onClick={refresh}>Try again</button></div>}
+        {ready && <>
+          {visible.length ? <NotificationList items={visible.slice(0, limit)} pending={pending} onRead={id => void acknowledge(id)} now={ready.checkedAt}
+            onOpen={(id, trigger) => { previewTrigger.current = trigger; setSelected(id) }} />
+            : <div className="notification-empty">
+              {view === 'unread' ? <CheckCheck size={30} strokeWidth={1.3} aria-hidden="true" /> : <Bell size={30} strokeWidth={1.3} aria-hidden="true" />}
+              <h2>{view === 'unread' ? ready.unread && ready.page.next_cursor ? 'Your unread updates are further back' : 'You’re all caught up' : 'A quiet inbox'}</h2>
+              <p>{view === 'unread' ? ready.unread && ready.page.next_cursor ? 'Load older updates to find the notifications you haven’t read yet.' : 'There’s nothing new to check. You can still browse your earlier updates.' : 'When someone assigns a review, requests approval, or leaves a comment, you’ll find it here.'}</p>
+              {view === 'unread' ? <button type="button" onClick={() => changeView('all')}>View all updates</button>
+                : <Link to="/documents">Browse documents<ArrowUpRight size={14} aria-hidden="true" /></Link>}
+            </div>}
+          {actionError && <p className="notification-action-error" role="alert">{actionError}</p>}
+          {more && <div className="notification-load-older"><button type="button" disabled={!!pending} onClick={() => void showOlder()}><ArrowDown size={14} aria-hidden="true" />{pending === 'more' ? 'Loading updates…' : actionError ? 'Try loading again' : 'Load older updates'}</button></div>}
+        </>}
+      </Tabs.Content>
+    </Tabs.Root>
+    <Dialog.Root open={selected !== null && data.kind !== 'error'} onOpenChange={open => { if (!open) setSelected(null) }}>
+      {selected && data.kind !== 'error' && <NotificationPreview key={`${session.user_id}:${session.csrf_token}:${selected}`} id={selected}
+        read={acknowledged === selected || !!ready?.page.items.find(item => item.id === selected)?.read_at} pending={!!pending}
+        onViewed={item => { if (!item.read_at) void read(item.id).then(saved => { if (saved) setAcknowledged(item.id) }) }} onNavigate={() => setSelected(null)}
+        onCloseAutoFocus={event => { event.preventDefault(); (previewTrigger.current?.isConnected ? previewTrigger.current : activeTab.current)?.focus() }} />}
+    </Dialog.Root>
+    <p className="notification-retention">Updates are kept for 30 days. Review access is checked before details are shown.</p>
   </section>
 }

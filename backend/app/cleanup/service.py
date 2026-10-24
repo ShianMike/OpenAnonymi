@@ -1,5 +1,6 @@
 """Immediate access revocation followed by repeatable protected-content removal."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID
@@ -143,10 +144,14 @@ def cleanup_remaining(session: Session, now: datetime) -> bool:
 
 
 def mark_document_deleted(
-    engine: Engine, *, document_id: UUID, actor_id: UUID, now: datetime
+    engine: Engine, *, document_id: UUID, actor_id: UUID, now: datetime,
+    reauthorize: Callable[[], object] | None = None,
 ) -> None:
     with Session(engine) as session, session.begin():
         document = owned_document_record(session, document_id, actor_id, lock=True)
+        if reauthorize is not None:
+            reauthorize()
+            owned_document_record(session, document_id, actor_id)
         if document.deleted_at is not None:
             return
         document.deleted_at = now
@@ -160,6 +165,10 @@ def mark_document_deleted(
             event_code="document_deleted",
             now=now,
         )
+        session.flush()
+        if reauthorize is not None:
+            reauthorize()
+            owned_document_record(session, document_id, actor_id)
 
 
 def purge_unavailable_content(

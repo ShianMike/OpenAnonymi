@@ -1,6 +1,6 @@
 import { Children, isValidElement, type OptionHTMLAttributes, type ReactNode } from 'react'
 import * as Select from '@radix-ui/react-select'
-import { Check, ChevronDown } from 'lucide-react'
+import { Circle, ChevronDown } from 'lucide-react'
 import './glass-select.css'
 
 type OptionProps = OptionHTMLAttributes<HTMLOptionElement> & { 'data-description'?: string }
@@ -60,7 +60,7 @@ export function GlassSelect({
         </Select.Icon>
       </Select.Trigger>
       <Select.Portal>
-        <Select.Content className="glass-select-menu" position="popper" sideOffset={8} collisionPadding={12}>
+        <Select.Content className="glass-select-menu" position="popper" align="start" sideOffset={5} collisionPadding={12}>
           <Select.Viewport className="glass-select-options">
             {options.map((option) => (
               <Select.Item
@@ -78,7 +78,7 @@ export function GlassSelect({
                 </span>
                 <span className="glass-select-check">
                   <Select.ItemIndicator>
-                    <Check size={14} strokeWidth={2.4} aria-hidden="true" />
+                    <Circle size={8} fill="currentColor" aria-hidden="true" />
                   </Select.ItemIndicator>
                 </span>
               </Select.Item>

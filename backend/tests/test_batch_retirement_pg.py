@@ -13,7 +13,7 @@ from tests.test_source_csv_mutation_access_pg import mutation_case
 
 
 def test_retirement_preserves_review_storage_and_removes_feature_routes(intake_site):
-    case = mutation_case(intake_site, "noop-rules")
+    case = mutation_case(intake_site, "source-csv")
     owner, engine, base = case["client"], case["engine"], case["base"]
     preview = owner.get(base + "/preview").json()
     source = owner.get(base + "/source").json()

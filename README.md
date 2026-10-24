@@ -12,8 +12,10 @@ result after confirmation.
 
 ## What it does
 
-- Imports text, Markdown, CSV, Word, and PDF, including bounded local English OCR.
-  Compare scanned pages with editable extracted text before saving.
+- Imports text, Markdown, Word, and PDF, including bounded local English OCR.
+  Compare scanned pages with extracted text before saving. TXT retains whitespace;
+  new PDF reviews retain page geometry and export flattened reviewed pages.
+  See [file layout behavior and limits](docs/FILE_LAYOUTS.md).
 - Suggests names, contact details, identifiers, dates, addresses, URLs, and secrets
   with local rules and models. Document text is not sent to an external AI service.
 - Lets reviewers keep, replace, label, or remove findings, add missed details,
@@ -65,13 +67,17 @@ configured as `PRIVACY_REVIEW_TEST_DATABASE_URL`:
 uv sync --locked
 uv run ruff check app tests migrations ../scripts/run_backend_shard.py
 uv run alembic upgrade head
-uv run pytest -q
+uv run python ../scripts/run_backend_shard.py all
 uv run python -m app.export_openapi ../frontend/openapi.json
 ```
 
 Use the test database as `PRIVACY_REVIEW_DATABASE_URL` for the migration command.
 Never point these checks at an application database. See
 [the exact test setup](docs/DEVELOPMENT.md#tests).
+
+The full backend command runs four shards in separate temporary databases and
+requires a test role that can create databases. Use `uv run pytest -q` for a serial
+run on one disposable database.
 
 Hosted CI runs four isolated PostgreSQL test shards, frontend checks, generated
 API consistency checks, secret scanning, and a Linux container check that

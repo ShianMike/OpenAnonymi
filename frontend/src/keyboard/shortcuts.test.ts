@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { reviewShortcut, shortcutGuide, shortcutKeys } from './shortcuts'
+import { reviewShortcut, searchShortcuts, shortcutGuide, shortcutKeys } from './shortcuts'
 
 const key = { key: 'r', altKey: false, ctrlKey: false, metaKey: false, shiftKey: false, repeat: false, isComposing: false, defaultPrevented: false }
 
 describe('review shortcut safeguards', () => {
+  it('finds exact keys before descriptions and searches names and notes without case sensitivity', () => {
+    expect(searchShortcuts(' n ').map(([key]) => key)).toEqual(['N'])
+    expect(searchShortcuts('DATE').map(([key]) => key)).toEqual(['D', 'G'])
+    expect(searchShortcuts('fictional').map(([key]) => key)).toEqual(['F'])
+    expect(searchShortcuts('   ')).toEqual(shortcutGuide)
+    expect(searchShortcuts('no such action')).toEqual([])
+  })
   it('assigns each key and action once and lists every key in the guide', () => {
     const entries = Object.entries(shortcutKeys)
     expect(new Set(entries.map(([, action]) => action)).size).toBe(entries.length)

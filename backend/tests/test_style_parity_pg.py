@@ -1,7 +1,5 @@
 """Real decisions, current-version confirmation and identical preview/copy/TXT."""
 
-import csv
-import io
 import json
 from datetime import UTC, datetime, timedelta, timezone
 from uuid import UUID, uuid4
@@ -12,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.db.crypto import KeyRing
 from app.db.models import Document
 from app.db.replacement_secrets import DocumentReplacementSecret
-from tests.csv_support import upload_csv
+from tests.csv_support import legacy_csv
 from tests.docx_fixtures import read_word
 from tests.docx_support import mark
 from tests.intake_support import _login
@@ -72,7 +70,7 @@ def test_exact_style_parity(
     prefix = "😀 DOB: " if option == "age_band" else "😀 Detail: "
     if csv_mode:
         source = f"Value,Other\n{prefix}{value},Unmarked\n"
-        base, state, _ = upload_csv(owner, headers, workspace, source)
+        base, state, _ = legacy_csv(owner, headers, workspace, source)
         state = mark(owner, headers, base, state, source, value, category)
         expected_text = f"Value,Other\n{prefix}{expected},Unmarked\n"
     else:
@@ -121,17 +119,6 @@ def test_exact_style_parity(
         headers=headers,
     )
     assert word.status_code == 200 and read_word(word.content)[0] == preview["text"]
-    if csv_mode:
-        for variant in ("spreadsheet_safe", "unmodified"):
-            exported = owner.post(
-                base + "/exports/csv",
-                json={"expected": state["version"], "event_id": str(uuid4()), "variant": variant},
-                headers=headers,
-            )
-            assert exported.status_code == 200, exported.text
-            assert list(
-                csv.reader(io.StringIO(exported.content.decode("utf-8-sig"), newline=""))
-            ) == [["Value", "Other"], [prefix + expected, "Unmarked"]]
     summary = owner.get(base + "/summary").json()
     assert summary["counts_by_action_and_style"][action][style] == 1
     assert summary["fictional_replacements"] == 0

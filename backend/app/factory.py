@@ -39,6 +39,7 @@ from app.exports.render_api import create_render_router
 from app.groups.api import create_groups_router
 from app.intake.api import create_intake_router
 from app.intake.import_api import create_import_router
+from app.intake.layout_api import create_layout_router
 from app.maintenance.api import create_maintenance_router
 from app.notifications import (
     events as notification_events,  # noqa: F401 -- version invalidation hook
@@ -111,7 +112,7 @@ def create_app(
     # internal HTTP scheme, potentially resending a request body to an insecure URL.
     app = FastAPI(
         title="OpenAnonymi API",
-        version="0.1.6",
+        version="0.2.0",
         lifespan=lifespan,
         redirect_slashes=not production,
         **docs,
@@ -137,7 +138,7 @@ def create_app(
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Content-Type", "X-CSRF-Token", "If-None-Match"],
-        expose_headers=["X-CSV-Prefixed-Cells", "ETag"],
+        expose_headers=["ETag"],
         max_age=600,
     )
     if production and settings.https_redirect_enabled:
@@ -153,6 +154,7 @@ def create_app(
     app.include_router(create_admin_router(engine))
     app.include_router(create_intake_router(engine))
     app.include_router(create_import_router(engine))
+    app.include_router(create_layout_router(engine))
     app.include_router(create_comparison_router(engine))
     app.include_router(create_team_router(engine))
     app.include_router(create_recovery_router(engine))

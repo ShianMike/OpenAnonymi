@@ -17,3 +17,15 @@ export const workspacePages = ['/', '/new', '/documents', '/continue', '/rules',
 export function workspaceHref(path: string, workspaceId?: string) {
   return workspaceId && workspacePages.includes(path) ? `${path}?workspace=${encodeURIComponent(workspaceId)}` : path
 }
+
+function pageDepth(path: string) {
+  if (/^\/workspaces\/[^/]+\/documents\/[^/]+\/history\/?$/.test(path)) return 3
+  if (/^\/documents\/[^/]+\/edit\/?$/.test(path)) return 2
+  return /^\/new\/?$/.test(path) ? 1 : 0
+}
+
+export function pageTransition(from: string, to: string) {
+  if (from === to) return 'none'
+  const depth = pageDepth(to) - pageDepth(from)
+  return depth > 0 ? 'forward' : depth < 0 ? 'back' : 'fade'
+}

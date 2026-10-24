@@ -5,55 +5,55 @@ import { OriginalScan } from './OriginalScan'
 import type { IntakeController } from './useIntake'
 import { detectionChoices } from '../../detection/categories'
 
-it('shows quick coverage choices and explicitly names excluded categories', () => {
-  const intake = {
-    defaults: { kind: 'ready', value: { content_retention_days: 7, current_time: '2026-10-10T00:00:00Z' }, presets: [] },
-    pending: false, emailEnabled: true, phoneEnabled: true, extraCategories: [],
-    presetId: '', phoneRegion: 'PH', retentionDays: 7,
-  } as unknown as IntakeController
-  const html = renderToStaticMarkup(<IntakeOptions intake={intake} />)
-  expect(html).toContain('Scan coverage')
-  for (const preset of ['Contact details', 'People &amp; places', 'Full review']) expect(html).toContain(preset)
-  const scope = html.slice(html.indexOf('class="intake-coverage-summary"'), html.indexOf('<details'))
-  expect(scope).toContain('Email addresses')
-  expect(scope).toContain('Not checked: People')
-  expect(scope).toContain('National IDs')
-  expect(html).not.toContain('id="intake-preset"')
-  expect(html).toContain('Customize categories')
-  expect(html).toContain('Philippines · ')
-  expect(html).toContain('7 days')
-  const full = renderToStaticMarkup(<IntakeOptions intake={{ ...intake, presetId: 'builtin-full',
-    extraCategories: detectionChoices.map(choice => choice.category).filter(category => !['email', 'phone'].includes(category)) }} />)
-  expect(full).not.toContain('Not checked:')
-  expect(full).not.toMatch(/id="intake-email"[^>]*disabled/)
-  const pending = renderToStaticMarkup(<IntakeOptions intake={{ ...intake, pending: true }} />)
-  expect(pending).toMatch(/id="intake-email"[^>]*disabled/)
+const intake = { defaults: { kind: 'ready', value: { content_retention_days: 7, current_time: '2026-10-22T00:00:00Z' }, presets: [] },
+  pending: false, emailEnabled: true, phoneEnabled: true, extraCategories: [], presetId: '', phoneRegion: 'PH', retentionDays: 7,
+} as unknown as IntakeController
+const render = (value = intake) => renderToStaticMarkup(<IntakeOptions intake={value} />)
+
+it('keeps coverage, custom categories and retention in one editable setup', () => {
+  const html = render()
+  for (const label of ['Contact details', 'People &amp; places', 'Full review', 'Philippines', '7 days']) expect(html).toContain(label)
+  expect(html).toContain('2 of 11 selected')
+  expect(html).toMatch(/type="radio" name="scan-coverage"[^>]*checked=""[^>]*value="builtin-contact"/)
+  for (const choice of detectionChoices) expect(html).toContain(`id="intake-${choice.category}"`)
+  expect(html).toContain('aria-describedby="intake-retention-help"')
+  expect(html).toContain('id="intake-preset"')
+  expect(html).toContain('All review presets')
+  expect(render({ ...intake, presetId: 'builtin-technical' })).toContain('Technical logs')
+  expect(html.match(/type="radio" name="scan-coverage"/g)).toHaveLength(3)
+  expect(render({ ...intake, emailEnabled: false, phoneEnabled: false })).toContain('No automatic checks. You can mark details yourself.')
+  expect(render({ ...intake, pending: true })).toMatch(/id="intake-email"[^>]*disabled/)
 })
 
-it('keeps workspace presets available without duplicating the quick coverage choices', () => {
-  const intake = {
-    defaults: { kind: 'ready', value: { content_retention_days: 7, current_time: '2026-10-10T00:00:00Z' },
-      presets: [{ id: 'saved-preset', name: 'Team contacts', categories: ['email', 'phone'],
-        phone_region: 'US', preferred_action: 'hide', is_default: true }] },
-    pending: false, emailEnabled: true, phoneEnabled: true, extraCategories: [],
-    presetId: 'saved-preset', phoneRegion: 'US', retentionDays: 1,
-  } as unknown as IntakeController
-  const html = renderToStaticMarkup(<IntakeOptions intake={intake} />)
-  expect(html).toContain('Workspace preset')
+it('preserves the workspace preset region lock and exposes load failures', () => {
+  const configured = { ...intake, presetId: 'saved-preset', phoneRegion: 'US', defaults: { kind: 'ready', value: { content_retention_days: 7, current_time: '2026-10-22T00:00:00Z' },
+    presets: [{ id: 'saved-preset', name: 'Team contacts', categories: ['email','phone'], phone_region: 'US', preferred_action: 'label', is_default: true }] } } as unknown as IntakeController
+  const html = render(configured)
   expect(html).toContain('Team contacts')
-  expect(html).not.toContain('· Built-in')
-  expect(html).not.toMatch(/id="intake-email"[^>]*disabled/)
-  expect(html).toContain('id="phone-region"')
+  expect(html).toContain('Set by your workspace preset.')
+  expect(html).toMatch(/<button[^>]*disabled=""[^>]*id="phone-region"/)
+  expect(render({ ...intake, defaults: { kind: 'error', message: 'Settings unavailable' } })).toContain('Retry settings')
+  expect(render({ ...intake, defaults: { kind: 'loading' } })).toContain('role="status"')
 })
 
-it('labels the original page and permits navigation when another scanned page exists', () => {
+it('retains original scanned page navigation and extraction disclosure', () => {
   const html = renderToStaticMarkup(<OriginalScan totalPages={3} pages={[
-    { page_number: 1, data_url: 'data:image/jpeg;base64,first' },
-    { page_number: 3, data_url: 'data:image/jpeg;base64,last' },
+    { page_number: 1, data_url: 'data:image/jpeg;base64,first' }, { page_number: 3, data_url: 'data:image/jpeg;base64,last' },
   ]} />)
   expect(html).toContain('alt="Original scanned page 1"')
   expect(html).toContain('Page 1 of 3')
   expect(html).toContain('aria-label="Previous scanned page" disabled=""')
   expect(html).not.toContain('aria-label="Next scanned page" disabled=""')
   expect(html).toContain('The original file is not saved.')
+})
+
+it('shows a bounded, labelled PDF preview and disables both navigation limits for a single page', () => {
+  const html = renderToStaticMarkup(<OriginalScan pdf totalPages={1} pages={[{ page_number: 1, data_url: 'data:image/jpeg;base64,page' }]} />)
+  expect(html).toContain('aria-label="Original PDF preview"')
+  expect(html).toContain('alt="Original PDF page 1"')
+  expect(html).toContain('aria-label="Previous PDF page" disabled=""')
+  expect(html).toContain('aria-label="Next PDF page" disabled=""')
+  expect(html).toContain('aria-pressed="false"')
+  expect(html).toContain('Page appearance is retained for review and PDF export.')
+  expect(renderToStaticMarkup(<OriginalScan totalPages={0} pages={[]} />)).toBe('')
 })

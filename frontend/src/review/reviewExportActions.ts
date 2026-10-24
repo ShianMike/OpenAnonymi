@@ -3,8 +3,6 @@ import {
   ApiConflictError,
   confirmReview,
   downloadReviewedFile,
-  downloadReviewedCsv,
-  type CsvVariant,
   getCopyPayload,
   getReviewSummary,
   recordCopySuccess,
@@ -116,19 +114,18 @@ export function createReviewExportActions({
     }
   }
 
-  async function downloadReviewedOutput(format: ReviewedDownload['format'] = 'txt', variant: CsvVariant = 'spreadsheet_safe') {
+  async function downloadReviewedOutput(format: ReviewedDownload['format'] = 'txt') {
     if (!documentId || state.kind !== 'ready' || !canExport) return
     setExportPending(true)
     setError(null)
     setNotice(null)
     try {
-      const csv = format === 'csv' ? await downloadReviewedCsv(documentId, state.saved.version, crypto.randomUUID(), session.csrf_token, variant) : null
-      const file = csv?.file ?? await downloadReviewedFile(
+      const file = await downloadReviewedFile(
         documentId,
         state.saved.version,
         crypto.randomUUID(),
         session.csrf_token,
-        format as Exclude<ReviewedDownload['format'], 'csv'>,
+        format,
       )
       setState({ kind: 'ready', saved: { ...state.saved, status: 'exported' } })
       setPreparedDownload({
@@ -136,11 +133,9 @@ export function createReviewExportActions({
         filename: format === 'report' ? `redaction-report-${documentId}.json` : `reviewed-${documentId}.${format}`,
         version: state.saved.version,
         format,
-        variant: format === 'csv' ? variant : undefined,
-        prefixed: csv?.prefixed,
       })
-      const label = { txt: 'Reviewed TXT', docx: 'Reviewed Word file', pdf: 'Reviewed PDF', report: 'Redaction report', csv: 'Reviewed CSV' }[format]
-      setNotice(format === 'csv' ? `Reviewed ${variant === 'spreadsheet_safe' ? 'spreadsheet-safe' : 'unmodified'} CSV generated. ${csv?.prefixed ?? 0} cells prefixed. Use the save link to download it.` : `${label} generated. Use the save link to download it.`)
+      const label = { txt: 'Reviewed TXT', docx: 'Reviewed Word file', pdf: 'Reviewed PDF', report: 'Redaction report' }[format]
+      setNotice(`${label} generated. Use the save link to download it.`)
       try {
         const result = await getReviewSummary(documentId)
         if (sameVersion(result.version, state.saved.version)) setSummary(result)

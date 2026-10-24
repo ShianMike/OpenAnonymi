@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUp, Columns2 } from 'lucide-react'
 import type { ComparisonView } from './api'
 
 export function ComparisonPanes({ value }: { value: ComparisonView }) {
-  const [side, setSide] = useState<'before' | 'after'>('after')
+  const [layout, setLayout] = useState<'split' | 'unified'>('split')
   const [selected, setSelected] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
   function move(direction: number) {
@@ -14,7 +14,7 @@ export function ComparisonPanes({ value }: { value: ComparisonView }) {
     target?.scrollIntoView({ block: 'nearest', behavior: 'auto' })
     target?.focus({ preventScroll: true })
   }
-  return <div className="comparison-result">
+  return <div className="comparison-result" data-layout={layout}>
     <div className="comparison-summary">
       <div className="comparison-stats" role="status">
         <strong>{value.changes === 0 ? 'No source changes' : `${value.changes} changed ${value.changes === 1 ? 'section' : 'sections'}`}</strong>
@@ -28,13 +28,12 @@ export function ComparisonPanes({ value }: { value: ComparisonView }) {
       </div>
     </div>
     {value.coarse && <p className="field-note">Large or repetitive revisions are shown in broader change blocks. All saved source text is included.</p>}
-    <fieldset className="comparison-mobile-switch"><legend className="sr-only">Revision to display</legend>
-      {(['before', 'after'] as const).map((item) => <label key={item}>
-        <input type="radio" name="comparison-side" checked={side === item} onChange={() => setSide(item)} />
-        <span>{item === 'before' ? 'Before' : 'After'} · Revision {value[item].number}</span>
-      </label>)}
-    </fieldset>
-    <div className="comparison-scroll" ref={scrollRef} tabIndex={0} aria-label="Compared source revisions with aligned scrolling" data-side={side}>
+    <div className="comparison-display-options">
+      <fieldset className="comparison-layout"><legend className="sr-only">Comparison layout</legend>
+        {(['split', 'unified'] as const).map(item => <label key={item}><input className="sr-only" type="radio" name="comparison-layout" checked={layout === item} onChange={() => setLayout(item)} /><span>{item === 'split' ? 'Side by side' : 'Combined'}</span></label>)}
+      </fieldset><span className="comparison-mobile-label">Combined changes</span>
+    </div>
+    <div className="comparison-scroll" ref={scrollRef} tabIndex={0} aria-label="Compared source revisions with aligned scrolling">
       <div className="comparison-column-headings" aria-hidden="true">
         <span><strong>Before</strong>Revision {value.before.number}</span><span><strong>After</strong>Revision {value.after.number}</span>
       </div>
@@ -42,16 +41,16 @@ export function ComparisonPanes({ value }: { value: ComparisonView }) {
         data-selected={selected !== 0 && selected === block.change || undefined} tabIndex={block.change ? -1 : undefined}
         aria-label={block.change ? `Change ${block.change}: ${block.kind}` : undefined}>
         {block.change && <div className="comparison-change-label">Changed section {block.change}</div>}
-        <div className="comparison-before">
+        <div className="comparison-before" data-empty={!block.left_lines || undefined}>
           <span className="comparison-line" aria-label={`Before line ${block.left_start}`}>{block.left_lines ? block.left_start : '—'}</span>
-          <pre>{block.left_text || <span className="comparison-empty">No text in this revision</span>}</pre>
+          <span className="comparison-sign" aria-hidden="true">{block.kind === 'delete' || block.kind === 'replace' ? '−' : ''}</span><pre>{block.left_text || <span className="comparison-empty">No text in this revision</span>}</pre>
         </div>
-        <div className="comparison-after">
+        <div className="comparison-after" data-empty={!block.right_lines || undefined}>
           <span className="comparison-line" aria-label={`After line ${block.right_start}`}>{block.right_lines ? block.right_start : '—'}</span>
-          <pre>{block.right_text || <span className="comparison-empty">No text in this revision</span>}</pre>
+          <span className="comparison-sign" aria-hidden="true">{block.kind === 'insert' || block.kind === 'replace' ? '+' : ''}</span><pre>{block.right_text || <span className="comparison-empty">No text in this revision</span>}</pre>
         </div>
       </div>)}
     </div>
-    <p className="comparison-legend"><span>− Removed / replaced</span><span>+ Added / replaced</span><span><Columns2 size={14} aria-hidden="true" /> Aligned scrolling</span></p>
+    <p className="comparison-legend"><span>− Removed / replaced</span><span>+ Added / replaced</span><span><Columns2 size={14} aria-hidden="true" /> Source text comparison</span></p>
   </div>
 }

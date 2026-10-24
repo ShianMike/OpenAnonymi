@@ -187,12 +187,12 @@ def test_prepared_reviewer_flags_roll_back_after_actual_handoff_loss(intake_site
     assert fired and state(case) == before
 
 
-@pytest.mark.parametrize("operation", ("admin-activity", "admin-csv"))
+@pytest.mark.parametrize("operation", ("admin-activity", "admin-export"))
 def test_session_ending_during_final_admin_scope_queries_denies_metadata(intake_site, monkeypatch, operation):
     from app.workspace import admin_activity
     case = make_case(intake_site, "admin-activity")
-    if operation == "admin-csv":
-        case["path"] += "/csv"
+    if operation == "admin-export":
+        case["path"] += "/export"
     original, fired = admin_activity.require_administrator, []
     def authorized(*args, **kwargs):
         result = original(*args, **kwargs)

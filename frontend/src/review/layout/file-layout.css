@@ -1,0 +1,50 @@
+.studio-paper[data-file-format='pdf'] { max-width: 1000px; min-height: 0; background: transparent; border: 0; box-shadow: none; }
+.studio-paper[data-file-format='pdf'] :is(.review-source, .review-preview) { padding: 0; }
+.studio-paper[data-file-format='pdf'] .document-panel-heading { flex-wrap: wrap; gap: 12px 20px; padding: 0; }
+.studio-paper[data-file-format='pdf'] .document-heading-actions { margin-left: auto; gap: 16px; }
+.studio-paper[data-file-format='pdf'] .document-help { margin: 12px 0 16px; align-items: flex-start; }
+.studio-paper[data-file-format='pdf'] .document-help > svg { margin-top: 3px; }
+.studio-paper[data-file-format='pdf'] .document-legend { margin-top: 20px; padding-top: 16px; }
+.file-view-switch { display: flex; flex: none; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-subtle); }
+.studio .file-view-switch button { min-height: 30px; padding: 5px 10px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.studio .file-view-switch button[aria-pressed='true'] { color: var(--blue-strong); background: var(--surface); }
+.file-pdf-view { container-type: inline-size; }
+.file-layout-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px 8px 0 0; background: var(--surface); color: var(--muted); font-size: 12px; }
+.file-layout-caption, .file-layout-controls, .file-layout-pagination, .file-layout-zoom { display: flex; align-items: center; }
+.file-layout-caption { gap: 8px; min-width: 0; }
+.file-layout-caption > svg { flex: none; }
+.file-layout-controls { flex: none; gap: 12px; }
+.file-layout-pagination, .file-layout-zoom { gap: 2px; }
+.file-layout-zoom { padding-left: 12px; border-left: 1px solid var(--line); }
+.file-layout-pagination > span, .file-layout-zoom > span { min-width: 36px; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.file-layout-zoom > span { min-width: 42px; }
+.studio .file-layout-toolbar button { flex: none; width: 32px; min-height: 32px; margin: 0; padding: 6px; border: 1px solid transparent; background: transparent; color: var(--text); }
+.studio .file-layout-toolbar button:hover:not(:disabled) { background: var(--surface-subtle); border-color: var(--line); }
+.file-pdf-scroll { max-height: 72dvh; overflow: auto; overscroll-behavior: contain; background: var(--surface-subtle); padding: 16px; border: 1px solid var(--line); border-top: 0; border-radius: 0 0 8px 8px; }
+.file-pdf-page { position: relative; margin: 0 auto; background: white; box-shadow: 0 2px 8px #0002; }
+.file-pdf-page img { display: block; width: 100%; height: auto; }
+.studio .file-pdf-mark { position: absolute; min-height: 0; padding: 0; border: 1px solid var(--blue); border-radius: 2px; background: color-mix(in srgb, var(--blue) 12%, transparent); }
+.studio .file-pdf-mark[data-selected] { outline: 2px solid var(--blue); outline-offset: 2px; }
+.studio .file-pdf-mark[data-action='pending'] { border-color: var(--warning, #a87925); background: #d3a63c20; }
+.file-layout-note { margin: 12px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.file-layout-message { padding: 40px 16px; text-align: center; color: var(--muted); }
+.document-text[data-plain='true'] { font-family: ui-monospace, Consolas, monospace; white-space: pre; overflow: auto; tab-size: 4; }
+@container (max-width: 480px) {
+  .file-layout-toolbar { flex-wrap: wrap; gap: 8px; }
+  .file-layout-caption { flex-basis: 100%; }
+  .file-layout-controls { width: 100%; min-width: 0; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
+  .file-layout-zoom { padding: 0; border: 0; }
+}
+@container (max-width: 360px) { .file-layout-toolbar { padding-inline: 6px; } }
+@media (max-width: 760px) {
+  .studio-paper[data-file-format='pdf'] .document-heading-actions { width: 100%; margin: 0; justify-content: space-between; gap: 8px; }
+  .studio .file-view-switch button { min-height: 44px; }
+  .studio-paper[data-file-format='pdf'] .document-edit-button { min-height: 44px; }
+  .file-pdf-scroll { padding: 10px; }
+  .studio .file-layout-toolbar button { width: 44px; min-height: 44px; }
+}
+@media (pointer: coarse) { .studio .file-layout-toolbar button { width: 44px; min-height: 44px; } }
+@media (forced-colors: active) {
+  .studio .file-view-switch button[aria-pressed='true'] { outline: 1px solid Highlight; outline-offset: -1px; }
+  .studio .file-pdf-mark { background: transparent; border-color: Highlight; }
+}

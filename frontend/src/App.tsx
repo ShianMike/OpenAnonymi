@@ -4,7 +4,7 @@ import { SignOutDialog } from './accounts/SignOutDialog'
 import { ApiRequestError, getSession, signOut, type SessionView } from './api/client'
 import { Sidebar } from './shell/Sidebar'
 import { Topbar } from './shell/Topbar'
-import { pages } from './shell/navigation'
+import { pages, pageTransition } from './shell/navigation'
 import { useAppearance } from './appearance/useAppearance'
 import { useDisplayPreferences } from './appearance/useDisplayPreferences'
 import { authDestination } from './accounts/authNavigation'
@@ -12,8 +12,10 @@ import { LoadingScreen } from './loading/LoadingScreen'
 import { RouteLoading } from './loading/RouteLoading'
 import { PageLoadBoundary } from './loading/PageLoadBoundary'
 import { LoadingFailure } from './loading/LoadingFailure'
+import { firstPaintTone, rememberHome } from './loading/bootScreen'
 import { SESSION_ENDED_EVENT, matchesSessionScope, reportEndedScope, setSessionScope } from './api/sessionEvents'
 import { protectReviewCacheLifecycle } from './api/reviewCache'
+import { QuickGuideProvider } from './onboarding/QuickGuide'
 import './App.css'
 
 const SignInPage = lazy(() => import('./accounts/SignInPage').then((module) => ({ default: module.SignInPage })))
@@ -37,12 +39,11 @@ const ContinueReviewPage = lazy(() =>
 const NotFoundPage = lazy(() =>
   import('./shell/NotFoundPage').then((module) => ({ default: module.NotFoundPage })),
 )
-const PreferencesPage = lazy(() =>
-  import('./appearance/PreferencesPage').then((module) => ({ default: module.PreferencesPage })),
-)
-const LandingPage = lazy(() =>
-  import('./landing/LandingPage').then((module) => ({ default: module.LandingPage })),
-)
+const loadLandingPage = () => import('./landing/LandingPage')
+const LandingPage = lazy(() => loadLandingPage().then((module) => ({ default: module.LandingPage })))
+// The light landing page waits briefly at "/" so signed-in visitors open their workspace
+// without a flash of it. A slow session check never holds the page longer than this.
+const LANDING_SESSION_WAIT_MS = 800
 const LegalPage = lazy(() => import('./legal/LegalPage').then((module) => ({ default: module.LegalPage })))
 
 type Authentication =
@@ -66,11 +67,15 @@ function App() {
   const [signOutConfirm, setSignOutConfirm] = useState(false)
   const [signInNotice, setSignInNotice] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [landingWaitOver, setLandingWaitOver] = useState(false)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
   const accountButtonRef = useRef<HTMLButtonElement>(null)
   const navRef = useRef<HTMLElement>(null)
   const mainRef = useRef<HTMLElement>(null)
-  const previousPathRef = useRef(pathname)
+  const [pageNavigation, setPageNavigation] = useState({ pathname, transition: pageTransition(pathname, pathname) })
+  if (pageNavigation.pathname !== pathname) {
+    setPageNavigation({ pathname, transition: pageTransition(pageNavigation.pathname, pathname) })
+  }
   const authenticationScope = authentication.kind === 'signed-in' ? authentication.session.csrf_token : ''
   const sessionExpires = authentication.kind === 'signed-in' ? authentication.session.expires_at : ''
   useEffect(() => {
@@ -99,9 +104,9 @@ function App() {
     return () => { window.removeEventListener(SESSION_ENDED_EVENT, sessionEnded) }
   }, [authenticationScope])
 
-  const activePage = pages.find((page) => page.path === pathname)
+  const activePage = pages.find((page) => matchPath(page.path, pathname))
   const pageTitle =
-    activePage?.name ?? (pathname === '/continue' ? 'Continue review' : undefined) ??
+    activePage?.name ?? (pathname === '/continue' ? 'Documents' : undefined) ??
     (matchPath('/workspaces/:workspaceId/documents/:documentId/history', pathname)
       ? 'Review history'
       : matchPath('/documents/:documentId/edit', pathname)
@@ -109,15 +114,27 @@ function App() {
         : 'Page not found')
 
   useEffect(() => {
-    if (previousPathRef.current !== pathname) {
-      previousPathRef.current = pathname
-      mainRef.current?.focus()
-    }
+    mainRef.current?.focus({ preventScroll: true })
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
   }, [pathname])
 
   useEffect(() => {
     if (menuOpen) navRef.current?.querySelector('a')?.focus()
   }, [menuOpen])
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLandingWaitOver(true), LANDING_SESSION_WAIT_MS)
+    return () => clearTimeout(timer)
+  }, [])
+  useEffect(() => {
+    // Load the landing page alongside the session check rather than after it.
+    if (pathname === '/' || pathname === '/welcome') loadLandingPage().catch(() => { /* The page boundary reports a failed load. */ })
+  }, [pathname])
+  useEffect(() => {
+    // Next visit, "/" paints the loading screen in the tone of the page it will open.
+    if (authentication.kind === 'signed-in') rememberHome('workspace')
+    else if (authentication.kind === 'signed-out') rememberHome('welcome')
+  }, [authentication.kind])
 
   const handleUnsavedChange = useCallback((dirty: boolean) => {
     setUnsavedPage(dirty)
@@ -192,6 +209,7 @@ function App() {
   }
 
   const authRoute = pathname === '/sign-in' || pathname === '/sign-up'
+  const editorRoute = pathname === '/new' || Boolean(matchPath('/documents/:documentId/edit', pathname))
   const publicLanding = pathname === '/welcome' || (pathname === '/' && authentication.kind !== 'signed-in')
   if (pathname === '/terms' || pathname === '/privacy') {
     return <PageLoadBoundary key={pathname} fullScreen><Suspense fallback={<LoadingScreen label="Opening the notice…" description="Loading service and privacy information." />}>
@@ -199,16 +217,20 @@ function App() {
     </Suspense></PageLoadBoundary>
   }
   if (publicLanding) {
+    // The landing page is light. While "/" checks the session, keep the tone the first paint chose.
+    const tone = pathname === '/' && authentication.kind === 'checking' ? firstPaintTone() : 'light'
+    const opening = <LoadingScreen label="Opening OpenAnonymi…" description="Preparing a little more privacy for your words." tone={tone} />
+    const waitForSession = pathname === '/' && authentication.kind === 'checking' && !landingWaitOver
     return (
-      <PageLoadBoundary key={pathname} fullScreen><Suspense fallback={<LoadingScreen label="Opening OpenAnonymi…" description="Preparing a little more privacy for your words." />}>
-        <LandingPage
+      <PageLoadBoundary key={pathname} fullScreen tone="light"><Suspense fallback={opening}>
+        {waitForSession ? opening : <LandingPage
           signedIn={authentication.kind === 'signed-in'}
           sessionError={authentication.kind === 'error' ? authentication.message : undefined}
           onRetry={() => {
             setAuthentication({ kind: 'checking' })
             setSessionAttempt((value) => value + 1)
           }}
-        />
+        />}
       </Suspense></PageLoadBoundary>
     )
   }
@@ -217,12 +239,12 @@ function App() {
   }
   if (authentication.kind === 'checking') {
     return (
-      <LoadingScreen label="Checking your session…" description="Checking access before opening your workspace." />
+      <LoadingScreen label="Checking your session…" description="Checking access before opening your workspace." tone={authRoute ? 'light' : undefined} />
     )
   }
   if (authentication.kind === 'error') {
     return (
-      <LoadingFailure fullScreen title="We couldn’t check your session"
+      <LoadingFailure fullScreen tone={authRoute ? 'light' : undefined} title="We couldn’t check your session"
         message={authentication.message} onRetry={() => {
           setAuthentication({ kind: 'checking' })
           setSessionAttempt((value) => value + 1)
@@ -242,12 +264,12 @@ function App() {
             <LoadingScreen label="Opening the page…" description="Preparing your next step." />
           }
         >
-          <NotFoundPage signedOut />
+          <NotFoundPage />
         </Suspense></PageLoadBoundary>
       )
     }
     return (
-      <PageLoadBoundary key={pathname} fullScreen><Suspense fallback={<LoadingScreen label="Opening sign in…" description="Preparing secure access to your workspace." />}><SignInPage
+      <PageLoadBoundary key={pathname} fullScreen tone="light"><Suspense fallback={<LoadingScreen label="Opening sign in…" description="Preparing secure access to your workspace." tone="light" />}><SignInPage
         key={pathname}
         initialMode={pathname === '/sign-up' ? 'sign-up' : 'sign-in'}
         notice={signInNotice}
@@ -261,11 +283,13 @@ function App() {
     )
   }
   return (
-    <div className="app app-shell">
+    <QuickGuideProvider key={authentication.session.user_id} userId={authentication.session.user_id}
+      offer={!menuOpen && !authentication.session.second_factor_setup_required}>
+    <div className={`app app-shell${editorRoute ? ' app-editor' : ''}`}>
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
-      <Sidebar
+      {!editorRoute && <Sidebar
         session={authentication.session}
         menuOpen={menuOpen}
         navRef={navRef}
@@ -273,8 +297,8 @@ function App() {
           setMenuOpen(false)
           if (menuOpen) menuButtonRef.current?.focus()
         }}
-      />
-      {menuOpen && (
+      />}
+      {!editorRoute && menuOpen && (
         <button
           className="nav-scrim"
           type="button"
@@ -286,9 +310,9 @@ function App() {
         />
       )}
       <div className="app-workarea">
-        <Topbar session={authentication.session} title={pageTitle} menuOpen={menuOpen}
+        {!editorRoute && <Topbar session={authentication.session} title={pageTitle} menuOpen={menuOpen}
           menuButtonRef={menuButtonRef} accountButtonRef={accountButtonRef}
-          onMenuToggle={() => setMenuOpen((value) => !value)} onSignOut={handleSignOut} signOutPending={signOutPending} />
+          onMenuToggle={() => setMenuOpen((value) => !value)} onSignOut={handleSignOut} signOutPending={signOutPending} />}
         <SignOutDialog
           open={signOutConfirm}
           pending={signOutPending}
@@ -298,7 +322,7 @@ function App() {
           restoreFocus={() => accountButtonRef.current?.focus()}
           onConfirm={() => void performSignOut()}
         />
-        <main id="main-content" ref={mainRef} tabIndex={-1}>
+        <main key={pathname} id="main-content" data-transition={pageNavigation.transition} ref={mainRef} tabIndex={-1}>
           {authentication.session.second_factor_setup_required && <div className="security-requirement" role="status">
             A workspace requires two-step verification. <Link to="/settings?section=security">Set up your authenticator</Link>
           </div>}
@@ -313,11 +337,11 @@ function App() {
               />
               <Route path="/documents" element={<DocumentsPage key={new URLSearchParams(search).get('workspace')} session={authentication.session} />} />
               <Route path="/notifications" element={<NotificationsPage key={authentication.session.user_id} session={authentication.session} />} />
-              <Route path="/continue" element={<ContinueReviewPage session={authentication.session} />} />
+              <Route path="/continue" element={<ContinueReviewPage />} />
               <Route path="/activity" element={<ActivityPage key={new URLSearchParams(search).get('workspace')} session={authentication.session} />} />
               <Route path="/members" element={<MembersPage session={authentication.session} />} />
               <Route path="/rules" element={<RulesPage key={new URLSearchParams(search).get('workspace')} session={authentication.session} />} />
-              <Route path="/preferences" element={<PreferencesPage />} />
+              <Route path="/preferences" element={<Navigate replace to="/settings?section=appearance" />} />
               <Route
                 path="/documents/:documentId/edit"
                 element={
@@ -326,7 +350,7 @@ function App() {
               />
               <Route
                 path="/workspaces/:workspaceId/documents/:documentId/history"
-                element={<HistoryPage />}
+                element={<HistoryPage key={`${authentication.session.user_id}:${pathname}`} />}
               />
               <Route
                 path="/settings"
@@ -343,12 +367,13 @@ function App() {
                   />
                 }
               />
-              <Route path="*" element={<NotFoundPage />} />
+              <Route path="*" element={<NotFoundPage session={authentication.session} />} />
             </Routes>
           </Suspense></PageLoadBoundary>
         </main>
       </div>
     </div>
+    </QuickGuideProvider>
   )
 }
 

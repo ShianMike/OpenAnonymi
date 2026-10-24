@@ -28,6 +28,11 @@ publicly to work around an unavailable channel.
   relevant owner, reviewer, or administrator authority.
 - Browser sessions use cookies and CSRF checks. Production requires exact HTTPS
   origins, TLS, and verified TLS for remote PostgreSQL connections.
+- PostgreSQL-backed retry limits apply across application instances. Sign-in is
+  limited to 8 attempts per network address and 20 per normalized email address
+  in 5 minutes; password changes allow 8 attempts per account in 5 minutes.
+  Recovery requests send at most 3 emails per normalized address per hour and
+  keep the same response when that delivery limit is reached.
 - Protected source and recovery content are encrypted with externally supplied
   keys. This is not end-to-end encryption: the API decrypts text for processing.
 - Detection and OCR run locally. Recognition is probabilistic and incomplete;

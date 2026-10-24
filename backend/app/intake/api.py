@@ -16,7 +16,6 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 from app.accounts.access import (
     WorkspaceAccessDenied,
     active_workspace,
-    owned_document,
     review_document,
 )
 from app.accounts.api import current_identity, mutation_identity
@@ -45,14 +44,7 @@ from app.db.repository import (
 )
 from app.errors import ApiError
 from app.intake.access import require_current_intake_access
-from app.intake.csv_contracts import (
-    ColumnRulesRequest,
-    CsvInfo,
-    CsvSettingsRequest,
-    CsvSettingsView,
-)
-from app.intake.csv_service import change_csv_settings
-from app.intake.csv_structure import CsvError, Delimiter, Header
+from app.intake.csv_structure import CsvError
 from app.intake.imports import MAX_FILE_BYTES, edit_import, extract_import
 from app.intake.validation import SourceValidationError, validate_source
 from app.transformations.contracts import CategoryDefault
@@ -75,7 +67,7 @@ class SourceView(BaseModel):
     preferred_action: Literal["label", "redact"]
     category_defaults: dict[FindingCategory, CategoryDefault]
     structure: Literal["kept", "simplified", "none"]
-    csv: CsvInfo | None = None
+    file_format: Literal["txt", "docx", "pdf"] | None = None
 
 
 class IntakeDefaultsView(BaseModel):
@@ -126,7 +118,7 @@ def _source_view(source: LoadedSource) -> SourceView:
         preferred_action=source.preferred_action,
         category_defaults=source.category_defaults,
         structure=source.structure,
-        csv=source.csv,
+        file_format="txt" if source.file_format == "csv" else source.file_format,
     )
 
 
@@ -206,22 +198,6 @@ def _source_response(engine, request, identity, source: LoadedSource, view: Base
             raise ApiError(404, "document_not_found", "Document not found.") from None
         except ContentUnavailable:
             raise ApiError(410, "content_expired", "Document content is unavailable.") from None
-
-    return protected_json_response(view, request, identity, authorize)
-
-
-def _csv_response(engine, request, identity, view: CsvSettingsView) -> Response:
-    def authorize(current):
-        with Session(engine) as session:
-            document = owned_document(
-                session, view.version.document_id, current.user_id, datetime.now(UTC)
-            )
-            if (
-                _version(document) != view.version
-                or document.csv_delimiter != view.delimiter
-                or document.csv_has_header != view.has_header
-            ):
-                raise ApiError(409, "source_changed", "The source changed while loading. Retry.")
 
     return protected_json_response(view, request, identity, authorize)
 
@@ -311,8 +287,6 @@ def create_intake_router(engine: Engine) -> APIRouter:
         language: Annotated[str, Form(min_length=2, max_length=2)] = "en",
         retention_days: Annotated[int | None, Form(ge=1, le=30)] = None,
         preset_id: Annotated[UUID | None, Form()] = None,
-        csv_delimiter: Annotated[Delimiter, Form()] = "auto",
-        csv_header: Annotated[Header, Form()] = "auto",
         edited_text_json: Annotated[
             str | None,
             Form(
@@ -356,7 +330,7 @@ def create_intake_router(engine: Engine) -> APIRouter:
                 raise _input_error(exc) from None
         try:
             imported = await run_in_threadpool(
-                extract_import, file.filename, raw, csv_delimiter, csv_header
+                extract_import, file.filename, raw
             )
             imported = edit_import(imported, edited_text)
             validated = imported.source
@@ -405,80 +379,6 @@ def create_intake_router(engine: Engine) -> APIRouter:
         except (ContentKeyUnavailable, ProtectedContentError):
             raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
         return _saved_view(saved)
-
-    def _csv_mutation(document_id, body, request, identity, *, column_rules=False):
-        try:
-            result = change_csv_settings(
-                engine,
-                document_id=document_id,
-                actor_id=identity.user_id,
-                expected_settings_version=body.expected_settings_version,
-                delimiter=None if column_rules else body.delimiter,
-                has_header=None if column_rules else body.has_header,
-                rules=[rule.model_dump(mode="json") for rule in body.rules]
-                if column_rules
-                else None,
-                keys=_keys(request),
-                now=datetime.now(UTC),
-                reauthorize=lambda: current_identity(request),
-            )
-            return _csv_response(engine, request, identity, CsvSettingsView.model_validate(result))
-        except DocumentNotFound:
-            raise ApiError(404, "document_not_found", "Document not found.") from None
-        except ContentUnavailable:
-            raise ApiError(410, "content_expired", "Document content is unavailable.") from None
-        except VersionConflict as exc:
-            return _conflict(exc)
-        except SourceValidationError as exc:
-            raise _input_error(exc) from None
-        except (ContentKeyUnavailable, ProtectedContentError):
-            raise ApiError(503, "content_unavailable", "Content access is unavailable.") from None
-
-    @router.get(
-        "/{document_id}/column-rules", response_model=CsvSettingsView,
-        responses={code: {"model": ErrorResponse} for code in (401, 404, 409, 410, 503)},
-    )
-    @router.get(
-        "/{document_id}/csv-settings", response_model=CsvSettingsView,
-        responses={code: {"model": ErrorResponse} for code in (401, 404, 409, 410, 503)},
-    )
-    def csv_settings_route(
-        document_id: UUID,
-        request: Request,
-        identity: Annotated[SessionIdentity, Depends(current_identity)],
-    ):
-        source = _load_owned_source(engine, request, document_id, identity.user_id)
-        if source.csv is None:
-            raise ApiError(422, "csv_required", "These settings apply to an imported CSV document.")
-        return _source_response(
-            engine, request, identity, source, CsvSettingsView(version=source.version, **source.csv)
-        )
-
-    @router.put(
-        "/{document_id}/csv-settings",
-        response_model=CsvSettingsView,
-        responses={409: {"model": ConflictResponse}, 422: {"model": ErrorResponse}},
-    )
-    def change_csv_settings_route(
-        document_id: UUID,
-        body: CsvSettingsRequest,
-        request: Request,
-        identity: Annotated[SessionIdentity, Depends(mutation_identity)],
-    ):
-        return _csv_mutation(document_id, body, request, identity)
-
-    @router.put(
-        "/{document_id}/column-rules",
-        response_model=CsvSettingsView,
-        responses={409: {"model": ConflictResponse}, 422: {"model": ErrorResponse}},
-    )
-    def column_rules_route(
-        document_id: UUID,
-        body: ColumnRulesRequest,
-        request: Request,
-        identity: Annotated[SessionIdentity, Depends(mutation_identity)],
-    ):
-        return _csv_mutation(document_id, body, request, identity, column_rules=True)
 
     @router.get(
         "/{document_id}/source",

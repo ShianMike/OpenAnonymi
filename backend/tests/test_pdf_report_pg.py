@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Document, ExportEvent, Membership, User, Workspace
 from app.exports import service
-from tests.csv_support import upload_csv
+from tests.csv_support import legacy_csv
 from tests.docx_fixtures import read_word, simple_docx
 from tests.docx_support import confirm, mark, output, upload
 from tests.intake_support import _draft_body, _login
@@ -27,7 +27,7 @@ def prepared(site, kind="pasted"):
     if kind == "docx":
         base, findings, source = upload(owner, headers, workspace, simple_docx(TEXT))
     elif kind == "csv":
-        base, findings, source = upload_csv(
+        base, findings, source = legacy_csv(
             owner, headers, workspace, "Value\n" + TEXT + "\n", delimiter=","
         )
     else:

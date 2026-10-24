@@ -1,46 +1,34 @@
-import { FileText, Eye, ListFilter } from 'lucide-react'
+import { useEffect } from 'react'
+import { FileText, Eye, ListFilter, Undo2 } from 'lucide-react'
+import * as Tabs from '@radix-ui/react-tabs'
 import type { ReviewController } from './useReviewController'
 import { ReviewSource } from './ReviewSource'
 import { ReviewPreview } from './ReviewPreview'
-import * as Tabs from '@radix-ui/react-tabs'
 import { KeyboardReview } from '../keyboard/KeyboardReview'
 
 export function ReviewDocument({ review, userId }: { review: ReviewController; userId: string }) {
-  return (
-    <div className="review-text-column">
-      <div className="document-toolbar">
-        <Tabs.Root
-          className="review-view-tabs"
-          value={review.mobilePanel}
-          onValueChange={(panel) => review.setMobilePanel(panel as typeof review.mobilePanel)}
-        >
-          <Tabs.List className="review-panel-switch" aria-label="Review views">
-            {(
-              [
-                ['original', 'Original', FileText],
-                ['preview', 'Reviewed output', Eye],
-                ['findings', 'Findings', ListFilter],
-              ] as const
-            ).map(([panel, label, Icon]) => (
-              <Tabs.Trigger
-                key={panel}
-                value={panel}
-                className={panel === 'findings' ? 'review-tab-findings' : undefined}
-                id={`review-${panel}-tab`}
-                aria-controls={`review-${panel}-panel`}
-              >
-                <Icon size={15} strokeWidth={1.7} aria-hidden="true" />
-                <span>{label}</span>
-                {panel === 'findings' && <small>{review.activeFindings.length}</small>}
-              </Tabs.Trigger>
-            ))}
-          </Tabs.List>
-        </Tabs.Root>
-        <KeyboardReview key={`${userId}.${review.documentId}`} review={review} userId={userId} compact />
-        {review.dirty && <span className="document-unsaved">Unsaved edits</span>}
-      </div>
-      <ReviewSource review={review} />
-      <ReviewPreview review={review} />
+  const { mobilePanel, setMobilePanel } = review
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 761px)')
+    const sync = () => { if (desktop.matches && mobilePanel === 'findings') setMobilePanel('original') }
+    sync(); desktop.addEventListener('change', sync)
+    return () => desktop.removeEventListener('change', sync)
+  }, [mobilePanel, setMobilePanel])
+  return <div className="studio-document-area">
+    <div className="studio-document-toolbar">
+      <Tabs.Root value={review.mobilePanel} onValueChange={panel => review.setMobilePanel(panel as typeof review.mobilePanel)}>
+        <Tabs.List className="studio-view-switch" aria-label="Document view">
+          {([['original', 'Document', FileText], ['preview', 'Output', Eye], ['findings', 'Findings', ListFilter]] as const).map(([panel, label, Icon]) =>
+            <Tabs.Trigger key={panel} value={panel} id={`review-${panel}-tab`} aria-controls={`review-${panel}-panel`} className={panel === 'findings' ? 'studio-mobile-findings' : undefined}>
+              <Icon size={15} /><span>{label}</span>{panel === 'findings' && <small>{review.activeFindings.length}</small>}
+            </Tabs.Trigger>)}
+        </Tabs.List>
+      </Tabs.Root>
+      <div className="studio-document-tools"><button className="studio-icon" type="button" aria-label="Undo last review edit" disabled={!review.undoCount || review.dirty || review.settingsDirty || review.actionPending || review.conflict} onClick={() => void review.undoReview()}><Undo2 size={16} /></button>
+        <KeyboardReview key={`${userId}.${review.documentId}`} review={review} userId={userId} compact /></div>
     </div>
-  )
+    <div className="studio-canvas">
+      <div className="studio-paper" data-file-format={review.state.kind === 'ready' ? review.state.saved.file_format : undefined}><ReviewSource review={review} /><ReviewPreview review={review} /></div>
+    </div>
+  </div>
 }

@@ -158,7 +158,7 @@ def after_team(monkeypatch, case, change):
 
     operation = case["operation"]
     if "handoff" in operation or "approval" in operation:
-        module, hook = service, "_view"
+        module, hook = service, "handoff_view"
     elif operation == "delete-comment":
         module, hook = Session, "flush"
     elif "comment" in operation:

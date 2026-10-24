@@ -1,6 +1,6 @@
 import { LoadingMark } from '../loading/LoadingMark'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { ArrowUpRight, AtSign, KeyRound, LockKeyhole } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { completeRecovery, requestRecovery } from '../api/client'
 import { GlassInput } from '../ui/GlassField'
 import { AuthNotice, CapsLockNote, PasswordRequirement } from './AuthNotice'
@@ -15,17 +15,19 @@ function field(id: string) {
 
 export function RecoveryForm({
   initialEmail = '',
+  initialStep = 'request',
   onStepChange,
   onComplete,
 }: {
   initialEmail?: string
+  initialStep?: RecoveryStep
   onStepChange: (step: RecoveryStep) => void
   onComplete: (email: string) => void
 }) {
   const [email, setEmail] = useState(initialEmail)
   const [code, setCode] = useState('')
   const [password, setPassword] = useState('')
-  const [step, setStep] = useState<RecoveryStep>('request')
+  const [step, setStep] = useState<RecoveryStep>(initialStep)
   // False when someone skips ahead with a code they already have (recovery or invitation email).
   const [requested, setRequested] = useState(false)
   const [pending, setPending] = useState<Action | null>(null)
@@ -119,7 +121,6 @@ export function RecoveryForm({
           <GlassInput
             id="recovery-email"
             type="email"
-            icon={AtSign}
             autoComplete="username"
             required
             maxLength={320}
@@ -136,7 +137,6 @@ export function RecoveryForm({
               <GlassInput
                 id="recovery-code"
                 className="auth-code-field"
-                icon={KeyRound}
                 autoComplete="one-time-code"
                 autoCapitalize="none"
                 autoCorrect="off"
@@ -156,7 +156,6 @@ export function RecoveryForm({
               <label htmlFor="recovery-password">New password</label>
               <GlassInput
                 id="recovery-password"
-                icon={LockKeyhole}
                 type="password"
                 required
                 autoComplete="new-password"
@@ -184,7 +183,7 @@ export function RecoveryForm({
                   ? 'Change password'
                   : 'Send recovery code'}
           </span>
-          {pending !== 'request' && pending !== 'complete' && <ArrowUpRight size={18} aria-hidden="true" />}
+          {pending !== 'request' && pending !== 'complete' && <ArrowRight size={18} aria-hidden="true" />}
         </button>
         {onCode ? (
           <p className="auth-resend">

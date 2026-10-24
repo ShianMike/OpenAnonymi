@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import * as AlertDialog from '@radix-ui/react-alert-dialog'
-import { ChevronDown, Monitor } from 'lucide-react'
+import { Monitor } from 'lucide-react'
 import { getDevices, revokeDevice, revokeOtherDevices, type DeviceView } from '../../api/client'
 import { InlineNotice, RefreshButton } from '../../ui/WorkspaceControls'
+import { LoadingState } from '../../loading/LoadingState'
+import { ListPagination } from '../../ui/ListPagination'
+import { pageWindow } from '../../ui/pagination'
+import { SettingsConfirmation } from './SettingsConfirmation'
 
 const method: Record<string, string> = { password: 'Password', password_totp: 'Authenticator', password_backup_code: 'Backup code', enrollment: 'Authenticator setup' }
 export function DevicesPanel({ csrfToken, onSignedOut }: { csrfToken: string; onSignedOut: () => void }) {
@@ -10,65 +13,47 @@ export function DevicesPanel({ csrfToken, onSignedOut }: { csrfToken: string; on
   const [choice, setChoice] = useState<DeviceView | 'others' | null>(null)
   const [pending, setPending] = useState(false)
   const [fetching, setFetching] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const [attempt, setAttempt] = useState(0)
-  const trigger = useRef<HTMLButtonElement | null>(null)
-  const summary = useRef<HTMLElement | null>(null)
+  const [page, setPage] = useState(0)
+  const trigger = useRef<HTMLElement | null>(null)
+  const heading = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
     const controller = new AbortController()
-    getDevices(controller.signal).then((value) => { if (!controller.signal.aborted) setDevices(value) })
-      .catch((cause: unknown) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'Devices could not be loaded.') })
+    getDevices(controller.signal).then(value => { if (!controller.signal.aborted) setDevices(value) })
+      .catch(cause => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'Sessions could not be loaded.') })
       .finally(() => { if (!controller.signal.aborted) setFetching(false) })
     return () => controller.abort()
   }, [attempt])
+  function reload() { setDevices(null); setError(''); setFetching(true); setAttempt(value => value + 1) }
   async function confirm() {
     if (!choice || pending) return
-    setPending(true); setError(null)
+    setPending(true); setError('')
     try {
       if (choice === 'others') await revokeOtherDevices(csrfToken)
       else await revokeDevice(choice.id, csrfToken)
       if (choice !== 'others' && choice.current) { onSignedOut(); return }
-      setNotice(choice === 'others' ? 'Other sessions signed out.' : 'Session signed out.')
-      setChoice(null); setFetching(true); setAttempt((value) => value + 1)
+      setNotice(choice === 'others' ? 'Other sessions signed out. This session stays open.' : 'Session signed out.')
+      trigger.current = heading.current; setChoice(null); reload()
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'The session could not be signed out.') }
     finally { setPending(false) }
   }
-  return (
-    <details className="workspace-panel devices-panel settings-details">
-      <summary ref={summary}><Monitor size={19} aria-hidden="true" /><span><strong>Signed-in devices</strong><small>
-        {devices ? `${devices.length} active session${devices.length === 1 ? '' : 's'} · Review or sign out a device.` : 'Review your active sessions.'}
-      </small></span><ChevronDown size={16} aria-hidden="true" /></summary>
-      <div className="settings-details-body">
-      <p className="field-note">Signing out a session takes effect immediately.</p>
-      {error && !choice && <InlineNotice error>{error}</InlineNotice>}
-      {notice && <InlineNotice>{notice}</InlineNotice>}
-      {!devices && !error && <p role="status">Loading devices…</p>}
-      {devices && <ul className="security-device-list">{devices.map((device) => <li key={device.id}>
-        <div><strong>{device.device_label}{device.current && <span className="security-current">Current session</span>}</strong>
-          <small>{method[device.auth_method] ?? 'Sign-in'} · Signed in {new Date(device.created_at).toLocaleString()}</small>
-          <small>Last active {new Date(device.last_seen_at).toLocaleString()}</small>
-        </div>
-        <button type="button" className="quiet-button" onClick={event => { trigger.current = event.currentTarget; setChoice(device); setError(null) }}>Sign out{device.current ? ' this session' : ' session'}</button>
-      </li>)}</ul>}
-      {devices?.length === 100 && <small>Showing your current session and the 99 most recently active other sessions.</small>}
-      <div className="security-actions">
-        <button type="button" className="quiet-button" disabled={pending || !devices?.some((item) => !item.current)} onClick={event => { trigger.current = event.currentTarget; setChoice('others'); setError(null) }}>Sign out all other sessions</button>
-        <RefreshButton label="Refresh devices" disabled={pending} pending={fetching} onClick={() => { setError(null); setFetching(true); setAttempt((value) => value + 1) }} />
-      </div>
-      </div>
-      <AlertDialog.Root open={choice !== null} onOpenChange={(open) => { if (!open && !pending) setChoice(null) }}>
-        <AlertDialog.Portal>
-          <AlertDialog.Overlay className="workspace-dialog-overlay" />
-          <AlertDialog.Content className="workspace-dialog" onEscapeKeyDown={(event) => { if (pending) event.preventDefault() }}
-            onCloseAutoFocus={event => { event.preventDefault(); (trigger.current?.isConnected ? trigger.current : summary.current)?.focus() }}>
-            <AlertDialog.Title>{choice === 'others' ? 'Sign out all other sessions?' : 'Sign out this session?'}</AlertDialog.Title>
-            <AlertDialog.Description>{choice === 'others' ? 'Other devices will need to sign in again. This session stays open.' : choice?.current ? 'You will need to sign in again on this device.' : 'This device will need to sign in again.'}</AlertDialog.Description>
-            {error && <InlineNotice error>{error}</InlineNotice>}
-            <div className="dialog-actions"><AlertDialog.Cancel disabled={pending}>Cancel</AlertDialog.Cancel><button type="button" disabled={pending} onClick={() => void confirm()}>{pending ? 'Signing out…' : 'Confirm sign out'}</button></div>
-          </AlertDialog.Content>
-        </AlertDialog.Portal>
-      </AlertDialog.Root>
-    </details>
-  )
+  const range = pageWindow(devices?.length ?? 0, page, 10)
+  return <section className="settings-section settings-devices" aria-labelledby="settings-devices-title" aria-busy={fetching}>
+    <header className="settings-section-heading settings-section-tools"><div><h3 ref={heading} tabIndex={-1} id="settings-devices-title">Active sessions{devices && <span className="settings-count">{devices.length}</span>}</h3><p>Each entry is a sign-in session. A browser can appear more than once.</p></div><RefreshButton label="Refresh sessions" pending={fetching} disabled={pending} onClick={reload} /></header>
+    {error && !choice && <InlineNotice error title="Sessions couldn’t be loaded" actions={<button type="button" className="settings-button" disabled={fetching} onClick={reload}>Try again</button>}>{error}</InlineNotice>}{notice && <InlineNotice>{notice}</InlineNotice>}
+    {!devices && !error && <LoadingState label="Loading active sessions…" compact />}
+    {devices && <ul className="settings-device-list">{devices.slice(range.start, range.end).map(device => <li key={device.id}>
+      <Monitor size={19} aria-hidden="true" /><div><strong>{device.device_label}</strong>{device.current && <span className="settings-status" data-enabled="true">This session</span>}<p>{method[device.auth_method] ?? 'Sign-in'} · Signed in <time dateTime={device.created_at}>{new Date(device.created_at).toLocaleString()}</time></p><small>Last active <time dateTime={device.last_seen_at}>{new Date(device.last_seen_at).toLocaleString()}</time></small></div>
+      <button type="button" className="settings-button" disabled={pending || fetching} onClick={event => { trigger.current = event.currentTarget; setChoice(device); setError('') }}>{device.current ? 'Sign out this session' : 'Sign out'}</button>
+    </li>)}</ul>}
+    {devices?.length === 0 && <p className="settings-help">No active sessions were returned. Refresh to check again.</p>}
+    {(devices?.length ?? 0) > 10 && <ListPagination page={range.page} total={devices!.length} pageSize={10} label="Sessions" onPrevious={() => { setPage(range.page - 1); heading.current?.focus() }} onNext={() => { setPage(range.page + 1); heading.current?.focus() }} />}
+    {devices?.length === 100 && <p className="settings-help">Showing this session and the 99 most recently active other sessions.</p>}
+    <div className="settings-form-actions"><button type="button" className="settings-button settings-danger" disabled={pending || fetching || !devices?.some(item => !item.current)} onClick={event => { trigger.current = event.currentTarget; setChoice('others'); setError('') }}>Sign out all other sessions</button></div>
+    <SettingsConfirmation open={choice !== null} title={choice === 'others' ? 'Sign out all other sessions?' : choice?.current ? 'Sign out this session?' : 'Sign out session?'} description={choice === 'others' ? 'Other sessions will end immediately and need to sign in again. This session stays open.' : choice?.current ? 'You will be signed out here and need to sign in again to continue.' : 'This session will end immediately. It will need to sign in again.'} pending={pending} pendingLabel="Signing out…" error={error} confirmLabel="Confirm sign out" danger onCancel={() => setChoice(null)} onConfirm={() => void confirm()} returnFocus={trigger}>
+      {choice && choice !== 'others' && <p className="settings-confirmation-target">{choice.device_label}<small>Signed in {new Date(choice.created_at).toLocaleString()}</small></p>}
+    </SettingsConfirmation>
+  </section>
 }

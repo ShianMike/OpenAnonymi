@@ -10,12 +10,12 @@ describe('public auth destination', () => {
     expect(resolve('/documents/a-document/edit#review-approval')).toBe('/documents/a-document/edit#review-approval')
   })
   it('uses sensible sign-in and sign-up defaults', () => {
-    expect(authDestination('', false, origin)).toBe('/continue')
+    expect(authDestination('', false, origin)).toBe('/documents')
     expect(authDestination('', true, origin)).toBe('/new')
   })
   it('rejects external, malformed, unknown and recursive auth destinations', () => {
     for (const path of ['https://evil.example/continue', '//evil.example/continue', '/\\evil.example/new', '/sign-in', '/welcome', '/missing', '/new\n', '/%2f%2fevil.example']) {
-      expect(resolve(path)).toBe('/continue')
+      expect(resolve(path)).toBe('/documents')
       expect(resolve(path, true)).toBe('/new')
     }
   })

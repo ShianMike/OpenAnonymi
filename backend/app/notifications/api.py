@@ -12,6 +12,7 @@ from app.contracts import ErrorResponse
 from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedContentError
 from app.errors import ApiError
 from app.notifications.contracts import (
+    NotificationDetail,
     NotificationPage,
     NotificationPreferences,
     ReadAllResult,
@@ -23,11 +24,13 @@ from app.notifications.service import (
     NotificationPreferenceUnavailable,
     NotificationReadChanged,
     list_notifications,
+    load_notification_detail,
     mark_all_read,
     mark_read,
     preferences,
     unread_count,
     update_preferences,
+    validate_notification_detail,
     validate_notification_page,
 )
 
@@ -78,6 +81,24 @@ def create_notifications_router(engine: Engine):
     @router.get("/notifications/unread-count", response_model=UnreadCount)
     def unread_route(identity: Annotated[SessionIdentity, Depends(current_identity)]):
         return UnreadCount(count=unread_count(engine, identity.user_id, datetime.now(UTC)))
+
+    @router.get(
+        "/notifications/{notification_id}", response_model=NotificationDetail,
+        responses={code: {"model": ErrorResponse} for code in (401, 404, 409, 503)},
+    )
+    def detail_route(
+        notification_id: UUID, request: Request,
+        identity: Annotated[SessionIdentity, Depends(current_identity)],
+    ):
+        keys = guarded(KeyRing.from_settings, request.app.state.settings)
+        view = guarded(
+            load_notification_detail, engine, notification_id, identity.user_id,
+            keys, datetime.now(UTC),
+        )
+        return protected_json_response(view, request, identity, lambda current: guarded(
+            validate_notification_detail, engine, notification_id, current.user_id,
+            keys, view, datetime.now(UTC),
+        ))
 
     @router.post("/notifications/read-all", response_model=ReadAllResult)
     def read_all_route(identity: Annotated[SessionIdentity, Depends(mutation_identity)]):

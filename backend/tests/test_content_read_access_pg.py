@@ -10,22 +10,21 @@ from sqlalchemy.orm import Session
 from app.db.models import Document, Membership, User, Workspace
 from app.db.team_review import ReviewHandoff
 from app.intake.api import SourceView
-from app.intake.csv_contracts import CsvSettingsView
 from app.intake.import_api import ImportPreview
-from app.notifications.contracts import NotificationPage
+from app.notifications.contracts import NotificationDetail, NotificationPage
 from tests.intake_support import _login
 from tests.test_notifications_pg import TITLE, assign, start_review
 from tests.test_output_session_access_pg import end_session
 from tests.test_review_state_pg import prepare
 
-READS = ("source", "revision", "csv", "rules", "notifications")
+READS = ("source", "revision", "notifications", "notification_detail")
 PRIVATE = ("Fictional", "nora@example.test", "Synthetic optional title", TITLE, "Contact")
 
 
 def read_case(site, route):
     owner, other, engine, workspace, actor = site
     case = {"engine": engine, "workspace": workspace, "actor": actor, "client": owner}
-    if route == "notifications":
+    if route in ("notifications", "notification_detail"):
         review = start_review(site)
         assign(review)
         case.update(
@@ -36,15 +35,16 @@ def read_case(site, route):
             path="/api/v1/notifications",
             model=NotificationPage,
         )
+        if route == "notification_detail":
+            identifier = other.get(case["path"]).json()["items"][0]["id"]
+            case.update(path=f"/api/v1/notifications/{identifier}", model=NotificationDetail)
     else:
         owner, other, engine, workspace, actor, headers, base, state = prepare(
-            site, "csv" if route in ("csv", "rules") else "pasted"
+            site, "pasted"
         )
         suffix = {
             "source": "/source",
             "revision": f"/revisions/{state['version']['source_revision_id']}/source",
-            "csv": "/csv-settings",
-            "rules": "/column-rules",
         }[route]
         case.update(
             headers=headers,
@@ -53,7 +53,7 @@ def read_case(site, route):
             state=state,
             document_id=UUID(state["version"]["document_id"]),
             path=base + suffix,
-            model=CsvSettingsView if route in ("csv", "rules") else SourceView,
+            model=SourceView,
         )
     assert case["client"].get(case["path"]).status_code == 200
     return case
@@ -68,10 +68,12 @@ def after_read(monkeypatch, route, case, phase, change):
     elif phase == "authorized":
         module, hook = {
             "notifications": (notification_api, "validate_notification_page"),
+            "notification_detail": (notification_api, "validate_notification_detail"),
         }.get(route, (intake_api, "review_document"))
     else:
         module, hook = {
             "notifications": (notification_api, "list_notifications"),
+            "notification_detail": (notification_api, "load_notification_detail"),
         }.get(route, (intake_api, "_load_owned_source"))
     original = getattr(module, hook)
     fired = []
@@ -119,7 +121,7 @@ def test_ended_session_cannot_release_assembled_private_json(
     assert fired
 
 
-@pytest.mark.parametrize("route", ("source", "notifications"))
+@pytest.mark.parametrize("route", ("source", "notifications", "notification_detail"))
 def test_session_ending_during_final_resource_queries_is_rechecked(intake_site, monkeypatch, route):
     case = read_case(intake_site, route)
     fired = after_read(
@@ -155,10 +157,10 @@ def test_revoked_resource_membership_is_denied_even_with_another_active_workspac
             session.delete(session.get(Workspace, additional))
 
 
-@pytest.mark.parametrize("route", ("source", "revision", "csv", "rules", "notifications"))
+@pytest.mark.parametrize("route", READS)
 def test_reviewer_grant_removed_after_serialization_denies_content(intake_site, monkeypatch, route):
     case = read_case(intake_site, route)
-    if route != "notifications":
+    if route not in ("notifications", "notification_detail"):
         reviewer = UUID(case["other"].get("/api/v1/auth/session").json()["user_id"])
         response = case["client"].put(
             case["base"] + "/handoff",
@@ -181,7 +183,7 @@ def test_reviewer_grant_removed_after_serialization_denies_content(intake_site, 
             session.delete(session.get(ReviewHandoff, case["document_id"]))
 
     fired = after_read(monkeypatch, route, case, "serialized", remove_grant)
-    assert_neutral(case["client"].get(case["path"]), 409 if route == "notifications" else 404)
+    assert_neutral(case["client"].get(case["path"]), 409 if route in ("notifications", "notification_detail") else 404)
     assert fired
     monkeypatch.undo()
     if route == "notifications":
@@ -192,15 +194,20 @@ def test_reviewer_grant_removed_after_serialization_denies_content(intake_site, 
             item["title"] is None and not item["document_available"]
             for item in fresh.json()["items"]
         )
+    elif route == "notification_detail":
+        fresh = case["client"].get(case["path"])
+        assert fresh.status_code == 200
+        assert fresh.json()["notification"]["title"] is None
+        assert fresh.json()["current"] is None
 
 
 @pytest.mark.parametrize(
     "route,change",
     [
         (route, change)
-        for route in ("source", "revision", "csv", "rules", "notifications")
+        for route in READS
         for change in ("expired", "version", "deleted")
-        if (route, change) != ("notifications", "version")
+        if not (route in ("notifications", "notification_detail") and change == "version")
     ],
 )
 def test_document_change_after_serialization_never_returns_stale_content(
@@ -219,12 +226,12 @@ def test_document_change_after_serialization_never_returns_stale_content(
                 document.decision_version += 1
 
     fired = after_read(monkeypatch, route, case, "serialized", change_document)
-    expected = 410 if change in ("expired", "deleted") and route != "notifications" else 409
+    expected = 410 if change in ("expired", "deleted") and route not in ("notifications", "notification_detail") else 409
     assert_neutral(case["client"].get(case["path"]), expected)
     assert fired
 
 
-@pytest.mark.parametrize("route", ("source", "notifications"))
+@pytest.mark.parametrize("route", ("source", "notifications", "notification_detail"))
 def test_real_time_expiry_during_serialization_denies_private_body(intake_site, monkeypatch, route):
     case = read_case(intake_site, route)
     expires_at = datetime.now(UTC) + timedelta(seconds=3)
@@ -240,7 +247,7 @@ def test_real_time_expiry_during_serialization_denies_private_body(intake_site, 
     assert fired
 
 
-@pytest.mark.parametrize("format", ("txt", "csv"))
+@pytest.mark.parametrize("format", ("txt", "md"))
 @pytest.mark.parametrize("phase", ("assembled", "serialized"))
 @pytest.mark.parametrize("change", ("revoked", "expired"))
 def test_import_preview_rechecks_after_private_text_and_headers_are_assembled(

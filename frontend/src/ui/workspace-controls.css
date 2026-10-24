@@ -165,31 +165,47 @@
   align-items: flex-start;
   gap: 10px;
   padding: 13px 16px;
-  border-radius: 12px;
+  border: 1px solid transparent;
+  border-radius: 7px;
   background: var(--tone-accent-wash, #b4e6cc0b);
   font-size: 0.82rem;
   color: var(--tone-accent-soft, #b7d8c4);
   margin: 0 0 18px;
   line-height: 1.55;
 }
-.inline-notice svg {
+.inline-notice > svg {
   flex-shrink: 0;
   margin-top: 3px;
 }
 .inline-notice.is-error {
-  background: var(--tone-danger-wash, #f1aaa80b);
-  color: var(--danger);
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--muted);
+}
+.inline-notice.is-error > svg { color: var(--danger); }
+.inline-notice-content { flex: 1; min-width: 0; }
+.inline-notice-title { display: block; margin-bottom: 5px; color: var(--text); font-size: .8667rem; font-weight: 550; line-height: 1.6; text-wrap: balance; }
+.inline-notice-message { overflow-wrap: anywhere; text-wrap: pretty; }
+.inline-notice-message > p { margin: 0; font-size: inherit; line-height: inherit; }
+.inline-notice-message > p + p { margin-top: 8px; }
+.inline-notice-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+.inline-notice-actions > :is(button,a) { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; max-width: 100%; margin: 0; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--text); background: var(--surface); font: inherit; font-size: .8rem; line-height: 1.5; font-weight: 500; text-decoration: none; white-space: normal; box-shadow: none; }
+.inline-notice-actions > :is(button,a):hover:not(:disabled) { color: var(--text); background: var(--surface-subtle); }
+.inline-notice-actions > :is(button,a):focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.inline-notice-actions > button + button { margin-left: 0; }
+@media (max-width: 600px) {
+  .inline-notice-actions > :is(button,a) { min-height: 44px; }
 }
 .workspace-dialog-overlay {
   position: fixed;
   inset: 0;
   z-index: 30;
   background: var(--tone-overlay, #070c09bc);
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(2px);
 }
 .workspace-dialog {
   position: fixed;
-  z-index: 30;
+  z-index: 31;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
@@ -197,29 +213,30 @@
   max-width: calc(100vw - 32px);
   max-height: calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   overflow-y: auto;
-  padding: 30px;
-  border-radius: 24px;
-  background: linear-gradient(135deg, var(--tone-surface, #252f28), var(--tone-paper, #19231d));
-  box-shadow:
-    0 28px 100px var(--tone-shadow-deep, #0009),
-    inset 0 1px 0 #ffffff13;
+  padding: 24px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 16px 48px var(--tone-shadow-deep);
 }
 .workspace-dialog > h2 {
   margin: 0 48px 10px 0;
-  font-size: 1.55rem;
-  font-weight: 550;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -.025em;
   text-wrap: balance;
 }
 .workspace-dialog > p {
-  margin: 0 0 25px;
+  margin: 0 0 24px;
   color: var(--muted);
   font-size: 0.85rem;
   line-height: 1.65;
 }
 .workspace-dialog .dialog-close {
   position: absolute;
-  top: 17px;
-  right: 16px;
+  top: 12px;
+  right: 12px;
   width: 44px;
   min-height: 44px;
 }
@@ -231,7 +248,7 @@
   padding: 10px 0;
 }
 .workspace-dialog .glass-select-trigger,
-.workspace-dialog input:not([type='checkbox']) {
+.workspace-dialog input:not([type='checkbox'], [type='radio']) {
   width: 100%;
 }
 .dialog-field-pair {
@@ -242,17 +259,46 @@
 .dialog-actions {
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 10px;
   padding-top: 18px;
-  border-top: 1px solid var(--tone-hairline, #ffffff0a);
+  border-top: 1px solid var(--line);
 }
 .dialog-actions button {
   min-height: 44px;
   margin: 0;
+  border-radius: 7px;
+  box-shadow: none;
 }
 .workspace-skeleton {
   display: grid;
   gap: 16px;
+}
+.workspace-dialog.workspace-side-dialog { top: calc(12px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); bottom: calc(12px + env(safe-area-inset-bottom)); left: auto; transform: none; display: flex; flex-direction: column; width: 480px; max-width: calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)); max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); padding: 26px 0 0; overflow: hidden; }
+.workspace-side-dialog > h2 { flex: none; margin: 0 64px 8px 26px; font-size: 1.3rem; text-wrap: balance; }
+.workspace-side-dialog > p { flex: none; margin: 0 26px 24px; font-size: .83rem; }
+.settings-dialog-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 26px 24px; }
+.settings-dialog-actions { flex: none; align-items: center; margin: 0; padding: 16px 26px; background: var(--surface); }
+.settings-dialog-actions > span { flex: 1 1 150px; color: var(--muted); font-size: .75rem; }
+.workspace-side-dialog .detection-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 18px; margin: 8px 0 12px; }
+.workspace-side-dialog .detection-controls > p { grid-column: 1 / -1; }
+.workspace-side-dialog .glass-checkbox-row { gap: 8px; min-height: 56px; }
+.workspace-side-dialog .glass-checkbox-row > label { padding-block: 10px; color: var(--text); font-size: .78rem; font-weight: 500; line-height: 1.5; }
+.workspace-side-dialog .glass-checkbox-row label small { font-size: .7rem; line-height: 1.5; }
+.workspace-side-dialog .glass-checkbox-row .glass-checkbox-control { flex-basis: 18px; width: 18px; height: 18px; min-height: 18px; margin-top: 13px; border-radius: 4px; background: var(--surface); box-shadow: none; }
+.workspace-side-dialog .glass-checkbox-row .glass-checkbox-control[data-state='checked'] { background: var(--blue); color: var(--on-accent); }
+@media (max-width: 520px) {
+  .workspace-dialog.workspace-side-dialog { top: calc(8px + env(safe-area-inset-top)); right: calc(8px + env(safe-area-inset-right)); bottom: calc(8px + env(safe-area-inset-bottom)); max-width: calc(100vw - 16px - env(safe-area-inset-left) - env(safe-area-inset-right)); max-height: calc(100dvh - 16px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); padding-top: 22px; }
+  .workspace-side-dialog > h2 { margin-left: 18px; font-size: 1.2rem; }
+  .workspace-side-dialog > p { margin-inline: 18px; margin-bottom: 20px; }
+  .settings-dialog-body { padding-inline: 18px; }
+  .settings-dialog-actions { padding: 14px 18px; }
+  .settings-dialog-actions > span { flex-basis: 100%; }
+  .settings-dialog-actions > button { flex: 1; }
+  .workspace-side-dialog .glass-select-trigger { font-size: 16px; }
+}
+@media (max-width: 360px) {
+  .workspace-side-dialog .detection-controls { grid-template-columns: 1fr; }
 }
 .workspace-skeleton span {
   display: block;
@@ -268,10 +314,12 @@
   .workspace-dialog {
     padding: 24px 20px;
   }
+  .workspace-dialog[role='dialog'] { top: auto; right: 0; bottom: 0; left: 0; transform: none; width: 100%; max-width: 100%; max-height: calc(100dvh - 12px - env(safe-area-inset-top)); padding-bottom: max(24px, env(safe-area-inset-bottom)); border-radius: 20px 20px 0 0; }
+  .workspace-dialog.workspace-side-dialog[role='dialog'] { top: calc(12px + env(safe-area-inset-top)); padding-bottom: env(safe-area-inset-bottom); }
   .dialog-field-pair {
     grid-template-columns: 1fr;
   }
-  .workspace-dialog input:not([type='checkbox']) {
+  .workspace-dialog input:not([type='checkbox'], [type='radio']) {
     font-size: 16px;
   }
 }

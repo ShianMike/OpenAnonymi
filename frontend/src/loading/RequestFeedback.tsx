@@ -17,7 +17,6 @@ export function RequestFeedback() {
   if (!first || visibleId !== first.id || foreground) return null
   const labels = [...new Set(requests.map(item => item.label))]
   return <aside className="request-feedback" aria-label="Work in progress">
-    <LoadingState key={first.id} label={`${first.label}…`} compact />
-    {labels.length > 1 && <span className="request-feedback-count">Also: {labels.slice(1).join(' · ')}</span>}
+    <LoadingState key={first.id} label={`${first.label}…`} description={labels.length > 1 ? `Also: ${labels.slice(1).join(' · ')}` : undefined} compact background />
   </aside>
 }

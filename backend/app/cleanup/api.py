@@ -4,12 +4,12 @@ from datetime import UTC, datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy.engine import Engine
 
 from app.accounts.access import DocumentNotFound
-from app.accounts.api import mutation_identity
+from app.accounts.api import current_identity, mutation_identity
 from app.accounts.security import SessionIdentity
 from app.cleanup.background import purge_deleted_document
 from app.cleanup.service import mark_document_deleted
@@ -32,6 +32,7 @@ def create_cleanup_router(engine: Engine) -> APIRouter:
     def delete_route(
         document_id: UUID,
         background_tasks: BackgroundTasks,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ) -> DeletedView:
         try:
@@ -40,6 +41,7 @@ def create_cleanup_router(engine: Engine) -> APIRouter:
                 document_id=document_id,
                 actor_id=identity.user_id,
                 now=datetime.now(UTC),
+                reauthorize=lambda: current_identity(request),
             )
             background_tasks.add_task(purge_deleted_document, engine, document_id)
             return DeletedView()

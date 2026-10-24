@@ -25,7 +25,7 @@ PASSWORD = "synthetic-intake-password"
 
 
 @pytest.fixture
-def intake_site():
+def intake_site(intake_password_hashes):
     raw_url = os.getenv("PRIVACY_REVIEW_TEST_DATABASE_URL")
     if not raw_url:
         pytest.skip("set PRIVACY_REVIEW_TEST_DATABASE_URL for the local database gate")
@@ -43,12 +43,12 @@ def intake_site():
                 User(
                     id=owner_id,
                     email="intake-owner@example.invalid",
-                    password_hash=hash_password(PASSWORD),
+                    password_hash=intake_password_hashes[0],
                 ),
                 User(
                     id=other_id,
                     email="intake-other@example.invalid",
-                    password_hash=hash_password(PASSWORD),
+                    password_hash=intake_password_hashes[1],
                 ),
             ]
         )
@@ -81,6 +81,12 @@ def intake_site():
             session.execute(delete(Workspace).where(Workspace.id == workspace_id))
             session.execute(delete(User).where(User.id.in_([owner_id, other_id])))
         engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def intake_password_hashes():
+    # Seed hashes are immutable; every case still creates fresh accounts and verifies normally.
+    return hash_password(PASSWORD), hash_password(PASSWORD)
 
 
 def _login(client: TestClient, email: str) -> dict[str, str]:

@@ -22,3 +22,9 @@ export const shortcutGuide = [
   ['G', 'Show less of a date', 'Keep only the month and year, year, or an age range for a birth date.'],
   ['?', 'Shortcut guide', 'Open this guide. Escape closes dialogs.'],
 ] as const
+
+export function searchShortcuts(query: string) {
+  const term = query.trim().toLowerCase()
+  const exactKey = shortcutGuide.find(([key]) => key.toLowerCase() === term)
+  return exactKey ? [exactKey] : shortcutGuide.filter(row => row.some(text => text.toLowerCase().includes(term)))
+}

@@ -1,29 +1,180 @@
-/* First paint mirrors the app entrance without waiting for JavaScript modules. */
-.startup-loading { --boot-page:#111514; --boot-surface:#1b201e; --boot-subtle:#202623; --boot-text:#e9eeec; --boot-muted:#a2b0a8; --boot-accent:#b4e6cc; --boot-line:#48594f; --boot-glow:#293f34; position:relative; isolation:isolate; min-height:100dvh; padding:30px; box-sizing:border-box; color:var(--boot-text); font:15px/1.5 Figtree,'Segoe UI',sans-serif; background:var(--boot-page); display:flex; flex-direction:column; overflow-x:clip; }
-html[data-theme='light'] .startup-loading { --boot-page:#f4f2ea; --boot-surface:#fbfcf5; --boot-subtle:#eeeee2; --boot-text:#263b30; --boot-muted:#536457; --boot-accent:#35684c; --boot-line:#bdcbbd; --boot-glow:#e4ebda; }
-body:has(.startup-loading) { margin:0; }
-.startup-loading::before { content:''; position:absolute; z-index:-1; inset:0; background:radial-gradient(ellipse at 50% 44%,var(--boot-glow),transparent 65%); opacity:.45; }
-.startup-brand { display:flex; align-items:center; gap:12px; font-weight:650; }
-.startup-brand svg { width:30px; height:30px; color:var(--boot-accent); }
-.startup-center { width:min(440px,100%); margin:auto; padding:40px 0; text-align:center; }
-.startup-card { display:flex; flex-direction:column; align-items:center; }
-.startup-mark { position:relative; width:92px; height:92px; margin-bottom:30px; color:var(--boot-accent); }
-.startup-mark::before { content:''; position:absolute; z-index:-1; inset:-20px; border-radius:50%; background:radial-gradient(closest-side,var(--boot-glow),transparent); animation:startup-glow 3.2s ease-in-out infinite; }
-.startup-symbol { position:relative; display:flex; align-items:center; justify-content:center; width:100%; height:100%; box-sizing:border-box; overflow:hidden; border:1px solid var(--boot-line); border-radius:28px; background:linear-gradient(145deg,var(--boot-subtle),var(--boot-surface)); box-shadow:inset 0 1px 0 #ffffff0a,0 12px 32px #0000000a; }
-.startup-symbol svg { width:44px; height:44px; }
-.startup-symbol::after { content:''; position:absolute; top:50%; left:24px; right:24px; height:1px; background:linear-gradient(90deg,transparent,currentColor,transparent); box-shadow:0 0 9px currentColor; animation:startup-scan 2.8s cubic-bezier(.4,0,.2,1) infinite; }
-.startup-card h1 { font-size:clamp(1.3rem,3vw,1.6rem); font-weight:550; letter-spacing:-.035em; line-height:1.3; margin:0; }
-.startup-card p { max-width:330px; color:var(--boot-muted); font-size:.86rem; line-height:1.65; margin:12px auto 0; }
-.startup-card::after { content:''; width:160px; height:3px; margin-top:28px; border-radius:999px; background-color:var(--boot-line); background-image:linear-gradient(90deg,transparent,var(--boot-accent) 35%,var(--boot-accent) 65%,transparent); background-size:64px 100%; background-repeat:no-repeat; animation:startup-flow 1.25s cubic-bezier(.45,0,.55,1) infinite alternate; }
-.startup-note { text-align:center; color:var(--boot-muted); font-size:.76rem; margin:0; }
-.startup-retry { display:none; margin-top:18px; color:var(--boot-page); background:var(--boot-accent); border:0; border-radius:10px; padding:10px 15px; font:inherit; font-size:13px; cursor:pointer; }
-.startup-retry:focus-visible { outline:2px solid var(--boot-accent); outline-offset:4px; }
-.startup-loading[data-slow='true'] .startup-retry { display:inline-flex; }
-.startup-loading[data-motion='false'] *, .startup-loading[data-motion='false'] *::before, .startup-loading[data-motion='false'] *::after { animation-play-state:paused; }
-@keyframes startup-scan { 0%,100% { transform:translateY(-24px); opacity:0; } 20%,65% { opacity:.75; } 80% { transform:translateY(24px); opacity:0; } }
-@keyframes startup-glow { 50% { opacity:.5; transform:scale(.9); } }
-@keyframes startup-flow { from { background-position:0 0; } to { background-position:96px 0; } }
-@media(max-width:600px) { .startup-loading{padding:22px 20px;} .startup-center{padding:32px 0;} .startup-card p{font-size:.8rem;} }
-@media(prefers-reduced-motion:reduce) { .startup-loading *, .startup-loading *::before, .startup-loading *::after{animation:none!important;} .startup-symbol::after{display:none;} .startup-card::after{background-position:center;} }
-@media(prefers-reduced-transparency:reduce) { .startup-loading::before,.startup-mark::before{display:none;} }
-@media(forced-colors:active) { .startup-loading{background:Canvas;color:CanvasText;} .startup-loading::before,.startup-mark::before,.startup-symbol::after{display:none;} .startup-symbol{border-color:CanvasText;background:Canvas;box-shadow:none;} .startup-mark{color:Highlight;} .startup-card::after{background:Highlight;} }
+/* Full-screen loading screen. index.html paints it before any module loads, and the app's
+   LoadingScreen renders the same markup, so the handoff between them can't be seen.
+   Sizes use px and em, never rem: the app's root font size arrives with its own stylesheet. */
+
+/* Same face and URL as src/index.css, so this screen and the app share one download. */
+@font-face { font-family: Figtree; src: url('/fonts/Figtree-variable.woff2') format('woff2'); font-style: normal; font-weight: 300 900; font-display: swap; }
+
+/* Dark tone, the app's default theme. */
+.boot-screen {
+  --boot-page: #171819; --boot-surface: #1c1e20; --boot-subtle: #25282a;
+  --boot-text: #edeeef; --boot-muted: #a2a7aa;
+  --boot-line: #303336; --boot-line-strong: #4e5357;
+  --boot-accent: #b4e6cc; --boot-accent-strong: #d1f3e1; --boot-accent-tint: #293f34; --boot-on-accent: #13241e;
+  --boot-button: #b4e6cc; --boot-button-hover: #d1f3e1; --boot-button-ink: #13241e;
+  --boot-doc: #1c1e20; --boot-doc-edge: rgb(233 238 236 / 8%);
+  --boot-doc-shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 28px 56px -28px rgb(0 0 0 / 70%);
+  --boot-seg: #303336; --boot-seg-title: #4e5357; --boot-rule: #303336;
+  --boot-hl: rgb(180 230 204 / 24%); --boot-label: rgb(180 230 204 / 85%); --boot-label-edge: rgb(180 230 204 / 0%); --boot-redact: #dfe7e3;
+  --boot-check: #b4e6cc; --boot-check-ink: #13241e;
+  --boot-scan: #b4e6cc; --boot-scan-glow: rgb(180 230 204 / 45%); --boot-scan-trail: rgb(180 230 204 / 12%);
+  --boot-glow: transparent;
+  /* App components inside the frame, such as the failure notice, follow its tone. */
+  --page: var(--boot-page); --surface: var(--boot-surface); --surface-subtle: var(--boot-subtle);
+  --line: var(--boot-line); --line-strong: var(--boot-line-strong); --text: var(--boot-text); --muted: var(--boot-muted);
+  --blue: var(--boot-accent); --blue-strong: var(--boot-accent-strong); --blue-tint: var(--boot-accent-tint);
+  --focus: var(--boot-accent); --on-accent: var(--boot-on-accent);
+  --boot-cycle: 3.4s;
+  --boot-ease: cubic-bezier(.22, 1, .36, 1);
+  --boot-gutter: clamp(20px, 4vw, 40px);
+  position: relative; isolation: isolate; display: flex; flex-direction: column;
+  min-height: 100vh; min-height: 100dvh;
+  color: var(--boot-text); background: var(--boot-page);
+  font: 15px/1.5 Figtree, 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  overflow-x: clip;
+}
+/* Light tone: the landing page, and anyone who chose light. */
+.boot-screen[data-tone='light'], html[data-boot-tone='light'] #startup-loading {
+  --boot-page: #fff; --boot-surface: #fff; --boot-subtle: #f4f7f5;
+  --boot-text: #0f1a15; --boot-muted: #5f6d66;
+  --boot-line: #e4eae6; --boot-line-strong: #cdd6d1;
+  --boot-accent: #1d724a; --boot-accent-strong: #165c3b; --boot-accent-tint: #e8f4ed; --boot-on-accent: #fff;
+  --boot-button: #0f1a15; --boot-button-hover: #26352e; --boot-button-ink: #fff;
+  --boot-doc: #fff; --boot-doc-edge: rgb(15 26 21 / 8%);
+  --boot-doc-shadow: 0 1px 2px rgb(15 26 21 / 5%), 0 22px 44px -22px rgb(15 26 21 / 22%), 0 44px 88px -44px rgb(29 114 74 / 30%);
+  --boot-seg: #e7ece9; --boot-seg-title: #d3dcd7; --boot-rule: #eef2f0;
+  --boot-hl: rgb(180 230 204 / 75%); --boot-label: #b4e6cc; --boot-label-edge: rgb(29 114 74 / 30%); --boot-redact: #0f1a15;
+  --boot-check: #1d724a; --boot-check-ink: #fff;
+  --boot-scan: #1d724a; --boot-scan-glow: rgb(29 114 74 / 32%); --boot-scan-trail: rgb(180 230 204 / 42%);
+  --boot-glow: rgb(180 230 204 / 50%);
+}
+html:has(#startup-loading) body, html:has(.boot-screen) body { margin: 0; }
+html:has(#startup-loading)[data-boot-tone='light'], html:has(.boot-screen[data-tone='light']) { color-scheme: light; background: #fff; }
+html:has(#startup-loading):not([data-boot-tone='light']), html:has(.boot-screen[data-tone='dark']) { color-scheme: dark; background: #171819; }
+/* The first paint covers the app while it mounts the identical screen underneath. It scrolls
+   only when it must: a scrolling layer renders text differently from the app's screen. */
+#startup-loading { position: fixed; inset: 0; z-index: 40; }
+@media (max-height: 480px) { #startup-loading { overflow-y: auto; } }
+html[data-font-size='large'] .boot-screen { font-size: 18px; }
+.boot-screen *, .boot-screen *::before, .boot-screen *::after { box-sizing: border-box; }
+
+/* Brand: same size and place as the landing page's navigation, so it stays put as the page arrives. */
+.boot-bar { display: flex; align-items: center; flex-shrink: 0; width: min(1200px, calc(100% - 2 * var(--boot-gutter))); height: 64px; margin: 0 auto; }
+.boot-brand { display: inline-flex; align-items: center; gap: 9px; }
+.boot-brand-mark { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px; background: #b4e6cc; color: #18392b; }
+.boot-brand-mark svg { display: block; width: 20px; height: 20px; }
+.boot-wordmark { color: var(--boot-text); font-size: 1.13em; font-weight: 650; letter-spacing: -.04em; }
+
+.boot-main { flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; min-width: 0; margin: 0; padding: 24px var(--boot-gutter) 40px; text-align: center; overflow-wrap: normal; }
+
+/* A note being reviewed: a scan passes, details are labeled and redacted, and the note is confirmed. */
+.boot-art { position: relative; isolation: isolate; margin: 0 0 34px; }
+.boot-art::before { content: ''; position: absolute; z-index: -1; inset: -80px -120px; border-radius: 50%; background: radial-gradient(closest-side, var(--boot-glow), transparent); pointer-events: none; }
+.boot-doc { position: relative; width: 280px; padding: 20px 22px 22px; border: 1px solid var(--boot-doc-edge); border-radius: 18px; background: var(--boot-doc); box-shadow: var(--boot-doc-shadow); text-align: left; }
+.boot-doc-head { display: flex; align-items: center; justify-content: space-between; height: 20px; }
+.boot-doc-title { display: block; width: 46%; height: 9px; border-radius: 5px; background: var(--boot-seg-title); }
+.boot-check { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--boot-check); color: var(--boot-check-ink); }
+.boot-check svg { display: block; width: 12px; height: 12px; }
+.boot-doc-body { position: relative; display: grid; gap: 13px; margin: 16px -22px 0; padding: 18px 22px 8px; overflow: hidden; border-top: 1px solid var(--boot-rule); }
+.boot-row { display: flex; gap: 7px; height: 8px; }
+.boot-row i { position: relative; display: block; flex: 0 0 auto; height: 100%; border-radius: 4px; background: var(--boot-seg); }
+.boot-row:nth-child(1) i:nth-child(1) { width: 34%; }
+.boot-row:nth-child(1) i:nth-child(2) { width: 25%; }
+.boot-row:nth-child(1) i:nth-child(3) { width: 22%; }
+.boot-row:nth-child(2) i:nth-child(1) { width: 20%; }
+.boot-row:nth-child(2) i:nth-child(2) { width: 38%; }
+.boot-row:nth-child(2) i:nth-child(3) { width: 18%; }
+.boot-row:nth-child(3) i:nth-child(1) { width: 56%; }
+.boot-row:nth-child(3) i:nth-child(2) { width: 28%; }
+.boot-row:nth-child(4) i:nth-child(1) { width: 24%; }
+.boot-row:nth-child(4) i:nth-child(2) { width: 46%; }
+/* Without animation, the finished note shows: labeled, redacted and confirmed. */
+.boot-find::after { content: ''; position: absolute; inset: -3px -4px; border-radius: 6px; background: var(--boot-find); box-shadow: inset 0 0 0 1px var(--boot-find-edge); animation: var(--boot-cycle) linear var(--boot-offset, 0ms) infinite both; }
+.boot-find-1, .boot-find-3 { --boot-find: var(--boot-label); --boot-find-edge: var(--boot-label-edge); }
+.boot-find-2 { --boot-find: var(--boot-redact); --boot-find-edge: transparent; }
+.boot-find-2::after { inset: -2px -3px; border-radius: 3px; }
+.boot-find-1::after { animation-name: boot-find-1; }
+.boot-find-2::after { animation-name: boot-find-2; }
+.boot-find-3::after { animation-name: boot-find-3; }
+.boot-check { animation: boot-check var(--boot-cycle) linear var(--boot-offset, 0ms) infinite both; }
+.boot-scan { position: absolute; top: 18px; left: 14px; right: 14px; height: 2px; border-radius: 2px; opacity: 0; background: linear-gradient(90deg, transparent, var(--boot-scan) 20%, var(--boot-scan) 80%, transparent); box-shadow: 0 0 12px var(--boot-scan-glow); animation: boot-scan var(--boot-cycle) linear var(--boot-offset, 0ms) infinite both; }
+.boot-scan::before { content: ''; position: absolute; left: 0; right: 0; bottom: 2px; height: 28px; background: linear-gradient(to top, var(--boot-scan-trail), transparent); }
+
+.boot-status { max-width: 24em; }
+.boot-status h1 { margin: 0; color: var(--boot-text); font-size: 1.27em; font-weight: 620; line-height: 1.3; letter-spacing: -.022em; text-wrap: balance; }
+.boot-status p { margin: 8px 0 0; color: var(--boot-muted); font-size: .97em; line-height: 1.6; text-wrap: pretty; }
+.boot-retry { display: none; align-items: center; justify-content: center; gap: 8px; min-height: 40px; margin: 22px 0 0; padding: 0 16px; border: 1px solid var(--boot-button); border-radius: 10px; background: var(--boot-button); color: var(--boot-button-ink); font: inherit; font-size: .93em; font-weight: 600; line-height: 1; cursor: pointer; box-shadow: none; transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease; }
+.boot-screen .boot-retry:hover { border-color: var(--boot-button-hover); background: var(--boot-button-hover); color: var(--boot-button-ink); }
+.boot-retry:active { transform: translateY(1px); }
+.boot-retry:focus-visible { outline: 2px solid var(--boot-accent); outline-offset: 3px; }
+.boot-screen[data-slow='true'] .boot-retry { display: inline-flex; }
+.boot-noscript { margin: 16px 0 0; color: var(--boot-text); font-size: .93em; }
+.boot-note { flex-shrink: 0; margin: 0; padding: 0 var(--boot-gutter) max(26px, env(safe-area-inset-bottom)); color: var(--boot-muted); font-size: .82em; text-align: center; }
+
+/* Entrance. A screen that replaces another one skips it, so the swap can't be seen. */
+.boot-screen:not([data-entrance='skip']) .boot-art { animation: boot-rise 700ms var(--boot-ease) both; }
+.boot-screen:not([data-entrance='skip']) .boot-status { animation: boot-rise 700ms var(--boot-ease) 80ms both; }
+.boot-screen:not([data-entrance='skip']) :is(.boot-bar, .boot-note) { animation: boot-fade 500ms ease both; }
+
+@keyframes boot-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes boot-fade { from { opacity: 0; } to { opacity: 1; } }
+/* One pass: the scan crosses each row as its detail is highlighted, then labeled or redacted. */
+@keyframes boot-scan {
+  0% { opacity: 0; transform: translateY(-12px); }
+  4% { opacity: 1; transform: translateY(-4px); }
+  44% { opacity: 1; transform: translateY(78px); }
+  50%, 100% { opacity: 0; transform: translateY(86px); }
+}
+@keyframes boot-find-1 {
+  0%, 7% { opacity: 0; background-color: var(--boot-hl); transform: none; }
+  9%, 12% { opacity: 1; background-color: var(--boot-hl); transform: none; }
+  15% { opacity: 1; background-color: var(--boot-find); transform: scale(1.06); }
+  18%, 84% { opacity: 1; background-color: var(--boot-find); transform: none; }
+  90%, 100% { opacity: 0; background-color: var(--boot-find); transform: none; }
+}
+@keyframes boot-find-2 {
+  0%, 17% { opacity: 0; background-color: var(--boot-hl); transform: none; }
+  19%, 22% { opacity: 1; background-color: var(--boot-hl); transform: none; }
+  25% { opacity: 1; background-color: var(--boot-find); transform: scale(1.06); }
+  28%, 84% { opacity: 1; background-color: var(--boot-find); transform: none; }
+  90%, 100% { opacity: 0; background-color: var(--boot-find); transform: none; }
+}
+@keyframes boot-find-3 {
+  0%, 37.5% { opacity: 0; background-color: var(--boot-hl); transform: none; }
+  39.5%, 42.5% { opacity: 1; background-color: var(--boot-hl); transform: none; }
+  45.5% { opacity: 1; background-color: var(--boot-find); transform: scale(1.06); }
+  48.5%, 84% { opacity: 1; background-color: var(--boot-find); transform: none; }
+  90%, 100% { opacity: 0; background-color: var(--boot-find); transform: none; }
+}
+@keyframes boot-check {
+  0%, 52% { opacity: 0; transform: scale(.4); }
+  57% { opacity: 1; transform: scale(1.12); }
+  61%, 84% { opacity: 1; transform: none; }
+  90%, 100% { opacity: 0; transform: scale(.8); }
+}
+
+@media (max-width: 640px) {
+  .boot-bar { height: 60px; }
+  .boot-wordmark { font-size: 1.05em; }
+  .boot-doc { width: 252px; padding: 18px 20px 20px; border-radius: 16px; }
+  .boot-doc-body { margin-inline: -20px; padding-inline: 20px; }
+  .boot-art { margin-bottom: 30px; }
+  .boot-art::before { inset: -60px -70px; }
+  .boot-status h1 { font-size: 1.2em; }
+}
+.boot-screen[data-motion='false'] *, .boot-screen[data-motion='false'] *::before, .boot-screen[data-motion='false'] *::after { animation-play-state: paused !important; }
+html[data-motion='reduced'] .boot-screen *, html[data-motion='reduced'] .boot-screen *::before, html[data-motion='reduced'] .boot-screen *::after { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .boot-screen *, .boot-screen *::before, .boot-screen *::after { animation: none !important; }
+}
+@media (prefers-reduced-transparency: reduce) { .boot-art::before { display: none; } }
+@media (forced-colors: active) {
+  .boot-screen *, .boot-screen *::before, .boot-screen *::after { animation: none !important; }
+  .boot-brand-mark { border: 1px solid CanvasText; background: Canvas; color: CanvasText; }
+  .boot-doc { border-color: CanvasText; background: Canvas; box-shadow: none; }
+  .boot-row i, .boot-doc-title { background: GrayText; forced-color-adjust: none; }
+  .boot-find::after, .boot-check { background: Highlight; color: HighlightText; box-shadow: none; forced-color-adjust: none; }
+  .boot-scan, .boot-art::before { display: none; }
+  .boot-retry { border-color: ButtonText; background: ButtonFace; color: ButtonText; }
+}

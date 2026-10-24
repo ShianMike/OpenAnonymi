@@ -17,7 +17,7 @@ from tests.intake_support import ORIGIN, _login
 from tests.ocr_fixtures import image_sample, scanned_pdf
 
 
-@pytest.mark.parametrize("kind", ["png", "pdf", "md", "csv", "docx"])
+@pytest.mark.parametrize("kind", ["png", "pdf", "md", "docx"])
 def test_actual_preview_edit_save_scan_confirm_outputs_preserve_corrected_source(intake_site, kind):
     owner, other, engine, workspace, _ = intake_site
     headers = _login(owner, "intake-owner@example.invalid")
@@ -39,7 +39,8 @@ def test_actual_preview_edit_save_scan_confirm_outputs_preserve_corrected_source
     assert "no-store" in preview.headers["cache-control"]
     pages = preview.json()["page_previews"]
     assert len(pages) == (1 if kind in ("png", "pdf") else 0)
-    assert all(page["data_url"].startswith("data:image/jpeg;base64,") for page in pages)
+    prefix = "data:image/png;base64," if kind == "pdf" else "data:image/jpeg;base64,"
+    assert all(page["data_url"].startswith(prefix) for page in pages)
     with Session(engine) as session:
         assert (
             session.scalar(
@@ -52,6 +53,14 @@ def test_actual_preview_edit_save_scan_confirm_outputs_preserve_corrected_source
         if kind == "csv"
         else ("Corrected 😀 scan\n<script>literal</script>\nContact: corrected@example.test")
     )
+    if kind == "pdf":
+        rejected = owner.post(
+            "/api/v1/documents/from-file",
+            data={"workspace_id": str(workspace), "edited_text_json": json.dumps(edited)},
+            files={"file": (filename, original)}, headers=headers,
+        )
+        assert rejected.status_code == 422 and "original layout" in rejected.text
+        edited = preview.json()["text"]
     created = owner.post(
         "/api/v1/documents/from-file",
         data={
@@ -90,7 +99,7 @@ def test_actual_preview_edit_save_scan_confirm_outputs_preserve_corrected_source
         base + "/complete", json={"expected": version, "confirmed_preview": True}, headers=headers
     )
     assert confirmed.status_code == 200
-    canonical = edited.replace("corrected@example.test", "[REDACTED]")
+    canonical = edited.replace("nora@example.test" if kind == "pdf" else "corrected@example.test", "[REDACTED]")
     for format in ("txt", "docx"):
         exported = owner.post(
             base + "/exports/" + format,
@@ -101,8 +110,6 @@ def test_actual_preview_edit_save_scan_confirm_outputs_preserve_corrected_source
         actual = exported.content.decode() if format == "txt" else read_word(exported.content)[0]
         assert actual == canonical
     assert owner.get(base + "/source").json()["text"] == edited
-    if kind == "csv":
-        assert source["csv"]["columns"] == 2 and source["csv"]["data_rows"] == 1
     if kind == "docx":
         assert source["structure"] == "none"
 

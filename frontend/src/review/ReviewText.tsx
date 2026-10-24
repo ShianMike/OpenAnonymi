@@ -1,6 +1,5 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import type { ReviewController } from './useReviewController'
-import { FindingPopover } from './FindingPopover'
 import { segmentText, type TextMark, type ReviewFinding, type TextSegment } from './textSegments'
 import { MarkdownText } from './MarkdownText'
 
@@ -10,15 +9,24 @@ type MarkProps = {
   selected: boolean; disabled: boolean; fictional: boolean
 }
 
-const InlineMark = memo(function InlineMark({ finding, segment, review, getReview, variant,
+const InlineMark = memo(function InlineMark({ finding, segment, getReview, variant,
   selected, disabled, fictional }: MarkProps) {
-  return <FindingPopover finding={finding} review={review} getReview={getReview}>
+  return (
     <button type="button" id={`mark-${variant}-${finding.finding_id}-${segment.start}`}
       className="inline-finding" data-finding-id={finding.finding_id}
       data-action={finding.action || 'pending'}
-      aria-label={`${finding.category}: ${segment.text}. ${finding.action || 'Needs decision'}.${fictional ? ' Fictional stand-in.' : ''} Open options`}
-      data-selected={selected || undefined} disabled={disabled}>{segment.text}</button>
-  </FindingPopover>
+      aria-label={`${finding.category}: ${segment.text}. ${finding.action || 'Needs decision'}.${fictional ? ' Fictional stand-in.' : ''} Review detail`}
+      data-selected={selected || undefined} disabled={disabled} onClick={() => {
+        const current = getReview()
+        current.setSelectedFindingId(finding.finding_id)
+        if (window.matchMedia('(max-width: 760px)').matches) current.setMobilePanel('findings')
+        requestAnimationFrame(() => {
+          const row = document.getElementById(`finding-${finding.finding_id}`)
+          row?.scrollIntoView({ block: 'nearest' })
+          row?.querySelector<HTMLButtonElement>('.studio-finding-row')?.focus({ preventScroll: true })
+        })
+      }}>{segment.text}</button>
+  )
 }, (before, after) => {
   // Selected/open controls always receive the current controller. Other marks
   // are native buttons; their click reads the latest committed controller.
@@ -45,9 +53,11 @@ export function ReviewText({
   const currentReview = useRef(review)
   useLayoutEffect(() => { currentReview.current = review }, [review])
   const getReview = useCallback(() => currentReview.current, [])
+  const plain = review.state.kind === 'ready' && (review.state.saved.file_format === 'txt' || review.state.saved.file_format === 'pdf')
   return (
     <div
       className="document-text"
+      data-plain={plain || undefined}
       tabIndex={0}
       aria-label={
         variant === 'original'
@@ -55,7 +65,7 @@ export function ReviewText({
           : 'Reviewed output with clickable findings'
       }
     >
-      <MarkdownText text={text} segments={segments} plain={review.state.kind === 'ready' && Boolean(review.state.saved.csv)} renderSegment={(segment) => {
+      <MarkdownText text={text} segments={segments} plain={plain} renderSegment={(segment) => {
         const finding = segment.findings[0]
         if (!finding) return segment.text
         return (

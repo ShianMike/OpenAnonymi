@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { GlassSelect } from '../../ui/GlassSelect'
+import { StudioSelect } from '../studio/StudioControls'
 import type { ReviewController } from '../useReviewController'
 import type { ReviewFinding } from '../textSegments'
 
@@ -150,7 +150,7 @@ export function FindingAdvanced({
           )}
         {linkTargets.length > 0 && <div className="finding-action-section">
         <label htmlFor={`merge-${item.finding_id}`}>Link with another occurrence</label>
-        <GlassSelect
+        <StudioSelect
           id={`merge-${item.finding_id}`}
           value={mergeTargets[item.finding_id] || ''}
           disabled={dirty || settingsDirty || findingPending || conflict}
@@ -168,7 +168,7 @@ export function FindingAdvanced({
                 {review.codePoints.slice(candidate.span.start, Math.min(candidate.span.end, candidate.span.start + 48)).join('')}{candidate.span.end - candidate.span.start > 48 ? '…' : ''} · {candidate.span.start + 1}–{candidate.span.end}
               </option>
             ))}
-        </GlassSelect>{' '}
+        </StudioSelect>{' '}
         <button
           type="button"
           onClick={() => void changeReview('merge', item.finding_id)}

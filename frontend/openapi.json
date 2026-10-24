@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "OpenAnonymi API",
-    "version": "0.1.6"
+    "version": "0.2.0"
   },
   "paths": {
     "/api/v1/auth/sign-in": {
@@ -429,6 +429,16 @@
           },
           "422": {
             "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
             "content": {
               "application/json": {
                 "schema": {
@@ -1834,6 +1844,89 @@
         }
       }
     },
+    "/api/v1/notifications/{notification_id}": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Detail Route",
+        "operationId": "detail_route_api_v1_notifications__notification_id__get",
+        "parameters": [
+          {
+            "name": "notification_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Notification Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/notifications/read-all": {
       "post": {
         "tags": [
@@ -2935,314 +3028,6 @@
         }
       }
     },
-    "/api/v1/documents/{document_id}/csv-settings": {
-      "get": {
-        "tags": [
-          "documents"
-        ],
-        "summary": "Csv Settings Route",
-        "operationId": "csv_settings_route_api_v1_documents__document_id__csv_settings_get",
-        "parameters": [
-          {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Document Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CsvSettingsView"
-                }
-              }
-            }
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Gone"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "documents"
-        ],
-        "summary": "Change Csv Settings Route",
-        "operationId": "change_csv_settings_route_api_v1_documents__document_id__csv_settings_put",
-        "parameters": [
-          {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Document Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CsvSettingsRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CsvSettingsView"
-                }
-              }
-            }
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConflictResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          }
-        }
-      }
-    },
-    "/api/v1/documents/{document_id}/column-rules": {
-      "get": {
-        "tags": [
-          "documents"
-        ],
-        "summary": "Csv Settings Route",
-        "operationId": "csv_settings_route_api_v1_documents__document_id__column_rules_get",
-        "parameters": [
-          {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Document Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CsvSettingsView"
-                }
-              }
-            }
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "410": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Gone"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Service Unavailable"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "documents"
-        ],
-        "summary": "Column Rules Route",
-        "operationId": "column_rules_route_api_v1_documents__document_id__column_rules_put",
-        "parameters": [
-          {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Document Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ColumnRulesRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CsvSettingsView"
-                }
-              }
-            }
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConflictResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unprocessable Entity"
-          }
-        }
-      }
-    },
     "/api/v1/documents/{document_id}/source": {
       "get": {
         "tags": [
@@ -3554,6 +3339,63 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/layout": {
+      "get": {
+        "tags": [
+          "file layouts"
+        ],
+        "summary": "Layout Route",
+        "operationId": "layout_route_api_v1_documents__document_id__layout_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Document Id"
+            }
+          },
+          {
+            "name": "variant",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "original",
+                "preview"
+              ],
+              "type": "string",
+              "default": "original",
+              "title": "Variant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileLayoutView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -5379,70 +5221,6 @@
         }
       }
     },
-    "/api/v1/documents/{document_id}/columns/{column}/decision": {
-      "post": {
-        "tags": [
-          "findings"
-        ],
-        "summary": "Column Decision Route",
-        "operationId": "column_decision_route_api_v1_documents__document_id__columns__column__decision_post",
-        "parameters": [
-          {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Document Id"
-            }
-          },
-          {
-            "name": "column",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "maximum": 49,
-              "minimum": 0,
-              "title": "Column"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ColumnDecisionRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FindingsView"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/documents/{document_id}/findings": {
       "get": {
         "tags": [
@@ -6621,55 +6399,6 @@
         }
       }
     },
-    "/api/v1/documents/{document_id}/exports/csv": {
-      "post": {
-        "tags": [
-          "exports"
-        ],
-        "summary": "Csv Route",
-        "operationId": "csv_route_api_v1_documents__document_id__exports_csv_post",
-        "parameters": [
-          {
-            "name": "document_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Document Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CsvExportRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "text/csv": {}
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/documents/{document_id}/exports/pdf": {
       "post": {
         "tags": [
@@ -7157,13 +6886,13 @@
         }
       }
     },
-    "/api/v1/workspaces/{workspace_id}/activity/admin/csv": {
+    "/api/v1/workspaces/{workspace_id}/activity/admin/export": {
       "post": {
         "tags": [
           "administrator activity"
         ],
         "summary": "Export",
-        "operationId": "export_api_v1_workspaces__workspace_id__activity_admin_csv_post",
+        "operationId": "export_api_v1_workspaces__workspace_id__activity_admin_export_post",
         "parameters": [
           {
             "name": "workspace_id",
@@ -8613,28 +8342,6 @@
             ],
             "title": "Preset Id"
           },
-          "csv_delimiter": {
-            "type": "string",
-            "enum": [
-              "auto",
-              ",",
-              ";",
-              "\t",
-              "|"
-            ],
-            "title": "Csv Delimiter",
-            "default": "auto"
-          },
-          "csv_header": {
-            "type": "string",
-            "enum": [
-              "auto",
-              "true",
-              "false"
-            ],
-            "title": "Csv Header",
-            "default": "auto"
-          },
           "edited_text_json": {
             "anyOf": [
               {
@@ -8667,28 +8374,6 @@
             "type": "string",
             "format": "uuid",
             "title": "Workspace Id"
-          },
-          "csv_delimiter": {
-            "type": "string",
-            "enum": [
-              "auto",
-              ",",
-              ";",
-              "\t",
-              "|"
-            ],
-            "title": "Csv Delimiter",
-            "default": "auto"
-          },
-          "csv_header": {
-            "type": "string",
-            "enum": [
-              "auto",
-              "true",
-              "false"
-            ],
-            "title": "Csv Header",
-            "default": "auto"
           }
         },
         "type": "object",
@@ -8976,214 +8661,6 @@
           "checked_at"
         ],
         "title": "CleanupHealthView"
-      },
-      "ColumnDecisionRequest": {
-        "properties": {
-          "expected": {
-            "$ref": "#/components/schemas/VersionRef"
-          },
-          "action": {
-            "$ref": "#/components/schemas/DecisionAction"
-          },
-          "affected_finding_ids": {
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "type": "array",
-            "maxItems": 1000,
-            "uniqueItems": true,
-            "title": "Affected Finding Ids"
-          },
-          "keep_reason": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "false_match",
-                  "intended_disclosure"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Keep Reason"
-          },
-          "style": {
-            "type": "string",
-            "enum": [
-              "token",
-              "stand_in",
-              "date_shift",
-              "partial_mask",
-              "generalize"
-            ],
-            "title": "Style",
-            "default": "token"
-          },
-          "style_option": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "full",
-                  "last4",
-                  "first_letters",
-                  "email_domain",
-                  "email_first",
-                  "url_host",
-                  "secret_prefix",
-                  "month_year",
-                  "year",
-                  "age_band"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Style Option"
-          },
-          "same_text_same_entity": {
-            "type": "boolean",
-            "title": "Same Text Same Entity",
-            "default": false
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "expected",
-          "action",
-          "affected_finding_ids"
-        ],
-        "title": "ColumnDecisionRequest"
-      },
-      "ColumnRule": {
-        "properties": {
-          "style": {
-            "type": "string",
-            "enum": [
-              "token",
-              "stand_in",
-              "date_shift",
-              "partial_mask",
-              "generalize"
-            ],
-            "title": "Style",
-            "default": "token"
-          },
-          "style_option": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "full",
-                  "last4",
-                  "first_letters",
-                  "email_domain",
-                  "email_first",
-                  "url_host",
-                  "secret_prefix",
-                  "month_year",
-                  "year",
-                  "age_band"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Style Option"
-          },
-          "column": {
-            "type": "integer",
-            "maximum": 49.0,
-            "minimum": 0.0,
-            "title": "Column"
-          },
-          "header": {
-            "type": "string",
-            "maxLength": 1000,
-            "title": "Header",
-            "default": ""
-          },
-          "mode": {
-            "type": "string",
-            "enum": [
-              "scan",
-              "category",
-              "keep"
-            ],
-            "title": "Mode",
-            "default": "scan"
-          },
-          "category": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/FindingCategory"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "default_action": {
-            "type": "string",
-            "enum": [
-              "label",
-              "redact",
-              "keep"
-            ],
-            "title": "Default Action",
-            "default": "label"
-          },
-          "keep_reason": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "false_match",
-                  "intended_disclosure"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Keep Reason"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "column"
-        ],
-        "title": "ColumnRule"
-      },
-      "ColumnRulesRequest": {
-        "properties": {
-          "rules": {
-            "items": {
-              "$ref": "#/components/schemas/ColumnRule"
-            },
-            "type": "array",
-            "maxItems": 50,
-            "title": "Rules"
-          },
-          "expected_settings_version": {
-            "type": "integer",
-            "minimum": 1.0,
-            "title": "Expected Settings Version"
-          }
-        },
-        "type": "object",
-        "required": [
-          "rules",
-          "expected_settings_version"
-        ],
-        "title": "ColumnRulesRequest"
       },
       "CommentInput": {
         "properties": {
@@ -9506,214 +8983,6 @@
           "source"
         ],
         "title": "CreateDraftRequest"
-      },
-      "CsvCellView": {
-        "properties": {
-          "start": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Start"
-          },
-          "end": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "End"
-          },
-          "quoted": {
-            "type": "boolean",
-            "title": "Quoted"
-          }
-        },
-        "type": "object",
-        "required": [
-          "start",
-          "end",
-          "quoted"
-        ],
-        "title": "CsvCellView"
-      },
-      "CsvExportRequest": {
-        "properties": {
-          "expected": {
-            "$ref": "#/components/schemas/VersionRef"
-          },
-          "event_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Event Id"
-          },
-          "variant": {
-            "type": "string",
-            "enum": [
-              "spreadsheet_safe",
-              "unmodified"
-            ],
-            "title": "Variant",
-            "default": "spreadsheet_safe"
-          }
-        },
-        "type": "object",
-        "required": [
-          "expected",
-          "event_id"
-        ],
-        "title": "CsvExportRequest"
-      },
-      "CsvInfo": {
-        "properties": {
-          "delimiter": {
-            "type": "string",
-            "enum": [
-              ",",
-              ";",
-              "\t",
-              "|"
-            ],
-            "title": "Delimiter"
-          },
-          "has_header": {
-            "type": "boolean",
-            "title": "Has Header"
-          },
-          "columns": {
-            "type": "integer",
-            "title": "Columns"
-          },
-          "data_rows": {
-            "type": "integer",
-            "title": "Data Rows"
-          },
-          "headers": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Headers"
-          },
-          "rules": {
-            "items": {
-              "$ref": "#/components/schemas/ColumnRule"
-            },
-            "type": "array",
-            "title": "Rules"
-          },
-          "cells": {
-            "items": {
-              "items": {
-                "$ref": "#/components/schemas/CsvCellView"
-              },
-              "type": "array"
-            },
-            "type": "array",
-            "title": "Cells"
-          }
-        },
-        "type": "object",
-        "required": [
-          "delimiter",
-          "has_header",
-          "columns",
-          "data_rows",
-          "headers",
-          "rules",
-          "cells"
-        ],
-        "title": "CsvInfo"
-      },
-      "CsvSettingsRequest": {
-        "properties": {
-          "delimiter": {
-            "type": "string",
-            "enum": [
-              ",",
-              ";",
-              "\t",
-              "|"
-            ],
-            "title": "Delimiter"
-          },
-          "has_header": {
-            "type": "boolean",
-            "title": "Has Header"
-          },
-          "expected_settings_version": {
-            "type": "integer",
-            "minimum": 1.0,
-            "title": "Expected Settings Version"
-          }
-        },
-        "type": "object",
-        "required": [
-          "delimiter",
-          "has_header",
-          "expected_settings_version"
-        ],
-        "title": "CsvSettingsRequest"
-      },
-      "CsvSettingsView": {
-        "properties": {
-          "delimiter": {
-            "type": "string",
-            "enum": [
-              ",",
-              ";",
-              "\t",
-              "|"
-            ],
-            "title": "Delimiter"
-          },
-          "has_header": {
-            "type": "boolean",
-            "title": "Has Header"
-          },
-          "columns": {
-            "type": "integer",
-            "title": "Columns"
-          },
-          "data_rows": {
-            "type": "integer",
-            "title": "Data Rows"
-          },
-          "headers": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Headers"
-          },
-          "rules": {
-            "items": {
-              "$ref": "#/components/schemas/ColumnRule"
-            },
-            "type": "array",
-            "title": "Rules"
-          },
-          "cells": {
-            "items": {
-              "items": {
-                "$ref": "#/components/schemas/CsvCellView"
-              },
-              "type": "array"
-            },
-            "type": "array",
-            "title": "Cells"
-          },
-          "version": {
-            "$ref": "#/components/schemas/VersionRef"
-          }
-        },
-        "type": "object",
-        "required": [
-          "delimiter",
-          "has_header",
-          "columns",
-          "data_rows",
-          "headers",
-          "rules",
-          "cells",
-          "version"
-        ],
-        "title": "CsvSettingsView"
       },
       "DecisionAction": {
         "type": "string",
@@ -10616,6 +9885,53 @@
         ],
         "title": "FactorCodeRequest"
       },
+      "FileLayout": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "txt",
+              "pdf"
+            ],
+            "title": "Kind"
+          },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/LayoutPage"
+            },
+            "type": "array",
+            "title": "Pages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "FileLayout"
+      },
+      "FileLayoutView": {
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/VersionRef"
+          },
+          "layout": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileLayout"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "layout"
+        ],
+        "title": "FileLayoutView"
+      },
       "FindingCategory": {
         "type": "string",
         "enum": [
@@ -11065,16 +10381,6 @@
             "type": "array",
             "title": "Notes"
           },
-          "csv": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/CsvInfo"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "page_previews": {
             "items": {
               "$ref": "#/components/schemas/ImportedPagePreview"
@@ -11155,6 +10461,51 @@
           "email"
         ],
         "title": "InviteMemberRequest"
+      },
+      "LayoutPage": {
+        "properties": {
+          "width": {
+            "type": "integer",
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height"
+          },
+          "points": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Points"
+          },
+          "image": {
+            "type": "string",
+            "title": "Image"
+          },
+          "regions": {
+            "items": {
+              "$ref": "#/components/schemas/PageRegion"
+            },
+            "type": "array",
+            "title": "Regions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "width",
+          "height",
+          "points",
+          "image"
+        ],
+        "title": "LayoutPage"
       },
       "MemberView": {
         "properties": {
@@ -11271,6 +10622,29 @@
         ],
         "title": "NewFindingRequest"
       },
+      "NotificationDetail": {
+        "properties": {
+          "notification": {
+            "$ref": "#/components/schemas/NotificationView"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NotificationReviewState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "notification",
+          "current"
+        ],
+        "title": "NotificationDetail"
+      },
       "NotificationPage": {
         "properties": {
           "items": {
@@ -11321,6 +10695,59 @@
           "notification_emails_available"
         ],
         "title": "NotificationPreferences"
+      },
+      "NotificationReviewState": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/DocumentStatus"
+          },
+          "is_owner": {
+            "type": "boolean",
+            "title": "Is Owner"
+          },
+          "reviewer_active": {
+            "type": "boolean",
+            "title": "Reviewer Active"
+          },
+          "require_approval": {
+            "type": "boolean",
+            "title": "Require Approval"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "is_owner",
+          "reviewer_active",
+          "require_approval",
+          "confirmed_at",
+          "approved_at"
+        ],
+        "title": "NotificationReviewState"
       },
       "NotificationView": {
         "properties": {
@@ -11538,6 +10965,52 @@
         ],
         "title": "OverviewView"
       },
+      "PageRegion": {
+        "properties": {
+          "finding_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Finding Id"
+          },
+          "box": {
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Box"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DecisionAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "finding_id",
+          "box",
+          "action"
+        ],
+        "title": "PageRegion"
+      },
       "PresetInput": {
         "properties": {
           "name": {
@@ -11590,23 +11063,9 @@
               }
             ],
             "title": "Category Defaults"
-          },
-          "column_rules": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/ColumnRule"
-                },
-                "type": "array",
-                "maxItems": 50
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Column Rules"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "name",
@@ -11661,13 +11120,6 @@
             },
             "type": "object",
             "title": "Category Defaults"
-          },
-          "column_rules": {
-            "items": {
-              "$ref": "#/components/schemas/ColumnRule"
-            },
-            "type": "array",
-            "title": "Column Rules"
           }
         },
         "type": "object",
@@ -11679,8 +11131,7 @@
           "preferred_action",
           "version",
           "is_default",
-          "category_defaults",
-          "column_rules"
+          "category_defaults"
         ],
         "title": "PresetView"
       },
@@ -13159,15 +12610,21 @@
             ],
             "title": "Structure"
           },
-          "csv": {
+          "file_format": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/CsvInfo"
+                "type": "string",
+                "enum": [
+                  "txt",
+                  "docx",
+                  "pdf"
+                ]
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "File Format"
           }
         },
         "type": "object",
@@ -13417,27 +12874,13 @@
             ],
             "title": "Category Defaults"
           },
-          "column_rules": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/ColumnRule"
-                },
-                "type": "array",
-                "maxItems": 50
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Column Rules"
-          },
           "expected_version": {
             "type": "integer",
             "minimum": 1.0,
             "title": "Expected Version"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "name",

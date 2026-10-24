@@ -14,8 +14,6 @@ import {
   type PresetView,
   type SessionView,
   type FindingCategory,
-  type CsvInfo,
-  type CsvDelimiter,
 } from '../../api/client'
 
 type Defaults =
@@ -48,9 +46,6 @@ export function useIntake(session: SessionView) {
   const [filePagePreviews, setFilePagePreviews] = useState<NonNullable<ImportPreview['page_previews']>>([])
   const [filePages, setFilePages] = useState<number | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
-  const [csvDelimiter, setCsvDelimiter] = useState<CsvDelimiter | 'auto'>('auto')
-  const [csvHeader, setCsvHeader] = useState<'auto' | 'true' | 'false'>('auto')
-  const [csvPreview, setCsvPreview] = useState<CsvInfo | null>(null)
   const [title, setTitle] = useState('')
   const [emailEnabled, setEmailEnabled] = useState(defaultDetectionCategories.includes('email'))
   const [phoneEnabled, setPhoneEnabled] = useState(defaultDetectionCategories.includes('phone'))
@@ -91,7 +86,7 @@ export function useIntake(session: SessionView) {
 
   const fileAttempt = useRef(0)
 
-  async function chooseFile(selected: File | null, selectionCount = 1, delimiter = csvDelimiter, header = csvHeader) {
+  async function chooseFile(selected: File | null, selectionCount = 1) {
     const request = ++fileAttempt.current
     setFile(selected)
     setFileText('')
@@ -100,7 +95,6 @@ export function useIntake(session: SessionView) {
     setFileNotes([])
     setFilePagePreviews([])
     setFilePages(null)
-    setCsvPreview(null)
     setFileLoading(false)
     if (!selected) return
     if (selectionCount !== 1) {
@@ -108,25 +102,24 @@ export function useIntake(session: SessionView) {
       return
     }
     setFileLoading(true)
-    if (!/\.(txt|md|csv|pdf|docx|png|jpe?g|tiff?|webp)$/i.test(selected.name)) {
-      setFileError('Choose TXT, Markdown, CSV, PDF, DOCX, PNG, JPEG, TIFF or WebP.')
+    if (!/\.(txt|md|pdf|docx|png|jpe?g|tiff?|webp)$/i.test(selected.name)) {
+      setFileError('Choose TXT, Markdown, PDF, DOCX, PNG, JPEG, TIFF or WebP.')
       setFileLoading(false)
       return
     }
-    if (selected.size > (/\.(txt|md|csv)$/i.test(selected.name) ? 1_048_576 : 8_388_608)) {
-      setFileError('TXT, Markdown and CSV support 1 MiB; documents and images support 8 MiB.')
+    if (selected.size > (/\.(txt|md)$/i.test(selected.name) ? 1_048_576 : 8_388_608)) {
+      setFileError('TXT and Markdown support 1 MiB; documents and images support 8 MiB.')
       setFileLoading(false)
       return
     }
     try {
-      const result = await importPreview(workspaceId, selected, session.csrf_token, delimiter, header)
+      const result = await importPreview(workspaceId, selected, session.csrf_token)
       if (fileAttempt.current !== request) return
       setFileText(result.text)
       setFileOriginalText(result.text)
       setFileNotes(result.notes)
       setFilePagePreviews(result.page_previews ?? [])
       setFilePages(result.pages)
-      setCsvPreview(result.csv ?? null)
     } catch (cause) {
       if (fileAttempt.current === request) setFileError(messageFrom(cause))
     } finally {
@@ -139,7 +132,7 @@ export function useIntake(session: SessionView) {
     ++fileAttempt.current
     setFile(null); setFileText(''); setFileOriginalText(''); setFileNotes([])
     setFilePagePreviews([]); setFilePages(null)
-    setCsvPreview(null); setFileError(null); setFileLoading(false)
+    setFileError(null); setFileLoading(false)
   }
 
   function setWorkspaceId(value: string) {
@@ -150,11 +143,6 @@ export function useIntake(session: SessionView) {
 
   useEffect(() => () => { ++fileAttempt.current }, [])
 
-  function changeCsvFormat(delimiter: typeof csvDelimiter, header: typeof csvHeader) {
-    setCsvDelimiter(delimiter); setCsvHeader(header)
-    if (file) void chooseFile(file, 1, delimiter, header)
-  }
-
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!readyToSave) return
@@ -164,7 +152,7 @@ export function useIntake(session: SessionView) {
     const findSuggestions = (event.nativeEvent as SubmitEvent).submitter?.getAttribute('value') !== 'save'
     const categories = [...(emailEnabled ? ['email'] : []), ...(phoneEnabled ? ['phone'] : []), ...extraCategories]
     try {
-      const saved = mode === 'file' && file ? await createFileDraft(workspaceId, file, title.trim(), categories, phoneRegion, retentionDays, session.csrf_token, workspacePresetId(presetId) ?? undefined, language, csvDelimiter, csvHeader, fileText) : await createPastedDraft({ workspace_id: workspaceId,
+      const saved = mode === 'file' && file ? await createFileDraft(workspaceId, file, title.trim(), categories, phoneRegion, retentionDays, session.csrf_token, workspacePresetId(presetId) ?? undefined, language, fileText) : await createPastedDraft({ workspace_id: workspaceId,
         source: mode === 'paste' ? source : fileText, title: title.trim() || null,
         categories: categories as FindingCategory[], phone_region: phoneRegion, language,
         retention_days: retentionDays, preset_id: workspacePresetId(presetId),
@@ -268,10 +256,6 @@ export function useIntake(session: SessionView) {
     fileNotes,
     filePagePreviews,
     filePages,
-    csvDelimiter,
-    csvHeader,
-    csvPreview,
-    changeCsvFormat,
     chooseFile,
     title,
     setTitle,

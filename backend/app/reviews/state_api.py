@@ -27,8 +27,7 @@ from app.intake.api import SourceView, _source_view
 from app.reviews.api import ReviewSummaryView
 from app.reviews.service import CompletionRejected
 from app.reviews.state import load_review_state
-from app.team_review.service import HandoffView
-from app.team_review.service import _view as handoff_view
+from app.team_review.service import HandoffView, handoff_view
 from app.transformations.api import PreviewView, preview_view
 from app.transformations.engine import InvalidTransformation
 

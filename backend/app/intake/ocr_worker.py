@@ -73,6 +73,8 @@ def main():
     try:
         from PIL import Image
 
+        from app.intake.pdf_layout import capture_pdf
+
         isolate_linux_worker()
         from tesserocr import OEM, PSM, PyTessBaseAPI
 
@@ -88,7 +90,13 @@ def main():
         if hashlib.sha256((DATA / entry["filename"]).read_bytes()).hexdigest() != entry["sha256"]:
             raise OcrRejected("engine")
         with PyTessBaseAPI(path=str(DATA), lang="eng", oem=OEM.LSTM_ONLY, psm=PSM.AUTO) as api:
-            if kind == "pdf":
+            if kind == "layout_pdf":
+                indexes = [int(value) for value in sys.argv[-1].split(",") if value]
+                if len(indexes) > MAX_OCR_PAGES:
+                    raise OcrRejected("pages")
+                result = capture_pdf(content, indexes, api, OcrRejected)
+                text = result["text"]
+            elif kind == "pdf":
                 import pypdfium2
 
                 indexes = [int(value) for value in sys.argv[-1].split(",") if value]

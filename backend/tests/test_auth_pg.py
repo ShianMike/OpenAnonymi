@@ -24,7 +24,7 @@ PASSWORD = "synthetic-password-123"
 
 
 @pytest.fixture
-def auth_site():
+def auth_site(auth_password_hashes):
     raw_url = os.getenv("PRIVACY_REVIEW_TEST_DATABASE_URL")
     if not raw_url:
         pytest.skip("set PRIVACY_REVIEW_TEST_DATABASE_URL for the local database gate")
@@ -41,8 +41,8 @@ def auth_site():
     with Session(engine) as session, session.begin():
         session.add(Workspace(id=workspace_id, name="Auth test workspace"))
         session.add_all(
-            User(id=user_id, email=email, password_hash=hash_password(PASSWORD))
-            for user_id, email, _role in identities
+            User(id=user_id, email=email, password_hash=password_hash)
+            for (user_id, email, _role), password_hash in zip(identities, auth_password_hashes)
         )
         session.flush()
         session.add_all(
@@ -66,6 +66,11 @@ def auth_site():
             session.execute(delete(Workspace).where(Workspace.id == workspace_id))
             session.execute(delete(User).where(User.id.in_([member_id, other_id, admin_id])))
         engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def auth_password_hashes():
+    return tuple(hash_password(PASSWORD) for _ in range(3))
 
 
 def _sign_in(client: TestClient, email: str = "member-a@example.invalid"):

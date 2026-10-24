@@ -1,51 +1,23 @@
-import { useEffect, useState } from 'react'
-import { ArrowRight, Hash, Plus, Quote, ScanLine } from 'lucide-react'
-import { getRules, type RuleView } from './api'
-import { RuleDialog } from './RuleDialog'
+import { useState } from 'react'
+import { Search } from 'lucide-react'
+import { GlassSelect } from '../ui/GlassSelect'
+import type { RuleView } from './api'
 import { DetectionRuleCard } from './DetectionRuleCard'
-import { RulesEmptyState, RulesLoading, RulesSectionHeading } from './RulesSection'
-import { InlineNotice } from '../ui/WorkspaceControls'
 import './rules.css'
 
-export function DetectionRules({ workspace, csrf, administrator }: { workspace: string; csrf: string; administrator: boolean }) {
-  const [rules, setRules] = useState<RuleView[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [attempt, setAttempt] = useState(0)
-  useEffect(() => {
-    if (!workspace) return
-    const controller = new AbortController()
-    getRules(workspace, controller.signal)
-      .then((value) => { if (!controller.signal.aborted) setRules(value) })
-      .catch((cause) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'Rules could not be loaded.') })
-    return () => controller.abort()
-  }, [workspace, attempt])
-  function saved() { setError(null); setAttempt((value) => value + 1) }
-  return <section className="rules-section detection-rules" aria-labelledby="detection-rules-title">
-    <RulesSectionHeading id="detection-rules-title" icon={ScanLine} title="Find your team’s details"
-      description="Add the names and ID patterns that built-in suggestions may miss."
-      action={administrator && <RuleDialog workspace={workspace} csrf={csrf} saved={saved}
-        trigger={<button type="button" className="rules-add-button"><Plus size={16} aria-hidden="true" />Create rule</button>} />} />
-    {administrator && <div className="rule-starters" aria-label="Create a detection rule">
-      {(['phrase', 'identifier'] as const).map((kind) => {
-        const Icon = kind === 'phrase' ? Quote : Hash
-        return <RuleDialog key={kind} workspace={workspace} csrf={csrf} saved={saved} initialKind={kind}
-          trigger={<button type="button" className="rule-starter">
-            <span className="rules-section-icon"><Icon size={21} aria-hidden="true" /></span>
-            <span><strong>{kind === 'phrase' ? 'Find an exact phrase' : 'Match an ID pattern'}</strong>
-              <small>{kind === 'phrase' ? 'A project, client, or internal name.' : 'Case references and team identifiers.'}</small>
-              <code>{kind === 'phrase' ? 'Project Atlas' : 'CASE-######'}</code></span>
-            <ArrowRight size={18} aria-hidden="true" />
-          </button>} />
-      })}
-    </div>}
-    <div className="rules-list-heading"><h3>Workspace rules {rules && <span className="rules-count">{rules.length}</span>}</h3>
-      {rules && <span>{rules.filter((rule) => rule.enabled).length} enabled</span>}</div>
-    {error && <InlineNotice error>{error} <button type="button" onClick={() => { setError(null); setAttempt((value) => value + 1) }}>Retry rules</button></InlineNotice>}
-    {!rules && !error && <RulesLoading label="Loading detection rules…" />}
-    {rules?.length === 0 && <RulesEmptyState title="No custom rules yet" description={administrator
-      ? 'Choose a phrase or pattern above. You can test it against sample text before saving.'
-      : 'Your administrator can add phrases and patterns for the team. Built-in suggestions are still available.'} />}
-    {!!rules?.length && <ul className="detection-rule-list">{rules.map((rule) => <DetectionRuleCard key={rule.id}
-      rule={rule} workspace={workspace} csrf={csrf} administrator={administrator} saved={saved} />)}</ul>}
+export function DetectionRules({ workspace, csrf, administrator, rules, saved, onLibrary }: {
+  workspace: string; csrf: string; administrator: boolean; rules: RuleView[]; saved: () => void; onLibrary: () => void
+}) {
+  const [query, setQuery] = useState('')
+  const [status, setStatus] = useState('all')
+  const search = query.trim().toLocaleLowerCase()
+  const visible = rules.filter(rule => `${rule.name} ${rule.expression}`.toLocaleLowerCase().includes(search)
+    && (status === 'all' || (status === 'enabled' ? rule.enabled : !rule.enabled)))
+  return <section className="detection-rules" aria-labelledby="workspace-rules-title">
+    <div className="rules-section-intro"><div><h2 id="workspace-rules-title">Your workspace rules</h2><p>Enabled rules are included in new reviews. Existing reviews keep a saved copy.</p></div>{rules.length > 0 && <span>{rules.filter(rule => rule.enabled).length} enabled</span>}</div>
+    {rules.length > 0 && <div className="rules-library-tools"><label className="rules-search"><Search size={15} aria-hidden="true" /><span className="sr-only">Search workspace rules</span><input type="search" placeholder="Search workspace rules…" value={query} onChange={event => setQuery(event.target.value)} /></label><GlassSelect id="workspace-rule-status" aria-label="Filter workspace rules by status" value={status} onValueChange={setStatus}><option value="all">All statuses</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option></GlassSelect></div>}
+    {visible.length ? <ul className="detection-rule-list">{visible.map(rule => <DetectionRuleCard key={rule.id} rule={rule} workspace={workspace} csrf={csrf} administrator={administrator} saved={saved} />)}</ul>
+      : <div className="rules-empty"><h3>{rules.length ? 'No rules match these filters' : 'Find the details specific to your team'}</h3><p>{rules.length ? 'Try a different name or show all statuses.' : administrator ? 'Add a ready-made pattern from the library, or create a phrase or ID rule of your own.' : 'Your administrator can add phrases and ID patterns. You can test any saved rule here.'}</p>
+        <button type="button" className="rules-button" onClick={rules.length ? () => { setQuery(''); setStatus('all') } : onLibrary}>{rules.length ? 'Clear filters' : 'Browse rule library'}</button></div>}
   </section>
 }

@@ -14,7 +14,7 @@ from tests.test_review_manual_access_pg import fingerprint
 from tests.test_review_mutation_access_pg import decision
 from tests.test_review_state_pg import prepare
 
-FORMATS = ("txt", "docx", "csv", "pdf", "report")
+FORMATS = ("txt", "docx", "pdf", "report")
 CASES = [(format, phase) for format in FORMATS for phase in ("rendered", "recorded")]
 CASES += [("copy-payload", "rendered"), ("copy-success", "recorded")]
 
@@ -46,10 +46,10 @@ def output_fingerprint(engine, document_id):
 def test_late_output_session_loss_denies_bytes_and_rolls_back_events(
     intake_site, monkeypatch, format, phase, change
 ):
-    from app.exports import csv_export, docx, pdf, report, service
+    from app.exports import docx, pdf, report, service
 
     owner, _, engine, _, actor, headers, base, state = prepare(
-        intake_site, "csv" if format == "csv" else "pasted"
+        intake_site, "pasted"
     )
     saved = decision(owner, headers, base, state)
     assert saved.status_code == 200
@@ -73,7 +73,6 @@ def test_late_output_session_loss_denies_bytes_and_rolls_back_events(
             "pdf": (pdf, "generate_pdf"),
             "report": (report, "generate_report"),
             "docx": (docx, "generate_word"),
-            "csv": (csv_export, "generate_csv"),
             "txt": (service, "_current_output"),
             "copy-payload": (service, "_current_output"),
         }[format]

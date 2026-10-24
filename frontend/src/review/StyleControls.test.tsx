@@ -12,7 +12,7 @@ it('shows only relevant options and requires an explicit keep reason while prese
     pendingDecisionIds: [], groupMembers: new Map(),
   } as unknown as ReviewController
   const render = (item = finding, value = review) => renderToStaticMarkup(<StyleControls finding={item} review={value} onApplied={() => {}} />)
-  const save = (markup: string) => markup.match(/<button\b[^>]*>Save choice<\/button>/)?.[0]
+  const save = (markup: string) => markup.match(/<button\b[^>]*>Apply decision<\/button>/)?.[0]
   expect(render()).toContain('Replacement style')
   expect(render()).not.toContain('Why keep this detail?')
   expect(render()).not.toContain('Decision action')

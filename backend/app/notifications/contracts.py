@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
+from app.contracts import DocumentStatus
+
 NotificationCode = Literal[
     "review_assigned",
     "review_unassigned",
@@ -29,6 +31,20 @@ class NotificationView(BaseModel):
 class NotificationPage(BaseModel):
     items: list[NotificationView]
     next_cursor: UUID | None
+
+
+class NotificationReviewState(BaseModel):
+    status: DocumentStatus
+    is_owner: bool
+    reviewer_active: bool
+    require_approval: bool
+    confirmed_at: datetime | None
+    approved_at: datetime | None
+
+
+class NotificationDetail(BaseModel):
+    notification: NotificationView
+    current: NotificationReviewState | None
 
 
 class UnreadCount(BaseModel):

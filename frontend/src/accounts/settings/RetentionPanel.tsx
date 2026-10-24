@@ -1,129 +1,50 @@
-import { useId, useState, type FormEvent } from 'react'
-import { createPortal } from 'react-dom'
-import { Activity, Clock3, FileText } from 'lucide-react'
+import { useId, useRef, useState } from 'react'
 import { updateWorkspaceSettings, type WorkspaceSettingsView } from '../../api/client'
-import { InlineNotice, PanelHeading, RefreshButton } from '../../ui/WorkspaceControls'
+import { InlineNotice } from '../../ui/WorkspaceControls'
 import { CleanupHealthPanel } from './CleanupHealthPanel'
+import { SettingsConfirmation } from './SettingsConfirmation'
+import { validRetention } from './settingsNavigation'
 
-export function RetentionPanel({
-  settings,
-  csrfToken,
-  onSaved,
-  onReload,
-  actionsTarget,
-}: {
-  settings: WorkspaceSettingsView
-  csrfToken: string
-  onSaved: (value: WorkspaceSettingsView) => void
-  onReload: () => void
-  actionsTarget?: HTMLElement | null
+export function RetentionPanel({ settings, csrfToken, onSaved, onReload, onRequestFailed }: {
+  settings: WorkspaceSettingsView; csrfToken: string; onSaved: (value: WorkspaceSettingsView) => void
+  onReload: () => void; onRequestFailed: (cause: unknown) => void
 }) {
-  const formId = useId()
+  const id = useId()
   const [contentDays, setContentDays] = useState(String(settings.content_retention_days))
   const [activityDays, setActivityDays] = useState(String(settings.activity_retention_days))
   const [pending, setPending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
-  const changed =
-    Number(contentDays) !== settings.content_retention_days ||
-    Number(activityDays) !== settings.activity_retention_days
-  async function save(event: FormEvent) {
-    event.preventDefault()
-    if (pending) return
-    setPending(true)
-    setError(null)
-    setNotice(null)
+  const [review, setReview] = useState<'save' | 'reload' | null>(null)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [conflict, setConflict] = useState(false)
+  const saveButton = useRef<HTMLButtonElement>(null)
+  const changed = Number(contentDays) !== settings.content_retention_days || Number(activityDays) !== settings.activity_retention_days
+  const valid = validRetention(contentDays, activityDays)
+  function reset() { setContentDays(String(settings.content_retention_days)); setActivityDays(String(settings.activity_retention_days)); if (!conflict) setError(''); setNotice('') }
+  async function save() {
+    if (pending || !valid || !changed || conflict) return
+    setPending(true); setError(''); setNotice('')
     try {
-      const updated = await updateWorkspaceSettings(
-        settings.id,
-        settings.settings_version,
-        Number(contentDays),
-        Number(activityDays),
-        csrfToken,
-      )
-      onSaved(updated)
-      setContentDays(String(updated.content_retention_days))
-      setActivityDays(String(updated.activity_retention_days))
-      setNotice('Defaults saved. Existing document expiry dates stay the same.')
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Defaults could not be saved.')
-    } finally {
-      setPending(false)
-    }
+      const updated = await updateWorkspaceSettings(settings.id, settings.settings_version, Number(contentDays), Number(activityDays), csrfToken)
+      onSaved(updated); setContentDays(String(updated.content_retention_days)); setActivityDays(String(updated.activity_retention_days)); setReview(null)
+      setNotice('Retention settings saved. Existing document expiry dates are unchanged.')
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Retention settings could not be saved.'); setConflict(true); setReview(null); onRequestFailed(cause) }
+    finally { setPending(false) }
   }
-  const actions = <div className="retention-actions">
-    {changed ? <button type="button" className="quiet-button" disabled={pending} onClick={() => {
-      setContentDays(String(settings.content_retention_days)); setActivityDays(String(settings.activity_retention_days)); setError(null); setNotice(null)
-    }}>Reset changes</button> : <RefreshButton label="Reload defaults" onClick={onReload} disabled={pending} />}
-    <button type="submit" form={formId} disabled={pending || !changed}>{pending ? 'Saving…' : 'Save defaults'}</button>
-  </div>
-  return (
-    <><div className="retention-panel workspace-panel">
-      <PanelHeading
-        icon={Clock3}
-        title="Retention defaults"
-        description="Choose how long new review content and activity records are kept."
-      />
-      <form id={formId} onSubmit={save}>
-        <div className="retention-cards">
-          <div className="retention-setting">
-            <span className="retention-setting-icon">
-              <FileText size={21} strokeWidth={1.5} aria-hidden="true" />
-            </span>
-            <label htmlFor="content-days">Document content</label>
-            <p>The default lifetime for new reviews.</p>
-            <div className="retention-number">
-              <input
-                id="content-days"
-                aria-label="Document content days"
-                type="number"
-                min={1}
-                max={30}
-                required
-                value={contentDays}
-                onChange={(event) => setContentDays(event.target.value)}
-                disabled={pending}
-              />
-              <span>days</span>
-            </div>
-            <span className="field-note">Choose from 1 to 30 days</span>
-          </div>
-          <div className="retention-setting">
-            <span className="retention-setting-icon">
-              <Activity size={21} strokeWidth={1.5} aria-hidden="true" />
-            </span>
-            <label htmlFor="activity-days">Activity records</label>
-            <p>A history of actions, without document text.</p>
-            <div className="retention-number">
-              <input
-                id="activity-days"
-                aria-label="Activity days"
-                type="number"
-                min={1}
-                max={365}
-                required
-                value={activityDays}
-                onChange={(event) => setActivityDays(event.target.value)}
-                disabled={pending}
-              />
-              <span>days</span>
-            </div>
-            <span className="field-note">Choose from 1 to 365 days</span>
-          </div>
-        </div>
-        <div className="retention-explanation">
-          <Clock3 size={17} aria-hidden="true" />
-          <div>
-            <strong>Applies to new reviews</strong>
-            <p>
-              New reviews use your content default. Changing it won’t extend or shorten reviews already saved.
-            </p>
-          </div>
-        </div>
-        {error && <InlineNotice error>{error}</InlineNotice>}
-        {notice && <InlineNotice>{notice}</InlineNotice>}
-      </form>
-      <CleanupHealthPanel key={settings.id} workspaceId={settings.id} />
-    </div>{actionsTarget ? createPortal(actions, actionsTarget) : actions}</>
-  )
+  return <>
+    <form id={id} className="settings-retention-form" onSubmit={event => { event.preventDefault(); if (valid && changed) setReview('save') }}>
+      <section className="settings-section" aria-labelledby="settings-content-days"><header className="settings-section-heading"><h3 id="settings-content-days">Review content</h3><p>The default lifetime for newly created reviews.</p></header>
+        <div className="settings-value-row"><div><label htmlFor={`${id}-content`}>Keep document content for</label><p id={`${id}-content-help`}>Choose from 1 to 30 days. Existing review expiry dates stay the same.</p></div><div className="settings-number"><input id={`${id}-content`} aria-label="Document content days" aria-describedby={`${id}-content-help`} type="number" min={1} max={30} step={1} required value={contentDays} onChange={event => { setContentDays(event.target.value); setNotice('') }} disabled={pending} /><span>days</span></div></div>
+      </section>
+      <section className="settings-section" aria-labelledby="settings-activity-days"><header className="settings-section-heading"><h3 id="settings-activity-days">Activity records</h3><p>A record of actions without original document text.</p></header>
+        <div className="settings-value-row"><div><label htmlFor={`${id}-activity`}>Keep activity records for</label><p id={`${id}-activity-help`}>Choose from 1 to 365 days. Older records become eligible for scheduled cleanup.</p></div><div className="settings-number"><input id={`${id}-activity`} aria-label="Activity days" aria-describedby={`${id}-activity-help`} type="number" min={1} max={365} step={1} required value={activityDays} onChange={event => { setActivityDays(event.target.value); setNotice('') }} disabled={pending} /><span>days</span></div></div>
+      </section>
+      {error && <InlineNotice error title="Check the saved retention settings" actions={<button type="button" className="settings-button" disabled={pending} onClick={() => setReview('reload')}>Reload saved retention</button>}><p>{error}</p><p>Your edits are still here. Reload the saved values before trying to save again.</p></InlineNotice>}{notice && <InlineNotice>{notice}</InlineNotice>}
+      <footer className="settings-save-bar"><span>{conflict ? 'Reload required' : changed ? 'Unsaved changes' : 'Up to date'}</span><div>{changed && <button type="button" className="settings-button" disabled={pending} onClick={reset}>Reset</button>}<button ref={saveButton} type="submit" className="settings-button settings-primary" disabled={pending || !changed || !valid || conflict}>Review changes</button></div></footer>
+    </form>
+    <CleanupHealthPanel key={settings.id} workspaceId={settings.id} onRequestFailed={onRequestFailed} />
+    <SettingsConfirmation open={review !== null} title={review === 'reload' ? 'Discard edits and reload?' : 'Save retention settings?'} description={review === 'reload' ? 'Your unsaved retention edits will be replaced with the latest saved settings.' : `These defaults apply to ${settings.name}. Existing document expiry dates stay the same.`} pending={pending} dirty={changed} confirmLabel={review === 'reload' ? 'Discard and reload' : 'Save retention settings'} danger={review === 'reload' || Number(activityDays) < settings.activity_retention_days} returnFocus={saveButton} onCancel={() => setReview(null)} onConfirm={() => { if (review === 'reload') onReload(); else void save() }}>
+      {review === 'save' && <><dl className="settings-change-summary">{Number(contentDays) !== settings.content_retention_days && <div><dt>New review content</dt><dd>{settings.content_retention_days} days → <strong>{contentDays} days</strong></dd></div>}{Number(activityDays) !== settings.activity_retention_days && <div><dt>Activity records</dt><dd>{settings.activity_retention_days} days → <strong>{activityDays} days</strong></dd></div>}</dl>{Number(activityDays) < settings.activity_retention_days && <p className="settings-help">Older activity records may be permanently removed by scheduled cleanup under the shorter retention period.</p>}</>}
+    </SettingsConfirmation>
+  </>
 }

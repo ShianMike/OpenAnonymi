@@ -52,7 +52,7 @@ class TeamReadChanged(RuntimeError):
 def validate_handoff_view(engine: Engine, document_id: UUID, actor_id: UUID, view: HandoffView):
     with Session(engine) as session:
         document = review_document(session, document_id, actor_id, datetime.now(UTC))
-        if _view(session, document, actor_id) != view:
+        if handoff_view(session, document, actor_id) != view:
             raise TeamReadChanged("Review access changed while loading.")
 
 
@@ -128,7 +128,7 @@ def require_second_approval(session: Session, document: Document):
         )
 
 
-def _view(session: Session, document: Document, actor_id: UUID):
+def handoff_view(session: Session, document: Document, actor_id: UUID):
     handoff = session.get(ReviewHandoff, document.id)
     approval = _approval(session, document, handoff) if handoff else None
     user = session.get(User, handoff.reviewer_id) if handoff and handoff.reviewer_id else None
@@ -149,7 +149,7 @@ def _view(session: Session, document: Document, actor_id: UUID):
 def load_handoff(engine: Engine, *, document_id: UUID, actor_id: UUID, now: datetime):
     with Session(engine) as session, session.begin():
         document = review_document(session, document_id, actor_id, now, lock=True)
-        return _view(session, document, actor_id)
+        return handoff_view(session, document, actor_id)
 
 
 def list_teammates(engine: Engine, *, document_id: UUID, actor_id: UUID, now: datetime):
@@ -210,7 +210,7 @@ def change_handoff(
             and handoff.reviewer_id == reviewer_id
             and handoff.require_approval == require_approval
         ):
-            view = _view(session, document, actor_id)
+            view = handoff_view(session, document, actor_id)
             refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
             return view
         from app.notifications.events import invalidate_approval
@@ -258,7 +258,7 @@ def change_handoff(
             now=now,
         )
         session.flush()
-        view = _view(session, document, actor_id)
+        view = handoff_view(session, document, actor_id)
         refresh_document_access(session, document_id, actor_id, reauthorize, owner=True)
         if reviewer_id and not active_reviewer(session, document, handoff):
             raise DocumentNotFound("Active reviewer not found.")
@@ -322,6 +322,6 @@ def approve_review(
 
             notify(session, document, document.owner_id, actor_id, "review_approved", now)
             session.flush()
-        view = _view(session, document, actor_id)
+        view = handoff_view(session, document, actor_id)
         refresh_document_access(session, document_id, actor_id, reauthorize)
         return view

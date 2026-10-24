@@ -31,7 +31,7 @@ PASSWORD = "synthetic-admin-test-password"
 
 
 @pytest.fixture
-def admin_site():
+def admin_site(admin_password_hashes):
     raw_url = os.getenv("PRIVACY_REVIEW_TEST_DATABASE_URL")
     if not raw_url:
         pytest.skip("set PRIVACY_REVIEW_TEST_DATABASE_URL for the local database gate")
@@ -48,8 +48,8 @@ def admin_site():
     with Session(engine) as session, session.begin():
         session.add(Workspace(id=workspace_id, name="Access test workspace"))
         session.add_all(
-            User(id=user_id, email=email, password_hash=hash_password(PASSWORD))
-            for user_id, email, _role in identities
+            User(id=user_id, email=email, password_hash=password_hash)
+            for (user_id, email, _role), password_hash in zip(identities, admin_password_hashes)
         )
         session.flush()
         session.add_all(
@@ -78,6 +78,11 @@ def admin_site():
             if invited is not None:
                 session.delete(invited)
         engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def admin_password_hashes():
+    return tuple(hash_password(PASSWORD) for _ in range(3))
 
 
 def _login(client: TestClient, email: str) -> str:
@@ -427,6 +432,62 @@ def test_failed_invitation_delivery_rolls_back_new_account(admin_site):
         assert failed.status_code == 503
     with Session(engine) as session:
         assert session.scalar(select(User).where(User.email == "invited@openanonymi.test")) is None
+
+
+def test_invited_member_can_be_assigned_before_setup_without_owner_permissions(admin_site):
+    app, engine, workspace_id, admin_id, first_id, _second_id = admin_site
+    keys = KeyRing.from_settings(app.state.settings)
+    with Session(engine) as session:
+        owned = create_document(
+            session, owner_id=admin_id, workspace_id=workspace_id,
+            source="Fictional assignment check", title="Fictional team review", categories=set(),
+            phone_region="PH", keys=keys, now=datetime.now(UTC),
+        )
+        other = create_document(
+            session, owner_id=first_id, workspace_id=workspace_id,
+            source="Another owner's fictional review", title=None, categories=set(),
+            phone_region="PH", keys=keys, now=datetime.now(UTC),
+        )
+    mailer = InvitationMailer()
+    app.state.recovery_mailer = mailer
+    base = f"/api/v1/documents/{owned.version.document_id}"
+    with TestClient(app) as admin:
+        csrf = _login(admin, "admin-access@example.invalid")
+        invitation = admin.post(
+            f"/api/v1/workspaces/{workspace_id}/members/invitations",
+            json={"email": "invited@openanonymi.test", "role": "member"}, headers=_headers(csrf),
+        )
+        assert invitation.status_code == 201
+        member_id = invitation.json()["user_id"]
+        recipient, code = mailer.sent[0]
+        assert code not in invitation.text
+        assert admin.get(f"/api/v1/documents/{other.version.document_id}/handoff").status_code == 404
+        current = admin.get(base + "/handoff").json()
+        body = {"expected": current["version"], "reviewer_id": member_id, "require_approval": True}
+        assigned = admin.put(base + "/handoff", json=body, headers=_headers(csrf))
+        assert assigned.status_code == 200, assigned.text
+        assert assigned.json()["reviewer_id"] == member_id
+        assert assigned.json()["require_approval"] is True
+        assert admin.put(base + "/handoff", json=body, headers=_headers(csrf)).status_code == 409
+        assert any(row["user_id"] == member_id for row in admin.get(
+            f"/api/v1/workspaces/{workspace_id}/members"
+        ).json())
+        assert len(mailer.sent) == 1
+        established = admin.post(
+            "/api/v1/auth/recovery/complete",
+            json={"email": recipient, "code": code, "new_password": PASSWORD},
+            headers={"Origin": ORIGIN},
+        )
+        assert established.status_code == 204
+    with TestClient(app) as invited:
+        headers = _headers(_login(invited, recipient))
+        source = invited.get(base + "/source")
+        assert source.status_code == 200 and source.json()["can_edit"] is False
+        assert source.json()["text"] == "Fictional assignment check"
+        assert invited.put(base + "/handoff", json=body, headers=headers).status_code == 404
+        assert invited.put(base + "/source", json={
+            "expected": assigned.json()["version"], "source": "Forbidden edit",
+        }, headers=headers).status_code == 404
 
 
 def test_member_password_change_requires_current_password_and_revokes_all_sessions(admin_site):

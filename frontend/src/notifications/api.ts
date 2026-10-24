@@ -3,10 +3,15 @@ import type { components } from '../api/schema'
 
 export type Notification = components['schemas']['NotificationView']
 export type NotificationPage = components['schemas']['NotificationPage']
+export type NotificationDetail = components['schemas']['NotificationDetail']
 export type NotificationPreferences = components['schemas']['NotificationPreferences']
 
 export function getNotifications(signal?: AbortSignal, cursor?: string): Promise<NotificationPage> {
   return get(`/notifications${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`, signal)
+}
+
+export function getNotification(id: string, signal?: AbortSignal): Promise<NotificationDetail> {
+  return get(`/notifications/${encodeURIComponent(id)}`, signal)
 }
 
 export function getUnreadCount(signal?: AbortSignal): Promise<components['schemas']['UnreadCount']> {

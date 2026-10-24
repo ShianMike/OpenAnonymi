@@ -1,10 +1,10 @@
 import { useMemo } from 'react'
-import { Eye, AlignLeft, Highlighter } from 'lucide-react'
+import { AlignLeft, Highlighter } from 'lucide-react'
 import type { ReviewController } from './useReviewController'
 import { sameVersion } from './reviewState'
-import { GlassTextarea } from '../ui/GlassTextarea'
 import { ReviewText } from './ReviewText'
 import { LoadingState } from '../loading/LoadingState'
+import { FileLayoutView } from './layout/FileLayoutView'
 
 export function ReviewPreview({ review }: { review: ReviewController }) {
   const { state, preview, plainPreview, setPlainPreview, activeFindings, previewRef } = review
@@ -16,6 +16,7 @@ export function ReviewPreview({ review }: { review: ReviewController }) {
     }) ?? []
   }, [activeFindings, preview])
   if (state.kind !== 'ready') return null
+  const fixedLayout = state.saved.file_format === 'pdf'
   const current =
     !review.decisionPending && preview && sameVersion(preview.version, state.saved.version) && preview.text !== null
   return (
@@ -27,7 +28,6 @@ export function ReviewPreview({ review }: { review: ReviewController }) {
     >
       <div className="document-panel-heading">
         <div>
-          <Eye size={19} strokeWidth={1.5} aria-hidden="true" />
           <h2 id="preview-heading">Reviewed output</h2>
           <span className="document-badge">{review.canExport ? 'Confirmed' : 'Preview'}</span>
         </div>
@@ -42,7 +42,7 @@ export function ReviewPreview({ review }: { review: ReviewController }) {
             ) : (
               <AlignLeft size={15} aria-hidden="true" />
             )}
-            {plainPreview ? 'View highlights' : 'Plain text'}
+            {plainPreview ? fixedLayout ? 'View layout' : 'View highlights' : 'Plain text'}
           </button>
         )}
       </div>
@@ -66,6 +66,7 @@ export function ReviewPreview({ review }: { review: ReviewController }) {
           {(preview.fictional_finding_ids?.length ?? 0) > 0 && <p className="fictional-legend"><strong>Fictional stand-ins</strong> · These replacements are not real people, organizations, places or contacts.</p>}
           {(preview.stand_in_fallback_ids?.length ?? 0) > 0 && <p className="fictional-legend">A unique fictional stand-in was unavailable for {preview.stand_in_fallback_ids?.length} occurrences. Their category labels are used instead.</p>}
           {!plainPreview && review.mobilePanel === 'preview' && (
+            fixedLayout ? <FileLayoutView review={review} variant="preview"/> :
             <ReviewText
               text={preview.text as string}
               review={review}
@@ -77,7 +78,7 @@ export function ReviewPreview({ review }: { review: ReviewController }) {
             <label className="sr-only" htmlFor="reviewed-preview">
               Reviewed output
             </label>
-            <GlassTextarea
+            <textarea
               id="reviewed-preview"
               className="source-editor"
               value={preview.text as string}

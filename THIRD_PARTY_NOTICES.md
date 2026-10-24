@@ -5,7 +5,7 @@ bundled third-party material. Preserve those notices when redistributing.
 
 | Material | License and notice |
 | --- | --- |
-| Figtree interface font | SIL OFL 1.1, `frontend/src/assets/fonts/Figtree-OFL.txt` |
+| Figtree interface font | SIL OFL 1.1, `frontend/public/fonts/Figtree-OFL.txt` |
 | Noto PDF fonts | SIL OFL 1.1, notices and pinned manifests in `backend/app/assets/fonts` |
 | English OCR model | Apache-2.0, `backend/app/assets/ocr/LICENSE` and manifest |
 | Disposable email domain list | Its upstream notice, `backend/app/accounts/data/disposable_domains.LICENSE` |

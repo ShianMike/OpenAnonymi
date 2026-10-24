@@ -108,6 +108,39 @@ def inbox(client, **params):
     return result.json()
 
 
+def test_notification_preview_separates_recorded_request_from_current_approval(intake_site):
+    case = start_review(intake_site)
+    confirmed_review(case)
+    request = next(
+        item for item in inbox(case["reviewer"])["items"]
+        if item["event_code"] == "approval_requested"
+    )
+    path = f"/api/v1/notifications/{request['id']}"
+    result = case["reviewer"].get(path)
+    assert result.status_code == 200
+    assert result.headers["cache-control"] == "no-store"
+    first = result.json()
+    assert first["current"]["confirmed_at"] and first["current"]["approved_at"] is None
+    assert first["current"]["reviewer_active"] and not first["current"]["is_owner"]
+    assert first["notification"]["read_at"] is None  # Reading is a separate CSRF-bound mutation.
+    assert case["owner"].get(path).status_code == 404
+    assert case["reviewer"].get(f"/api/v1/notifications/{uuid4()}").status_code == 404
+    approval = case["reviewer"].post(
+        case["base"] + "/approval", headers=case["rh"],
+        json={"expected": case["version"], "confirmed_preview": True},
+    )
+    assert approval.status_code == 200
+    approved = case["reviewer"].get(path).json()
+    assert approved["notification"] == first["notification"]
+    assert approved["current"]["approved_at"]
+    _decision(case["owner"], case["base"], case["finding"], case["version"], case["headers"], action="keep")
+    changed = case["reviewer"].get(path).json()
+    assert changed["notification"]["event_code"] == "approval_requested"
+    assert changed["current"]["approved_at"] is None
+    assert changed["current"]["confirmed_at"] is None
+    assert changed["current"]["status"] == "needs_review"
+
+
 def test_all_six_real_events_are_content_free_and_repeated_actions_are_idempotent(intake_site):
     case = start_review(intake_site)
     confirmed_review(case, approved=True)
@@ -231,6 +264,10 @@ def test_title_requires_current_grant_even_for_administrator_and_open_rechecks(i
     assert all(
         not row["document_available"] and row["title"] is None for row in inbox(reviewer)["items"]
     )
+    detail = reviewer.get(f"/api/v1/notifications/{item['id']}")
+    assert detail.status_code == 200
+    assert detail.json()["current"] is None
+    assert detail.json()["notification"]["title"] is None
     assert reviewer.get(case["base"] + "/source").status_code == 404
     # Opaque notification history may still be acknowledged after document access ends.
     assert (
@@ -336,6 +373,8 @@ def test_unavailable_document_titles_are_withheld_and_content_purge_removes_even
             session.get(User, case["owner_id"]).disabled_at = now
     item = inbox(case["reviewer"])["items"][0]
     assert not item["document_available"] and item["title"] is None
+    detail = case["reviewer"].get(f"/api/v1/notifications/{item['id']}").json()
+    assert detail["current"] is None and detail["notification"]["title"] is None
     if unavailable != "owner_disabled":
         purge_unavailable_content(case["engine"], now=now)
         assert stored(case) == []

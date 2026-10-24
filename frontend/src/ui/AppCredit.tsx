@@ -1,14 +1,17 @@
 import * as Menu from '@radix-ui/react-dropdown-menu'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, LifeBuoy } from 'lucide-react'
 import './app-credit.css'
 
 const source = 'https://github.com/ShianMike/OpenAnonymi'
 
-export function AppCredit() {
+export function AppCredit({ sidebar = false }: { sidebar?: boolean }) {
+  const attribution = <span className="app-credit-attribution">Powered by OpenAnonymi <span>© 2026 ShianMike</span></span>
   return <div className="app-credit">
-    <span className="app-credit-attribution">Powered by OpenAnonymi <span>© 2026 ShianMike</span></span>
+    {!sidebar && attribution}
     <Menu.Root modal={false}>
-      <Menu.Trigger className="app-credit-trigger">Legal & support <ChevronDown size={13} aria-hidden="true" /></Menu.Trigger>
+      <Menu.Trigger className="app-credit-trigger">
+        {sidebar && <LifeBuoy size={16} strokeWidth={1.7} aria-hidden="true" />}<span>Legal & support</span><ChevronDown size={13} aria-hidden="true" />
+      </Menu.Trigger>
       <Menu.Portal>
         <Menu.Content className="app-credit-menu" side="top" align="end" sideOffset={8} collisionPadding={16}>
           <Menu.Item asChild><a href="/terms" target="_blank" rel="noopener noreferrer" aria-label="Terms of Service (opens in a new tab)">Terms of Service</a></Menu.Item>
@@ -20,5 +23,6 @@ export function AppCredit() {
         </Menu.Content>
       </Menu.Portal>
     </Menu.Root>
+    {sidebar && attribution}
   </div>
 }

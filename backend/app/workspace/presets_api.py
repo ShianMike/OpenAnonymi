@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
@@ -17,7 +17,6 @@ from app.accounts.security import SessionIdentity
 from app.contracts import ErrorResponse, FindingCategory
 from app.db.crypto import ContentKeyUnavailable, KeyRing, ProtectedContentError
 from app.errors import ApiError
-from app.intake.column_rules import ColumnRule
 from app.transformations.contracts import CategoryDefault
 from app.workspace.presets import (
     PresetExists,
@@ -39,10 +38,10 @@ class PresetView(BaseModel):
     version: int
     is_default: bool
     category_defaults: dict[FindingCategory, CategoryDefault]
-    column_rules: list[ColumnRule]
 
 
 class PresetInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str = Field(min_length=1, max_length=100)
     categories: list[FindingCategory] = Field(default_factory=list)
     phone_region: str = Field(min_length=2, max_length=2)
@@ -51,7 +50,6 @@ class PresetInput(BaseModel):
     category_defaults: dict[FindingCategory, CategoryDefault] | None = Field(
         default=None, max_length=12
     )
-    column_rules: list[ColumnRule] | None = Field(default=None, max_length=50)
 
 
 class UpdatePresetInput(PresetInput):
@@ -91,9 +89,6 @@ def _save(
                     for category, choice in body.category_defaults.items()
                 }
                 if body.category_defaults is not None
-                else None,
-                column_rules=[rule.model_dump(mode="json") for rule in body.column_rules]
-                if body.column_rules is not None
                 else None,
                 keys=keys,
                 reauthorize=reauthorize,

@@ -7,7 +7,7 @@ import './analytics.css'
 export function OverviewAnalytics({ value }: { value: OverviewView['analytics'] }) {
   return <div className="overview-analytics">
     <section className="overview-progress" aria-labelledby="analytics-heading">
-      <div className="overview-card-heading"><div><h2 id="analytics-heading">Your review progress</h2><p>Reviews you created in the last 30 days.</p></div>
+      <div className="overview-card-heading"><div><h2 id="analytics-heading">Review progress</h2><p>Your available reviews from the last 30 days.</p></div>
         <span className="overview-period">30 days</span>
       </div>
       <dl className="analytics-metrics">
@@ -16,15 +16,15 @@ export function OverviewAnalytics({ value }: { value: OverviewView['analytics'] 
         <div><dt><Download size={16} aria-hidden="true" />Export rate</dt><dd className="analytics-export-rate">{exportPercentage(value.export_rate)}</dd></div>
       </dl>
       {value.cohort_documents === 0 ? <div className="analytics-empty">
-        <ChartNoAxesColumn size={18} aria-hidden="true" /><p>Progress begins with your first review.</p>
+        <ChartNoAxesColumn size={18} aria-hidden="true" /><p>No available reviews in this period.</p>
       </div> : <div className="analytics-export-summary">
-        <span>{value.exported_documents.toLocaleString()} of {value.cohort_documents.toLocaleString()} reviews shared</span>
+        <span>{value.exported_documents.toLocaleString()} of {value.cohort_documents.toLocaleString()} reviews exported</span>
         <span className="analytics-category-track" aria-hidden="true"><span style={{ width: `${(value.export_rate ?? 0) * 100}%` }} /></span>
         <small>{value.confirmed_documents.toLocaleString()} confirmed · {value.average_time_to_confirm_seconds === null ? 'No confirmation time yet' : 'Average time from creation to first confirmation'}</small>
       </div>}
       <details className="analytics-method"><summary>How these numbers work</summary>
         <p>Since {new Date(value.since).toLocaleDateString()}. Deleted and expired reviews are excluded. Assigned reviews belong to their owners’ totals.</p>
-        <p>First confirmation is the average time from creation. Repeat confirmations count once per review. Export rate includes reviewed Copy, TXT, Word, CSV and PDF output; redaction reports are excluded.</p>
+        <p>First confirmation is the average time from creation. Repeat confirmations count once per review. Export rate includes reviewed Copy, TXT, Word and PDF output; redaction reports are excluded.</p>
       </details>
     </section>
     <section className="overview-findings" aria-labelledby="finding-categories-heading">

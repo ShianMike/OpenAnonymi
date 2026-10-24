@@ -1,12 +1,13 @@
-import { AlertCircle, Archive, CloudCheck, FileClock, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react'
+import { AlertCircle, Archive, CloudCheck, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react'
 import * as AlertDialog from '@radix-ui/react-alert-dialog'
 import * as Dialog from '@radix-ui/react-dialog'
 import type { ProtectedDraftController } from './useProtectedDraft'
-import { DialogFrame } from '../ui/WorkspaceControls'
+import { StudioDialog } from '../review/studio/StudioControls'
 import { cn } from '../ui/cn'
 import './recovery.css'
 import '../review/source-recovery.css'
 import { LoadingMark } from '../loading/LoadingMark'
+import { LoadingState } from '../loading/LoadingState'
 
 export function AutosaveStatus({ recovery, dirty }: {
   recovery: ProtectedDraftController
@@ -22,7 +23,7 @@ export function AutosaveStatus({ recovery, dirty }: {
     : recovery.error ? full ? 'Backup space is full' : 'We couldn’t update your backups'
     : recovery.protected && recovery.savedAt
       ? `Draft backed up at ${new Date(recovery.savedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-      : dirty ? 'Changes waiting for backup' : 'Autosave ready'
+      : dirty ? 'Waiting for backup' : 'Autosave ready'
   return (
     <Dialog.Root>
       <div className={cn('autosave-status', recovery.error && 'is-error', full && 'is-full')}>
@@ -38,7 +39,7 @@ export function AutosaveStatus({ recovery, dirty }: {
           {recovery.error ? <>
             <p role="alert" className="autosave-error">{errorHelp}</p>
             {!full && <details className="autosave-error-details"><summary>What happened?</summary><p>{recovery.error}</p></details>}
-          </> : recovery.recoveredAt && <small className="autosave-restored">Text restored from a backup</small>}
+          </> : null}
         </div>
         <div className="autosave-actions">
           {recovery.error && (!full || recovery.copies.length === 0) && <button type="button" disabled={busy} onClick={recovery.retry}>
@@ -51,17 +52,18 @@ export function AutosaveStatus({ recovery, dirty }: {
           </Dialog.Trigger>
         </div>
       </div>
-      <DialogFrame title="Draft backups" description="Restore your text and settings from a backup. Your current edits must be backed up first." busy={busy}>
-        <div className="autosave-copy-manager">
-          <div className="autosave-copy-heading"><strong>Earlier backups</strong><span>{recovery.copies.length} available</span></div>
+      <StudioDialog className="studio-backups-dialog" title="Draft backups" description="Recover an earlier working draft of this review." busy={busy}>
+        <div className="studio-dialog-body autosave-copy-manager">
+          <div className="autosave-preservation"><ShieldCheck size={18} aria-hidden="true" /><div><strong>Your current edits come first</strong><p>Restoring requires a backup of your current edits. Your saved review changes only when you save a revision.</p></div></div>
+          {recovery.recoveredAt && <p className="autosave-restore-history">This draft was restored from a backup saved on <time dateTime={recovery.recoveredAt}>{new Date(recovery.recoveredAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</time>.</p>}
           {recovery.error && <p role="alert" className={cn('autosave-manager-error', full && 'is-full')}>{full ? 'Delete a backup you no longer need, then retry. Your text in the editor won’t change.' : `${recovery.error} Your edits are still in this tab.`}</p>}
-          {recovery.copies.length === 0 ? <p className="autosave-empty">No earlier backups for this review. Your current text stays in the editor.</p> : <ul className="autosave-copy-list" aria-label="Saved backups">
+          <div className="autosave-copy-heading"><strong>Available drafts</strong><span>{recovery.loading ? 'Checking…' : `${recovery.copies.length} saved`}</span></div>
+          {recovery.loading ? <LoadingState compact label="Checking your backups…" /> : recovery.copies.length === 0 ? <div className="autosave-empty"><Archive size={24} strokeWidth={1.4} aria-hidden="true" /><h3>No earlier drafts yet</h3><p>Backups appear here as you work. Your current text stays in the editor.</p></div> : <ul className="autosave-copy-list" aria-label="Saved backups">
             {recovery.copies.map((copy) => <li key={copy.id}>
-              <FileClock size={18} aria-hidden="true" />
-              <time dateTime={copy.updated_at}>
+              <div className="autosave-copy-date"><time dateTime={copy.updated_at}>
                 <strong>{new Date(copy.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</strong>
-                <span>{new Date(copy.updated_at).toLocaleTimeString()}</span>
-              </time>
+                <span>{new Date(copy.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              </time><small>Expires <time dateTime={copy.expires_at}>{new Date(copy.expires_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</time></small></div>
               <button type="button" aria-label={`Restore backup from ${new Date(copy.updated_at).toLocaleString()}`}
                 disabled={busy} onClick={() => void recovery.restore(copy.id)}>
                 <RotateCcw size={14} aria-hidden="true" /> Restore
@@ -73,28 +75,28 @@ export function AutosaveStatus({ recovery, dirty }: {
                   </button>
                 </AlertDialog.Trigger>
                 <AlertDialog.Portal>
-                  <AlertDialog.Overlay className="source-reload-overlay" />
-                  <AlertDialog.Content className="source-reload-dialog">
+                  <AlertDialog.Overlay className="studio-overlay" />
+                  <AlertDialog.Content className="studio studio-dialog studio-discard-dialog">
                     <AlertDialog.Title>Delete this backup?</AlertDialog.Title>
                     <AlertDialog.Description>
                       This permanently deletes the backup from {new Date(copy.updated_at).toLocaleString()}. Your current text and saved review won’t change.
                     </AlertDialog.Description>
                     <div className="source-conflict-actions">
                       <AlertDialog.Cancel asChild><button type="button">Keep backup</button></AlertDialog.Cancel>
-                      <AlertDialog.Action asChild><button type="button" onClick={() => void recovery.discardCopy(copy.id)}>Delete backup</button></AlertDialog.Action>
+                      <AlertDialog.Action asChild><button type="button" className="confirm-danger" onClick={() => void recovery.discardCopy(copy.id)}>Delete backup</button></AlertDialog.Action>
                     </div>
                   </AlertDialog.Content>
                 </AlertDialog.Portal>
               </AlertDialog.Root>
             </li>)}
           </ul>}
-          <div className="dialog-actions">
+        </div>
+          <footer className="studio-dialog-footer autosave-manager-footer">
             {recovery.error ? <button type="button" disabled={busy} onClick={recovery.retry}><RotateCcw size={14} aria-hidden="true" /> Retry backup</button>
               : <span role="status">{recovery.protected && recovery.recoveredAt ? 'Restored text is backed up' : message}</span>}
             <Dialog.Close asChild><button type="button" disabled={busy}>Done</button></Dialog.Close>
-          </div>
-        </div>
-      </DialogFrame>
+          </footer>
+      </StudioDialog>
     </Dialog.Root>
   )
 }

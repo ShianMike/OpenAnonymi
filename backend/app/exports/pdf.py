@@ -1,5 +1,6 @@
 """Fresh text-only PDFs from reviewed text, using bundled fonts and no network."""
 
+import base64
 import hashlib
 import io
 import json
@@ -49,6 +50,36 @@ def generate_pdf(text: str, now: datetime) -> bytes:
         raise PdfUnavailable("PDF generation is busy. Try again shortly.")
     try:
         return _generate_pdf(text, now)
+    finally:
+        render_slot.release()
+
+
+def generate_layout_pdf(layout, now):
+    """Only already-redacted pixels enter a fresh PDF; no source objects survive."""
+    if not render_slot.acquire(blocking=False):
+        raise PdfUnavailable("PDF generation is busy. Try again shortly.")
+    try:
+        pdf = FPDF(unit="pt")
+        pdf.set_auto_page_break(False)
+        pdf.set_title("Reviewed document")
+        pdf.set_creator("OpenAnonymi")
+        pdf.set_producer("OpenAnonymi")
+        pdf.set_creation_date(now)
+        for page in layout["pages"]:
+            width, height = page["points"]
+            pdf.add_page(format=(width, height))
+            pdf.image(io.BytesIO(base64.b64decode(page["image"])), x=0, y=0, w=width, h=height)
+        payload = bytes(pdf.output())
+        writer = PdfWriter(clone_from=io.BytesIO(payload))
+        writer.root_object.pop("/OpenAction", None)
+        buffer = io.BytesIO()
+        writer.write(buffer)
+        result = buffer.getvalue()
+        if len(result) > MAX_PDF_BYTES:
+            raise PdfUnavailable("This PDF exceeds the size limit. Download TXT instead.")
+        return result
+    except (OSError, ValueError, FPDFException):
+        raise PdfUnavailable("PDF layout generation is unavailable. Try again or download TXT.") from None
     finally:
         render_slot.release()
 

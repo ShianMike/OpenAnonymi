@@ -35,10 +35,10 @@ class SourceStructure(Base):
     block_count: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     __table_args__ = (
-        CheckConstraint("kind IN ('docx','csv')", name="valid_kind"),
+        CheckConstraint("kind IN ('docx','csv','pdf','txt')", name="valid_kind"),
         CheckConstraint(
             "block_count >= 1 AND ((kind='docx' AND block_count<=20000) OR "
-            "(kind='csv' AND block_count<=50050))",
+            "(kind='csv' AND block_count<=50050) OR (kind IN ('pdf','txt') AND block_count<=100000))",
             name="bounded_block_count",
         ),
     )
@@ -64,6 +64,8 @@ def store_word(session, revision_id, layout, source, keys: KeyRing, now):
 def load_word(session, revision_id, keys: KeyRing, length, source=None):
     row = session.get(SourceStructure, revision_id)
     if row is None:
+        return None
+    if row.kind in {"pdf", "txt"}:
         return None
     if row.kind != "docx":
         raise ProtectedContentError("Protected layout is unavailable.")
@@ -113,6 +115,39 @@ def load_csv(session, revision_id, keys: KeyRing, source, delimiter, has_header)
         return layout
     except (SourceValidationError, InvalidLayout, TypeError, ValueError, KeyError):
         raise ProtectedContentError("Protected CSV structure is unavailable.") from None
+
+
+def store_file_layout(session, revision_id, layout, source, keys, now):
+    from app.intake.file_layout import validate_file_layout
+
+    validate_file_layout(layout, source)
+    protected = keys.encrypt_text(json.dumps(layout, separators=(",", ":")))
+    session.add(SourceStructure(revision_id=revision_id, kind=layout["kind"],
+                               layout_ciphertext=protected.ciphertext, key_id=protected.key_id,
+                               block_count=max(1, len(source)), created_at=now))
+
+
+def load_file_layout(session, revision_id, keys, source):
+    from app.intake.file_layout import validate_file_layout
+
+    row = session.get(SourceStructure, revision_id)
+    if row is None or row.kind not in {"pdf", "txt"}:
+        return None
+    try:
+        layout = json.loads(keys.decrypt_text(ProtectedValue(row.layout_ciphertext, row.key_id)))
+        validate_file_layout(layout, source)
+        if row.kind != layout["kind"] or row.block_count != max(1, len(source)):
+            raise InvalidLayout("Invalid protected file layout.")
+        return layout
+    except (InvalidLayout, TypeError, ValueError, KeyError, IndexError):
+        raise ProtectedContentError("Protected file layout is unavailable.") from None
+
+
+def load_review_blocks(session, revision_id, keys, source):
+    from app.intake.file_layout import file_blocks
+
+    layout = load_file_layout(session, revision_id, keys, source)
+    return file_blocks(layout) if layout else load_word(session, revision_id, keys, len(source), source)
 
 
 @event.listens_for(Session, "before_flush")

@@ -1,6 +1,6 @@
 [project]
 name = "openanonymi-backend"
-version = "0.1.6"
+version = "0.2.0"
 description = "Privacy review API"
 requires-python = ">=3.11,<3.12"
 dependencies = [
@@ -11,7 +11,7 @@ dependencies = [
   "psycopg[binary]>=3.2,<4",
   "pwdlib[argon2]>=0.2,<1",
   "pydantic-settings>=2,<3",
-  "pypdf>=6.19,<7",
+  "pypdf>=6.21.2,<7",
   "python-docx>=1.2,<2",
   "python-multipart>=0.0.20,<1",
   "sqlalchemy>=2.0,<2.2",
@@ -22,7 +22,7 @@ dependencies = [
   "segno==1.6.6",
   "fpdf2==2.8.9",
   "uharfbuzz>=0.50,<1",
-  "pillow>=11.3,<13",
+  "pillow>=13,<14",
   "pypdfium2>=4.30,<6",
   "tesserocr==2.10.0",
 ]

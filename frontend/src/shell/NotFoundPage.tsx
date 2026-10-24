@@ -1,41 +1,50 @@
-import { ArrowRight, ArrowUpRight, Files, LayoutDashboard } from 'lucide-react'
-import { Link } from 'react-router-dom'
-import { LostCompass } from './LostCompass'
+import { useEffect } from 'react'
+import { ArrowRight } from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
+import type { SessionView } from '../api/client'
+import { useReviewWorkspace } from '../resume/reviewWorkspace'
 import { Brand } from '../ui/Brand'
+import { workspaceHref } from './navigation'
 import './not-found.css'
 
-export function NotFoundPage({ signedOut = false }: { signedOut?: boolean }) {
+export function NotFoundPage({ session }: { session?: SessionView }) {
+  const { search } = useLocation()
+  const preferred = useReviewWorkspace(session?.user_id ?? '')
+  const requested = new URLSearchParams(search).get('workspace')
+  const workspace = session?.memberships.find(item => item.workspace_id === requested)
+    ?? session?.memberships.find(item => item.workspace_id === preferred) ?? session?.memberships[0]
+  useEffect(() => {
+    const previousTitle = document.title
+    document.title = 'Page not found · OpenAnonymi'
+    return () => { document.title = previousTitle }
+  }, [])
   const content = (
     <section className="not-found-page" aria-labelledby="not-found-title">
-      <LostCompass />
       <div className="not-found-copy">
-        <p className="not-found-eyebrow">404 · PAGE NOT FOUND</p>
-        <h1 id="not-found-title">A little off course.</h1>
+        <p className="not-found-eyebrow"><span>404</span> Page unavailable</p>
+        <h1 id="not-found-title">Page not found</h1>
         <p className="not-found-description">
-          This page may have moved, or the link isn’t quite right.
-          <br className="not-found-break" /> Let’s get you somewhere familiar.
+          This link doesn’t lead to a page in OpenAnonymi.
+          The address may be incomplete, or the page may have moved.
         </p>
         <div className="not-found-actions">
-          <Link className="button-primary" to={signedOut ? '/sign-in' : '/'}>
-            <LayoutDashboard size={17} aria-hidden="true" />
-            {signedOut ? 'Go to sign in' : 'Back to Overview'}
+          <Link className="button-primary" to={session ? workspaceHref('/documents', workspace?.workspace_id) : '/sign-in'}>
+            {session ? 'Go to documents' : 'Sign in to your workspace'}
             <ArrowRight size={16} aria-hidden="true" />
           </Link>
-          {!signedOut && (
-            <Link className="not-found-documents" to="/documents">
-              <Files size={17} aria-hidden="true" /> Browse documents
-              <ArrowUpRight size={15} aria-hidden="true" />
-            </Link>
-          )}
+          <Link className="not-found-secondary" to={session ? workspaceHref('/', workspace?.workspace_id) : '/welcome'}>
+            {session ? 'Open overview' : 'Visit homepage'}
+          </Link>
         </div>
-        <p className="not-found-footnote">
-          Just a missing page. Your saved reviews are still in your workspace.
-        </p>
+        <div className="not-found-help">
+          <h2>Following a shared link?</h2>
+          <p>Ask the sender for the complete, up-to-date address.</p>
+        </div>
       </div>
     </section>
   )
 
-  return signedOut ? (
+  return session ? content : (
     <div className="not-found-public">
       <header>
         <Link to="/welcome" aria-label="OpenAnonymi home">
@@ -44,7 +53,5 @@ export function NotFoundPage({ signedOut = false }: { signedOut?: boolean }) {
       </header>
       <main id="main-content">{content}</main>
     </div>
-  ) : (
-    content
   )
 }
