@@ -1,8 +1,5 @@
 """Administrator event metadata and fixed decision diffs without implicit content access."""
 
-import csv
-import io
-import json
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
@@ -27,7 +24,7 @@ from app.errors import ApiError
 from app.workspace.activity import EVENT_CODES
 from app.workspace.decision_audit import DecisionChange
 
-MAX_CSV_BYTES = 8 * 1024 * 1024
+MAX_EXPORT_BYTES = 8 * 1024 * 1024
 
 
 def export_limit() -> ApiError:
@@ -110,7 +107,7 @@ def read_admin_activity(
         limit = maximum if maximum is not None else body.limit
         if maximum is not None:
             # Refuse large JSON before loading it into Python. The fixed per-row
-            # allowance also bounds the remaining IDs, codes and CSV quoting.
+            # allowance also bounds the remaining IDs, codes and JSON serialization.
             selected = (
                 query.with_only_columns(
                     AuditEvent.id,
@@ -126,7 +123,7 @@ def read_admin_activity(
                 )
             ).one()
             require_administrator(session, workspace_id=workspace_id, actor_id=actor_id)
-            if count > maximum or diff_bytes + count * 512 > MAX_CSV_BYTES:
+            if count > maximum or diff_bytes + count * 512 > MAX_EXPORT_BYTES:
                 raise export_limit()
         rows = session.scalars(
             query.order_by(AuditEvent.occurred_at.desc(), AuditEvent.id.desc()).limit(limit + 1)
@@ -154,58 +151,6 @@ def read_admin_activity(
             else None
         )
         return AdminActivityView(as_of=now, since=since, events=events, next_cursor=cursor)
-
-
-def activity_csv(view: AdminActivityView) -> bytes:
-    stream = io.StringIO(newline="")
-    writer = csv.writer(stream, lineterminator="\r\n")
-    writer.writerow(
-        (
-            "occurred_at",
-            "event_code",
-            "outcome",
-            "document_id",
-            "actor_id",
-            "decision_version",
-            "decision_change_count",
-            "recorded_changes",
-            "decision_changes",
-        )
-    )
-    for row in view.events:
-        values = [
-            row.occurred_at.isoformat(),
-            row.event_code,
-            row.outcome,
-            str(row.document_id) if row.document_id else "",
-            str(row.actor_id) if row.actor_id else "",
-            row.decision_version if row.decision_version is not None else "",
-            row.decision_change_count,
-            len(row.decision_changes),
-            json.dumps(
-                [change.model_dump(mode="json") for change in row.decision_changes],
-                separators=(",", ":"),
-            ),
-        ]
-        # All strings above are fixed codes, typed IDs/times or allowlisted JSON.
-        # Keep spreadsheet safety even if a future column adds free-form values.
-        writer.writerow(
-            [
-                "'" + value
-                if isinstance(value, str)
-                and value.lstrip().startswith(("=", "+", "-", "@", "\t", "\r", "\n"))
-                else value
-                for value in values
-            ]
-        )
-        # Every exported string is ASCII (fixed enums, UUIDs, ISO times and
-        # ensure_ascii JSON). Check each row before the buffer can grow further.
-        if stream.tell() + 3 > MAX_CSV_BYTES:
-            raise export_limit()
-    payload = stream.getvalue().encode("utf-8-sig")
-    if len(payload) > MAX_CSV_BYTES:
-        raise export_limit()
-    return payload
 
 
 def create_admin_activity_router(engine: Engine, settings: Settings) -> APIRouter:
@@ -253,7 +198,7 @@ def create_admin_activity_router(engine: Engine, settings: Settings) -> APIRoute
             lambda: require_current_admin(workspace_id, current.user_id)
         ))
 
-    @router.post("/{workspace_id}/activity/admin/csv", response_class=Response, responses=errors)
+    @router.post("/{workspace_id}/activity/admin/export", response_class=Response, responses=errors)
     def export(
         workspace_id: UUID,
         body: AdminActivityRequest,
@@ -277,13 +222,15 @@ def create_admin_activity_router(engine: Engine, settings: Settings) -> APIRoute
                 maximum=1000,
             )
         )
-        payload = activity_csv(view)
+        payload = view.model_dump_json().encode("utf-8")
+        if len(payload) > MAX_EXPORT_BYTES:
+            raise export_limit()
         recheck(request, workspace_id, identity)
         return Response(
             payload,
-            media_type="text/csv; charset=utf-8",
+            media_type="application/json",
             headers={
-                "Content-Disposition": 'attachment; filename="workspace-activity.csv"',
+                "Content-Disposition": 'attachment; filename="workspace-activity.json"',
                 "X-Content-Type-Options": "nosniff",
             },
         )

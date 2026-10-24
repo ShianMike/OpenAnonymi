@@ -73,13 +73,9 @@ def test_markdown_is_literal_utf8_text_and_editor_validates_source():
         extract_import("note.md", b"\xff")
 
 
-def test_csv_correction_rebuilds_map_and_rejects_changed_columns():
-    imported = extract_import("cells.csv", b"Name,Value\nFictional,nora@example.test\n")
-    changed = edit_import(imported, "Name,Value\nEdited,corrected@example.test\n")
-    assert changed.source.text.endswith("corrected@example.test\n")
-    assert changed.layout["columns"] == 2 and changed.layout != imported.layout
-    with pytest.raises(SourceValidationError):
-        edit_import(imported, "Name,Value,Extra\nEdited,corrected@example.test,third\n")
+def test_csv_is_rejected_even_when_it_contains_valid_text():
+    with pytest.raises(SourceValidationError, match="Choose TXT"):
+        extract_import("cells.csv", b"Name,Value\nFictional,nora@example.test\n")
 
 
 def test_word_correction_realigns_or_simplifies_instead_of_retaining_stale_spans():

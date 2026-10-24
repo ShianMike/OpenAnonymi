@@ -1,63 +1,73 @@
-import { useEffect } from 'react'
-import { ArrowDownRight, ArrowRight, Check, Pause, Play } from 'lucide-react'
-import { Link } from 'react-router-dom'
-import { Brand } from '../ui/Brand'
-import { AppCredit } from '../ui/AppCredit'
-import { LandingNav } from './LandingNav'
-import { ReviewDemo } from './ReviewDemo'
-import { WorkflowStory } from './WorkflowStory'
-import { LandingQuestions } from './LandingQuestions'
-import { useLandingMotion } from './useLandingMotion'
-import { LandingBackground } from './LandingBackground'
-import { PrivacyOrbit } from './PrivacyOrbit'
 import './landing.css'
+import { useEffect } from 'react'
+import { ArrowRight } from 'lucide-react'
+import { Link, useLocation } from 'react-router-dom'
+import { LandingNav } from './LandingNav'
+import { LandingFormats } from './LandingFormats'
+import { WorkflowStory } from './WorkflowStory'
+import { LandingSecurity } from './LandingSecurity'
+import { LandingQuestions } from './LandingQuestions'
+import { LandingFooter } from './LandingFooter'
+import { useLandingMotion } from './useLandingMotion'
+import overview from './assets/overview-desktop-4k.jpg'
+import overviewPhone from './assets/overview-phone-3x.jpg'
 
 export function LandingPage({ signedIn, sessionError, onRetry }: {
   signedIn: boolean; sessionError?: string; onRetry: () => void
 }) {
-  const { root, paused, reduced, toggleMotion } = useLandingMotion()
+  const { root, sentinel, scrolled } = useLandingMotion()
+  const { hash } = useLocation()
+  const startTo = signedIn ? '/new' : '/sign-up'
   useEffect(() => {
     const oldTitle = document.title
     document.title = 'OpenAnonymi — Share the story. Keep control.'
     return () => { document.title = oldTitle }
   }, [])
+  // Links such as /welcome#how-it-works arrive before the lazy page exists, so scroll once it renders.
+  useEffect(() => {
+    if (hash.length > 1) document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView()
+  }, [hash])
 
   return (
-    <div className="landing-page" ref={root} data-paused={paused}>
+    <div className="landing-page" ref={root}>
       <a className="skip-link" href="#main-content">Skip to content</a>
-      <LandingBackground />
-      <LandingNav signedIn={signedIn} />
-      {sessionError && <div className="landing-session-error landing-container"><p role="alert">Workspace access is unavailable. You can still explore this example.</p><button type="button" onClick={onRetry}>Retry workspace access</button></div>}
+      <span className="landing-top-sentinel" ref={sentinel} aria-hidden="true" />
+      <LandingNav signedIn={signedIn} startTo={startTo} scrolled={scrolled} />
+      {sessionError && <div className="landing-session-error">
+        <div className="landing-container landing-session-error-inner">
+          <p role="alert">Workspace access is unavailable. You can still read about OpenAnonymi here.</p>
+          <button className="landing-button landing-button-sm landing-button-secondary" type="button" onClick={onRetry}>Retry workspace access</button>
+        </div>
+      </div>}
       <main id="main-content" className="landing-main" tabIndex={-1}>
-        <section className="landing-hero landing-container" aria-labelledby="landing-title">
-          <div className="landing-hero-copy">
-            <span className="landing-eyebrow landing-hero-eyebrow"><span className="landing-living-dot" aria-hidden="true" /> Privacy, on your terms.</span>
-            <h1 id="landing-title"><span>Share the story.</span><span>Keep control.</span></h1>
-            <p className="landing-hero-description">Review personal details before you share.</p>
-            <div className="landing-hero-actions">
-              <Link className="landing-button" to={signedIn ? '/new' : '/sign-up'}>Start a review <ArrowRight size={18} aria-hidden="true" /></Link>
-              <a className="landing-try-link" href="#try-review">Explore the demo <ArrowDownRight size={18} aria-hidden="true" /></a>
+        <section className="landing-hero" aria-labelledby="landing-title">
+          <div className="landing-container">
+            <div className="landing-hero-copy">
+              <h1 id="landing-title"><span>Share the story.</span> <span>Keep control.</span></h1>
+              <p className="landing-hero-lede">OpenAnonymi flags personal details in your text and files. You decide what to replace, hide, or keep before sharing.</p>
+              <div className="landing-hero-actions">
+                <Link className="landing-button landing-button-lg" to={startTo}>Start a review <ArrowRight size={18} aria-hidden="true" /></Link>
+                <a className="landing-button landing-button-lg landing-button-secondary" href="#how-it-works">See how it works</a>
+              </div>
             </div>
-            <div className="landing-hero-assurance"><span><Check size={14} aria-hidden="true" /> Your decisions</span><span><Check size={14} aria-hidden="true" /> Encrypted drafts</span><span><Check size={14} aria-hidden="true" /> Review before sharing</span></div>
+            <figure className="landing-shot">
+              <div className="landing-shot-frame">
+                <picture>
+                  <source media="(max-width: 640px)" srcSet={overviewPhone} width={1170} height={2532} />
+                  <img src={overview} width={3840} height={2400} fetchPriority="high"
+                    alt="The current OpenAnonymi workspace overview: review totals, progress, recent documents, and review status." />
+                </picture>
+              </div>
+              <figcaption className="sr-only">Workspace overview with fictional reviews.</figcaption>
+            </figure>
           </div>
-          <figure className="landing-hero-visual" data-landing-reveal>
-            <PrivacyOrbit />
-            <figcaption>Fictional example</figcaption>
-          </figure>
         </section>
-        <section className="landing-demo-section landing-container" aria-labelledby="demo-title">
-          <div className="landing-section-heading" data-landing-reveal><h2 id="demo-title">Try it for yourself.</h2><p>Pick a detail. Choose what stays.</p></div>
-          <ReviewDemo />
-        </section>
-        <WorkflowStory signedIn={signedIn} />
-        <LandingQuestions signedIn={signedIn} />
+        <LandingFormats />
+        <WorkflowStory />
+        <LandingSecurity />
+        <LandingQuestions signedIn={signedIn} startTo={startTo} />
       </main>
-      <footer className="landing-footer landing-container">
-        <div><Link to="/welcome" aria-label="OpenAnonymi home"><Brand /></Link></div>
-        <nav aria-label="Landing page footer"><a href="#how-it-works">The process</a><Link to={signedIn ? '/continue' : '/sign-in'}>{signedIn ? 'Continue review' : 'Sign in'}</Link><button className="landing-motion-button" type="button" disabled={reduced} aria-pressed={paused} onClick={toggleMotion}>
-          {paused ? <Play size={14} aria-hidden="true" /> : <Pause size={14} aria-hidden="true" />}{reduced ? 'Reduced motion enabled' : paused ? 'Play animations' : 'Pause animations'}</button></nav>
-        <AppCredit />
-      </footer>
+      <LandingFooter signedIn={signedIn} startTo={startTo} />
     </div>
   )
 }

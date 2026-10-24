@@ -2,7 +2,7 @@
 .autosave-message { flex: 1; min-width: min(100%, 220px); }
 .autosave-message > span { display: flex; align-items: center; gap: 8px; }
 .autosave-message svg { flex-shrink: 0; }
-.autosave-restored { display: block; margin: 5px 0 0 24px; font-size: .73rem; }
+.autosave-restore-history { margin: -8px 0 24px; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .autosave-status.is-error { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; margin-top: 14px; padding: 18px; background: var(--tone-paper, var(--surface)); border: 1px solid var(--line); border-radius: 14px; }
 .autosave-status.is-error .autosave-message { min-width: 0; }
 .autosave-status.is-error [role='status'] { gap: 10px; color: var(--text); font-size: .85rem; font-weight: 550; }
@@ -16,27 +16,36 @@
 .autosave-actions button, .autosave-copy-list button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; margin: 0; font-size: .76rem; }
 .autosave-copy-count { padding: 2px 6px; border-radius: 5px; background: var(--blue-tint); font-variant-numeric: tabular-nums; }
 .autosave-actions .autosave-manage { background: var(--blue-tint); color: var(--text); border-color: var(--line); }
-.workspace-dialog:has(> .autosave-copy-manager) { background: var(--tone-paper, var(--surface)); border: 1px solid var(--line); }
-.workspace-dialog:has(> .autosave-copy-manager) .dialog-close { width: 44px; min-height: 44px; }
+.studio-backups-dialog { width: min(580px, calc(100vw - 32px)); }
+.autosave-preservation { display: flex; gap: 10px; margin-bottom: 24px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.autosave-preservation > svg { flex: none; margin-top: 2px; color: var(--blue); }
+.autosave-preservation strong { color: var(--text); font-weight: 500; }
+.autosave-preservation p { margin: 4px 0 0; }
 .autosave-copy-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; font-size: .79rem; }
 .autosave-copy-heading strong { font-weight: 550; }
 .autosave-copy-heading > span { color: var(--muted); font-variant-numeric: tabular-nums; }
-.autosave-copy-list { list-style: none; margin: 0; padding: 0 6px 0 0; max-height: min(320px, 40dvh); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
-.autosave-copy-list li { display: flex; align-items: center; gap: 12px; min-height: 74px; padding-block: 10px; border-top: 1px solid var(--line); }
-.autosave-copy-list li > svg { color: var(--muted); flex-shrink: 0; }
-.autosave-copy-list time { flex: 1; min-width: 0; font-size: .8rem; font-variant-numeric: tabular-nums; }
-.autosave-copy-list time strong { display: block; font-weight: 500; }
-.autosave-copy-list time span { display: block; margin-top: 5px; color: var(--muted); font-size: .73rem; }
+.autosave-copy-list { list-style: none; margin: 0; padding: 0; }
+.autosave-copy-list li { display: flex; align-items: center; gap: 8px; min-height: 88px; padding-block: 14px; border-top: 1px solid var(--line); }
+.autosave-copy-date { flex: 1; min-width: 0; font-size: 13px; font-variant-numeric: tabular-nums; }
+.autosave-copy-date > time { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.autosave-copy-date strong { font-weight: 500; }
+.autosave-copy-date span, .autosave-copy-date small { color: var(--muted); font-size: 12px; }
+.autosave-copy-date small { display: block; margin-top: 6px; }
 .autosave-copy-list button { flex-shrink: 0; }
 .autosave-copy-list .quiet-icon { width: 44px; }
 .autosave-manager-error { margin: 0 0 14px; padding: 10px 12px; border-left: 2px solid var(--danger); color: var(--muted); font-size: .8rem; line-height: 1.6; text-wrap: pretty; }
 .autosave-manager-error.is-full { border-left-color: var(--blue); }
-.autosave-empty { margin: 0 0 20px; color: var(--muted); font-size: .85rem; line-height: 1.6; text-wrap: pretty; }
-.autosave-copy-manager .dialog-actions { margin-top: 16px; }
-.autosave-copy-manager .dialog-actions [role='status'] { margin-right: auto; align-self: center; color: var(--muted); font-size: .75rem; line-height: 1.5; text-wrap: pretty; }
+.autosave-empty { display: grid; justify-items: center; padding: 36px 16px; border-top: 1px solid var(--line); color: var(--muted); text-align: center; font-size: 13px; line-height: 1.6; text-wrap: pretty; }
+.autosave-empty > svg { margin-bottom: 12px; }
+.autosave-empty h3 { margin: 0; color: var(--text); font-size: 14px; font-weight: 500; }
+.autosave-empty p { max-width: 300px; margin: 6px 0 0; }
+.autosave-manager-footer { justify-content: space-between; }
+.autosave-manager-footer > button:last-child { margin-left: auto; }
+.autosave-manager-footer [role='status'] { line-height: 1.6; text-wrap: pretty; }
 @media (max-width: 500px) {
+  .studio-backups-dialog { width: calc(100vw - 16px); }
+  .studio-backups-dialog button { min-height: 44px; min-width: 44px; }
   .autosave-copy-list li { gap: 8px; }
-  .autosave-copy-list li > svg { display: none; }
   .autosave-copy-list button { padding-inline: 9px; }
   .autosave-status.is-error { grid-template-columns: 1fr; padding: 14px; }
   .autosave-actions { width: 100%; }

@@ -20,7 +20,6 @@ ROUTES = {
     "/api/v1/documents/{document_id}/exports/copy-success",
     "/api/v1/documents/{document_id}/exports/txt",
     "/api/v1/documents/{document_id}/exports/docx",
-    "/api/v1/documents/{document_id}/exports/csv",
     "/api/v1/documents/{document_id}/exports/pdf",
     "/api/v1/documents/{document_id}/exports/report",
 }
@@ -31,8 +30,6 @@ CASES = (
     "docx",
     "pdf",
     "report",
-    "csv_safe",
-    "csv_unmodified",
 )
 
 
@@ -47,7 +44,7 @@ def ready_review(site):
         "/api/v1/documents/from-file",
         headers=headers,
         data={"workspace_id": str(workspace), "categories": ""},
-        files={"file": ("fictional.csv", b"Note,Value\nFictional safe text,Example\n")},
+        files={"file": ("fictional.txt", b"Fictional safe text. Example.")},
     )
     assert uploaded.status_code == 201
     version = uploaded.json()["version"]
@@ -104,10 +101,7 @@ def set_policy(owner, headers, workspace, policy):
 def output(owner, headers, case, base, version, completion):
     body = {"expected": version, "event_id": str(uuid4())}
     suffix = case
-    if case.startswith("csv_"):
-        suffix = "csv"
-        body["variant"] = "spreadsheet_safe" if case == "csv_safe" else "unmodified"
-    elif case == "copy-success":
+    if case == "copy-success":
         body["completion_id"] = completion
     elif case == "copy-payload":
         body = {"expected": version}

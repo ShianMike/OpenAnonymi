@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useBlocker } from 'react-router-dom'
 import * as AlertDialog from '@radix-ui/react-alert-dialog'
-import { ShieldCheck, ArrowLeft, ArrowRight, Trash2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Trash2 } from 'lucide-react'
 import './workspace-controls.css'
+import '../review/studio/studio.css'
 
 export function UnsavedNavigationPrompt({
   when,
@@ -81,8 +82,8 @@ export function UnsavedNavigationPrompt({
       if (!open && !pending) stay()
     }}>
       <AlertDialog.Portal>
-        <AlertDialog.Overlay className="workspace-dialog-overlay" />
-        <AlertDialog.Content className="unsaved-navigation workspace-dialog" aria-busy={pending}
+        <AlertDialog.Overlay className="studio-overlay" />
+        <AlertDialog.Content className="studio studio-dialog studio-discard-dialog unsaved-navigation" aria-busy={pending}
           onEscapeKeyDown={(event) => { if (pending) event.preventDefault() }}
           onCloseAutoFocus={(event) => {
             event.preventDefault()
@@ -92,8 +93,7 @@ export function UnsavedNavigationPrompt({
             }
           }}>
           <div className="unsaved-navigation-heading">
-            <span className="panel-heading-icon"><ShieldCheck size={22} aria-hidden="true" /></span>
-            <div><span>BEFORE YOU LEAVE</span><AlertDialog.Title>{saving ? 'Your choices are saving' : 'Unsaved changes'}</AlertDialog.Title></div>
+            <AlertDialog.Title>{saving ? 'Your choices are saving' : 'Unsaved changes'}</AlertDialog.Title>
           </div>
           <AlertDialog.Description>{saving ? 'Your choices and reviewed text are still being saved. You can stay, or leave once saving finishes.' : onSaveAndLeave ? 'Keep a backup so you can return to these edits later. Choose how to leave.'
             : 'These changes haven’t been saved. Staying keeps them here; leaving will lose them.'}</AlertDialog.Description>

@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.accounts.access import ContentUnavailable, DocumentNotFound, WorkspaceAccessDenied
 from app.accounts.api import current_identity, mutation_identity
+from app.accounts.response_boundary import protected_json_response
 from app.accounts.security import SessionIdentity
 from app.db.crypto import ContentKeyUnavailable, ProtectedContentError
 from app.db.recovery import RecoverySnapshot
@@ -43,9 +44,19 @@ def recovery_transaction(engine: Engine):
 def create_recovery_router(engine: Engine) -> APIRouter:
     router = APIRouter(prefix="/api/v1/workspaces/{workspace_id}/recovery", tags=["recovery"])
 
+    def snapshot_response(view, session, request, identity):
+        def authorize(current):
+            session.expire_all()
+            owned_snapshot(
+                session, view.workspace_id, view.id, current.user_id, datetime.now(UTC)
+            )
+
+        return protected_json_response(view, request, identity, authorize)
+
     @router.get("", response_model=list[RecoveryMetadata])
     def list_route(
         workspace_id: UUID,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(current_identity)],
         document_id: UUID | None = None,
     ):
@@ -63,7 +74,15 @@ def create_recovery_router(engine: Engine) -> APIRouter:
                 .order_by(RecoverySnapshot.updated_at.desc())
                 .limit(20)
             ).all()
-            return [metadata(row) for row in rows]
+            view = [metadata(row) for row in rows]
+
+            def authorize(current):
+                session.expire_all()
+                authorize_scope(session, workspace_id, current.user_id, document_id, datetime.now(UTC))
+                for item in sorted(view, key=lambda item: item.id):
+                    owned_snapshot(session, workspace_id, item.id, current.user_id, datetime.now(UTC))
+
+            return protected_json_response(view, request, identity, authorize)
 
     @router.get("/{snapshot_id}", response_model=RecoveryView)
     def load_route(
@@ -73,7 +92,7 @@ def create_recovery_router(engine: Engine) -> APIRouter:
         identity: Annotated[SessionIdentity, Depends(current_identity)],
     ):
         with recovery_transaction(engine) as session:
-            return load_snapshot(
+            view = load_snapshot(
                 session,
                 workspace_id,
                 snapshot_id,
@@ -81,6 +100,7 @@ def create_recovery_router(engine: Engine) -> APIRouter:
                 datetime.now(UTC),
                 _keys(request),
             )
+            return snapshot_response(view, session, request, identity)
 
     @router.put("/{snapshot_id}", response_model=RecoveryMetadata)
     def save_route(
@@ -91,7 +111,7 @@ def create_recovery_router(engine: Engine) -> APIRouter:
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ):
         with recovery_transaction(engine) as session:
-            return save_snapshot(
+            view = save_snapshot(
                 session,
                 workspace_id,
                 snapshot_id,
@@ -100,11 +120,13 @@ def create_recovery_router(engine: Engine) -> APIRouter:
                 datetime.now(UTC),
                 _keys(request),
             )
+            return snapshot_response(view, session, request, identity)
 
     @router.delete("/{snapshot_id}", status_code=204)
     def delete_route(
         workspace_id: UUID,
         snapshot_id: UUID,
+        request: Request,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
         expected_version: Annotated[int, Query(ge=1)],
     ):
@@ -119,6 +141,11 @@ def create_recovery_router(engine: Engine) -> APIRouter:
                     "This working draft changed. Recover it before discarding.",
                 )
             session.delete(row)
+            session.flush()
+            session.expire_all()
+            current_identity(request)
+            authorize_scope(session, workspace_id, identity.user_id, row.document_id, datetime.now(UTC))
+            current_identity(request)
         return Response(status_code=204)
 
     return router

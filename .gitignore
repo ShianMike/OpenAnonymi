@@ -33,12 +33,33 @@ frontend/vercel.json
 node_modules/
 dist/
 coverage/
+*.tsbuildinfo
+
+# Generated test reports
+.coverage
+.coverage.*
+htmlcov/
+playwright-report/
+test-results/
+blob-report/
+
+# Local logs, scratch files, and editor backups
+logs/
+*.log
+*.log.*
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
 
 # Editor and OS files
 .vscode/
 .idea/
+*.code-workspace
 .DS_Store
 Thumbs.db
+Desktop.ini
 
 Privacy-Review-System-AI-Agent-Guide.md
 Privacy-Review-System-Expansion-2-AI-Agent-Guide.md

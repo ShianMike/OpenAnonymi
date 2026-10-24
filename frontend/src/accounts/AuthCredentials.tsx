@@ -1,6 +1,6 @@
 import { LoadingMark } from '../loading/LoadingMark'
 import { useState, type FormEvent } from 'react'
-import { ArrowRight, ArrowUpRight, AtSign, ChevronDown, CircleHelp, KeyRound, LockKeyhole, Layers2, Mail } from 'lucide-react'
+import { ArrowRight, ChevronDown, CircleHelp, Mail } from 'lucide-react'
 import { ApiRequestError, signIn, signUp, verifySignUp, type ChallengeView, type SessionView } from '../api/client'
 import { GlassInput } from '../ui/GlassField'
 import { AuthNotice, CapsLockNote, PasswordRequirement } from './AuthNotice'
@@ -8,13 +8,13 @@ import { AuthSecondStep } from './AuthSecondStep'
 import { PASSWORD_MIN_LENGTH, useCapsLock, usePendingFocus } from './authFieldHooks'
 
 /** Where the visitor is inside sign in or sign up; the page heading follows it. */
-export type CredentialStage = 'credentials' | 'signup-code' | 'second-factor' | 'enrollment' | 'backup-codes'
+export type CredentialStage = 'credentials' | 'signup-details' | 'signup-code' | 'second-factor' | 'enrollment' | 'backup-codes'
 
 type Props = {
   mode: 'sign-in' | 'sign-up'
   initialEmail?: string
   onSignedIn: (session: SessionView) => void
-  onRecover: (email: string) => void
+  onRecover: (email: string, hasCode?: boolean) => void
   onStageChange: (stage: CredentialStage) => void
 }
 
@@ -26,6 +26,7 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
   const [workspace, setWorkspace] = useState('')
   const [code, setCode] = useState('')
   const [requested, setRequested] = useState(false)
+  const [details, setDetails] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [challenge, setChallenge] = useState<ChallengeView | null>(null)
   const creating = mode === 'sign-up'
@@ -36,6 +37,12 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (creating && !details) {
+      setDetails(true)
+      onStageChange('signup-details')
+      requestAnimationFrame(() => document.getElementById('auth-password')?.focus())
+      return
+    }
     await run(creating && !requested ? 'request' : 'complete')
   }
 
@@ -80,6 +87,7 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
     setCode('')
     setMessage(null)
     setError(null)
+    setDetails(false)
     onStageChange('credentials')
     requestAnimationFrame(() => document.getElementById('auth-email')?.focus())
   }
@@ -94,6 +102,8 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
         onRestart={() => {
           setChallenge(null)
           setError(null)
+          setDetails(false)
+          setRequested(false)
           onStageChange('credentials')
         }}
       />
@@ -110,11 +120,14 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
         {!requested && (
           <>
             <div className="auth-field-row">
-              <label htmlFor="auth-email">Email address</label>
+              <div className="auth-label-row">
+                <label htmlFor="auth-email">Email address</label>
+                {creating && details && <button type="button" className="auth-link" onClick={editDetails}>Change email</button>}
+              </div>
               <GlassInput
                 id="auth-email"
-                icon={AtSign}
                 type="email"
+                readOnly={creating && details}
                 autoComplete="username"
                 required
                 maxLength={320}
@@ -128,7 +141,7 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
                 }}
               />
             </div>
-            <div className="auth-field-row">
+            {(!creating || details) && <div className="auth-field-row">
               <div className="auth-label-row">
                 <label htmlFor="auth-password">Password</label>
                 {!creating && (
@@ -139,7 +152,6 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
               </div>
               <GlassInput
                 id="auth-password"
-                icon={LockKeyhole}
                 type="password"
                 required
                 autoComplete={creating ? 'new-password' : 'current-password'}
@@ -168,13 +180,12 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
                 <PasswordRequirement id="password-hint" value={password} tip="A few memorable words work well." />
               )}
               <CapsLockNote id="auth-password-caps" on={capsLock} />
-            </div>
-            {creating && (
+            </div>}
+            {creating && details && (
               <div className="auth-field-row">
                 <label htmlFor="sign-up-workspace">Workspace name</label>
                 <GlassInput
                   id="sign-up-workspace"
-                  icon={Layers2}
                   required
                   maxLength={120}
                   autoComplete="organization"
@@ -184,7 +195,7 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
                   onChange={(event) => setWorkspace(event.target.value)}
                 />
                 <small id="workspace-hint" className="field-hint">
-                  Your own private space for reviews. You’ll be its administrator.
+                  A name for your reviews. You’ll be the administrator.
                 </small>
               </div>
             )}
@@ -203,7 +214,6 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
             <GlassInput
               id="signup-code"
               className="auth-code-field"
-              icon={KeyRound}
               required
               autoComplete="one-time-code"
               autoCapitalize="none"
@@ -229,13 +239,13 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
                   ? 'Verifying your code…'
                   : 'Sending your code…'
                 : 'Signing in…'
-              : creating
+              : creating && !details ? 'Continue with email' : creating
                 ? requested
                   ? 'Verify and create account'
                   : 'Send sign-up code'
                 : credentialsRejected ? 'Try again' : 'Sign in'}
           </span>
-          {!pending && (requested ? <ArrowRight size={18} aria-hidden="true" /> : <ArrowUpRight size={18} aria-hidden="true" />)}
+          {!pending && <ArrowRight size={18} aria-hidden="true" />}
         </button>
         {requested && (
           <p className="auth-resend">
@@ -262,8 +272,8 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
       {!creating && !credentialsRejected && (
         <p className="auth-alt-action">
           <span>Invited to a workspace?</span>
-          <button type="button" className="auth-link" disabled={busy} onClick={() => onRecover(email)}>
-            Recover password
+          <button type="button" className="auth-link" disabled={busy} onClick={() => onRecover(email, true)}>
+            Use your invitation code
           </button>
         </p>
       )}

@@ -71,6 +71,7 @@ def native_inventory():
     provenance, packages = None, None
     if sys.platform == "linux":
         provenance = json.loads(Path("native-runtime.json").read_text("utf-8"))
+        assert importlib.metadata.version("Pillow") == provenance["pillow"]["version"]
         assert features.version("libtiff") == provenance["libtiff"]["version"] == "4.7.2"
         assert importlib.metadata.version("pypdfium2") == provenance["pypdfium2"]["version"]
         assert str(pypdfium2.PDFIUM_INFO) == provenance["pypdfium2"]["pdfium_version"]

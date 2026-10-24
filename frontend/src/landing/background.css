@@ -1,2 +1,0 @@
-.landing-background { position: absolute; inset: 0 0 auto; height: 880px; pointer-events: none; opacity: .12; background-image: url("data:image/svg+xml,%3Csvg width='32' height='32' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='1' cy='1' r='1' fill='%2396a59e'/%3E%3C/svg%3E"); }
-@media (forced-colors: active) { .landing-background { display: none; } }

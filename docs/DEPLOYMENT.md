@@ -91,6 +91,24 @@ status. Do not regenerate keys or restore an old database blindly. A code
 rollback does not reverse a schema migration; inspect migration compatibility
 and recover using a verified backup when necessary.
 
+### Upgrading to 0.2.0
+
+This release requires migration `0024`, which permits encrypted PDF layouts and
+literal TXT formatting records in `source_structures`. Apply migrations through
+head before serving the new application. Existing Word and historical CSV layouts remain
+readable; CSV imports, column controls and CSV exports are removed; PDF reviews created before this release do not gain retained page images
+automatically. Reimport a PDF to use its original page layout.
+
+Once PDF or TXT layout records have been created, do not roll back to an older
+application that cannot read them. Migration `0024` refuses a downgrade while
+those records exist. Preserve the database and content keys, and use a verified
+backup and recovery plan if a schema rollback becomes necessary.
+
+Reviewed PDFs are rebuilt as flattened page images, with a separate reviewed
+TXT export for accessible text. Confirm the page preview and exported PDF before
+cutover. See [file layout behavior and limits](FILE_LAYOUTS.md) for resolution,
+size limits, and the original PDF objects omitted from the export.
+
 When upgrading a deployment that previously derived limiter digests from its
 active content key, initialize the stable limiter key from that existing HKDF
 output before changing content keys. It uses SHA-256, 32 bytes, no salt, and

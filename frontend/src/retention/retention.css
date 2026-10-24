@@ -1,8 +1,25 @@
-.retention-overlay { position: fixed; inset: 0; z-index: 80; background: #0008; backdrop-filter: blur(4px); }
-.retention-dialog { position: fixed; z-index: 81; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(480px, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; padding: 1.5rem; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
-.retention-dialog h2 { margin: .6rem 0; }
-.retention-dialog > p { color: var(--muted); }
-.retention-dialog > label { display: block; margin: 1rem 0 .4rem; font-weight: 650; }
-.retention-proposed { font-size: .85rem; }
-.retention-buttons { display: flex; flex-wrap: wrap; justify-content: end; gap: .6rem; margin-top: 1.2rem; }
-@media (forced-colors: active) { .retention-overlay { background: Canvas; opacity: .7; } .retention-dialog { border-color: CanvasText; } }
+.studio-retention-dialog { width: min(520px, calc(100vw - 32px)); }
+.retention-dates { display: flex; align-items: center; gap: 12px; padding-bottom: 24px; margin-bottom: 24px; border-bottom: 1px solid var(--line); }
+.retention-dates > svg { flex: none; color: var(--muted); }
+.retention-date { flex: 1; min-width: 0; display: grid; gap: 10px; }
+.retention-date > span { color: var(--muted); font-size: 12px; }
+.retention-date > time { font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.retention-date small { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; font-weight: 400; }
+.retention-date.is-proposed > time { color: var(--blue); }
+.retention-preserved { display: flex; align-items: start; gap: 8px; margin: 24px 0 0; font-size: 12px; line-height: 1.7; color: var(--muted); }
+.retention-preserved > svg { flex: none; margin-top: 2px; }
+.retention-limit, .retention-error { display: flex; align-items: start; gap: 10px; font-size: 13px; line-height: 1.6; }
+.retention-limit > svg { flex: none; margin-top: 2px; color: var(--blue); }
+.retention-limit strong, .retention-error strong { color: var(--text); font-weight: 500; }
+.retention-limit p, .retention-error p { margin: 5px 0 0; color: var(--muted); }
+.retention-error { padding: 16px; border: 1px solid var(--line); border-radius: 6px; overflow-wrap: anywhere; }
+.retention-error > svg { flex: none; margin-top: 2px; color: var(--danger); }
+.retention-preserved + .retention-error { margin-top: 20px; }
+@media (max-width: 380px) {
+  .retention-dates { gap: 8px; }
+  .retention-date > time { font-size: 14px; }
+}
+@media (max-width: 600px) {
+  .studio-retention-dialog { width: calc(100vw - 16px); }
+  .studio-retention-dialog button { min-height: 44px; min-width: 44px; }
+}

@@ -2,6 +2,7 @@ import { useId, type ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { CheckCircle2, AlertCircle, RefreshCw, X } from 'lucide-react'
 import * as Dialog from '@radix-ui/react-dialog'
+import { cn } from './cn'
 import './workspace-controls.css'
 
 export function RefreshButton({ label, pending = false, disabled = false, onClick }: {
@@ -77,12 +78,19 @@ export function ChoiceSwitch({
   )
 }
 
-export function InlineNotice({ children, error = false }: { children: ReactNode; error?: boolean }) {
+export function InlineNotice({ children, error = false, title, actions }: {
+  children: ReactNode; error?: boolean; title?: string; actions?: ReactNode
+}) {
+  const titleId = useId()
   const Icon = error ? AlertCircle : CheckCircle2
   return (
-    <div className={`inline-notice${error ? ' is-error' : ''}`} role={error ? 'alert' : 'status'}>
+    <div className={cn('inline-notice', error && 'is-error')} role={error ? 'alert' : 'status'} aria-labelledby={title ? titleId : undefined}>
       <Icon size={16} aria-hidden="true" />
-      <div>{children}</div>
+      <div className="inline-notice-content">
+        {title && <strong className="inline-notice-title" id={titleId}>{title}</strong>}
+        <div className="inline-notice-message">{children}</div>
+        {actions && <div className="inline-notice-actions">{actions}</div>}
+      </div>
     </div>
   )
 }

@@ -37,9 +37,6 @@ class AuthorizedOutput:
     filename: str
     confirmed_at: datetime | None = None
     layout: dict | None = field(default=None, repr=False)
-    csv_cells: tuple[tuple[str, ...], ...] | None = field(default=None, repr=False)
-    csv_delimiter: str | None = None
-    prefixed_cells: int = 0
     report: dict | None = field(default=None, repr=False)
 
 
@@ -65,8 +62,24 @@ def _current_output(
             "review_not_completed", "The completed review no longer has a valid output."
         )
     layout = None
-    if format == "csv" and preview.csv_cells is None:
-        raise ExportConflict("CSV output requires an imported CSV document.")
+    if format == "pdf":
+        from app.db.crypto import ProtectedValue
+        from app.db.models import SourceRevision
+        from app.db.source_structures import load_file_layout
+        from app.exports.errors import PdfUnavailable
+        from app.intake.file_layout import review_file_layout
+        from app.workloads import render_slot
+
+        revision = session.get(SourceRevision, expected.source_revision_id)
+        source = keys.decrypt_text(ProtectedValue(revision.source_ciphertext, revision.source_key_id))
+        original_layout = load_file_layout(session, revision.id, keys, source)
+        if original_layout is not None and original_layout["kind"] == format:
+            if not render_slot.acquire(blocking=False):
+                raise PdfUnavailable("PDF generation is busy. Try again shortly.")
+            try:
+                layout = review_file_layout(original_layout, source, preview.text, preview.mappings)
+            finally:
+                render_slot.release()
     if format == "docx" and document.csv_delimiter is None:
         from app.db.models import SourceRevision
         from app.db.source_structures import load_word
@@ -90,8 +103,6 @@ def _current_output(
             ),
             confirmed_at=completion.confirmed_at,
             layout=layout,
-            csv_cells=preview.csv_cells,
-            csv_delimiter=document.csv_delimiter,
             report=_report(version, completion.confirmed_at, findings, preview)
             if findings
             else None,
@@ -231,12 +242,11 @@ def generate_output(
     keys: KeyRing,
     now: datetime,
     format: str = "txt",
-    variant: str = "spreadsheet_safe",
     maximum_bytes: int | None = None,
     reauthorize: Callable[[], object] | None = None,
 ) -> tuple[bytes, AuthorizedOutput]:
     started = perf_counter()
-    if format not in {"txt", "docx", "csv", "pdf", "report"}:
+    if format not in {"txt", "docx", "pdf", "report"}:
         raise ExportConflict("Choose a supported reviewed output format.")
     with Session(engine) as session, session.begin():
         document = owned_document(session, document_id, actor_id, now, lock=True)
@@ -244,9 +254,9 @@ def generate_output(
             reauthorize()
         output, completion = _current_output(session, document, expected, keys, format=format)
         if format == "pdf":
-            from app.exports.pdf import generate_pdf
+            from app.exports.pdf import generate_layout_pdf, generate_pdf
 
-            payload = generate_pdf(output.text, now)
+            payload = generate_layout_pdf(output.layout, now) if output.layout else generate_pdf(output.text, now)
         elif format == "report":
             from app.exports.report import generate_report
 
@@ -255,14 +265,6 @@ def generate_output(
             from app.exports.docx import generate_word
 
             payload = generate_word(output.text, output.layout, now)
-        elif format == "csv":
-            from dataclasses import replace
-
-            from app.exports.csv_export import generate_csv
-
-            csv = generate_csv(output.csv_cells, output.csv_delimiter, variant)
-            payload = csv.payload
-            output = replace(output, prefixed_cells=csv.prefixed_cells)
         else:
             payload = output.text.encode("utf-8")
         if maximum_bytes is not None and len(payload) > maximum_bytes:

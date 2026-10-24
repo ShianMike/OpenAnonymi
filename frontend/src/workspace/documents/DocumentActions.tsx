@@ -8,6 +8,7 @@ import { documentLabel } from './documentPresentation'
 export function DocumentActions({
   item,
   workspaceId,
+  search,
   unavailable,
   onDelete,
   preferencePending,
@@ -16,6 +17,7 @@ export function DocumentActions({
 }: {
   item: DocumentIndexView
   workspaceId: string
+  search: string
   unavailable: boolean
   onDelete: (item: DocumentIndexView, trigger: HTMLButtonElement | null) => void
   preferencePending: boolean
@@ -27,16 +29,6 @@ export function DocumentActions({
   const title = documentLabel(item)
   return (
     <div className="document-actions">
-      {!unavailable && (
-        <Link
-          className="document-open"
-          to={`/documents/${item.id}/edit`}
-          aria-label={`Open review: ${title}`}
-          title="Open review"
-        >
-          Open review <ArrowUpRight size={16} aria-hidden="true" />
-        </Link>
-      )}
       <Menu.Root modal={false}>
         <Menu.Trigger
           ref={triggerRef}
@@ -60,6 +52,9 @@ export function DocumentActions({
             }}
           >
             <Menu.Label className="document-menu-label">Document actions</Menu.Label>
+            {!unavailable && <Menu.Item asChild><Link to={`/documents/${item.id}/edit`} state={{ documentsSearch: search }}>
+              <ArrowUpRight size={16} aria-hidden="true" />{['ready', 'exported'].includes(item.status) ? 'Open review' : 'Continue review'}
+            </Link></Menu.Item>}
             <Menu.Item disabled={unavailable || preferencePending} onSelect={() => onPreference(item, { favorite: !item.favorite })}>
               <Star size={16} aria-hidden="true" /> {item.favorite ? 'Remove favorite' : 'Add favorite'}
             </Menu.Item>
@@ -67,12 +62,12 @@ export function DocumentActions({
               <Pin size={16} aria-hidden="true" /> {item.pinned ? 'Unpin review' : 'Pin review'}
             </Menu.Item>
             <Menu.Item asChild>
-              <Link to={`/workspaces/${workspaceId}/documents/${item.id}/history`}>
+              <Link to={`/workspaces/${workspaceId}/documents/${item.id}/history`} state={{ documentsSearch: search }}>
                 <History size={16} aria-hidden="true" /> Review history
               </Link>
             </Menu.Item>
             <Menu.Item disabled={!item.is_owner || unavailable || preferencePending} onSelect={() => { openingDialogRef.current = true; onRenew(item, triggerRef.current) }}>
-              <Clock3 size={16} aria-hidden="true" /> Renew retention
+              <Clock3 size={16} aria-hidden="true" /> Extend availability
             </Menu.Item>
             <Menu.Separator className="document-menu-separator" />
             <Menu.Item

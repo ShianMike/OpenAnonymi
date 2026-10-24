@@ -25,26 +25,26 @@ export function SourceConflictRecovery({ review }: { review: ReviewController })
       </p>
       {recovery.comparison ? (
         <div className="source-comparison">
-          <p>The saved source also changed. Compare it with your editor above before continuing.</p>
-          <h4 id="latest-source-title">Latest saved source</h4>
-          <pre className="source-comparison-text" tabIndex={0} aria-labelledby="latest-source-title">
-            {recovery.comparison.saved.text}
-          </pre>
+          <p>Compare both versions before deciding how to continue.</p>
+          <div className="source-comparison-panes">
+            <div><h4 id="local-source-title">Your unsaved text <span>In this tab</span></h4><pre className="source-comparison-text" tabIndex={0} role="region" aria-labelledby="local-source-title">{review.text}</pre></div>
+            <div><h4 id="latest-source-title">Latest saved text <span>On the server</span></h4><pre className="source-comparison-text" tabIndex={0} role="region" aria-labelledby="latest-source-title">{recovery.comparison.saved.text}</pre></div>
+          </div>
           <p>
             Continuing keeps your editor text. Saving a new revision will replace the current
             source and reset its findings and review confirmation.
           </p>
           <div className="source-conflict-actions">
+            <button type="button" disabled={review.actionPending || recovery.pending} onClick={recovery.cancel}>
+              Cancel comparison
+            </button>
             <button
               type="button"
               className="button-primary"
-              disabled={review.actionPending}
+              disabled={review.actionPending || recovery.pending}
               onClick={recovery.keepEdits}
             >
               Continue with my edits
-            </button>
-            <button type="button" disabled={review.actionPending} onClick={recovery.cancel}>
-              Cancel comparison
             </button>
           </div>
         </div>
@@ -57,7 +57,7 @@ export function SourceConflictRecovery({ review }: { review: ReviewController })
           <button
             type="button"
             className="button-primary"
-            disabled={review.actionPending}
+            disabled={review.actionPending || recovery.pending}
             onClick={() => void recovery.refresh()}
           >
             <RefreshCw size={15} aria-hidden="true" />

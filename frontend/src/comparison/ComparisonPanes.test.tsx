@@ -16,6 +16,11 @@ it('preserves escaped source text and disables change navigation when revisions 
   expect(html).toContain('&lt;updated@example.test&gt;')
   expect(html).not.toContain('<updated@example.test>')
   expect(html).toContain('Change 1: replace')
+  expect(html).toContain('Comparison layout')
+  expect(html).toContain('Side by side')
+  expect(html).toContain('Combined')
+  expect(html).toContain('comparison-sign" aria-hidden="true">−')
+  expect(html).toContain('comparison-sign" aria-hidden="true">+')
   const identical = renderToStaticMarkup(<ComparisonPanes value={{ ...value, changes: 0, added_lines: 0, removed_lines: 0,
     blocks: [{ ...value.blocks[0], kind: 'equal', change: null, right_text: value.blocks[0].left_text }] }} />)
   expect(identical).toContain('No source changes')

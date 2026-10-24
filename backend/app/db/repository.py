@@ -69,6 +69,7 @@ class LoadedSource:
     category_defaults: dict
     structure: str
     csv: dict | None = None
+    file_format: str | None = None
 
 
 def _version(document: Document) -> VersionRef:
@@ -228,7 +229,7 @@ def create_document_in_transaction(
     )
     session.add(revision)
     session.flush()
-    from app.db.source_structures import store_csv, store_word
+    from app.db.source_structures import store_csv, store_file_layout, store_word
 
     if layout is not None and layout_kind == "csv":
         from app.db.column_rules import load_preset_rules, store_rules
@@ -241,6 +242,8 @@ def create_document_in_transaction(
             else []
         )
         store_rules(session, document, rules, validated.text, layout, keys)
+    elif layout is not None and layout_kind in {"pdf", "txt"}:
+        store_file_layout(session, revision.id, layout, validated.text, keys, now)
     else:
         store_word(session, revision.id, layout, validated.text, keys, now)
     document.current_revision_id = revision.id
@@ -294,7 +297,8 @@ def build_current_source(
     )
     from app.db.source_structures import SourceStructure
 
-    structure = "kept" if session.get(SourceStructure, revision.id) else "none"
+    stored_layout = session.get(SourceStructure, revision.id)
+    structure = "kept" if stored_layout else "none"
     from app.intake.csv_service import csv_info
 
     csv = csv_info(session, document, text, keys) if document.csv_delimiter is not None else None
@@ -315,6 +319,7 @@ def build_current_source(
         deepcopy(document.category_defaults),
         structure,
         csv,
+        stored_layout.kind if stored_layout else None,
     )
 
 
@@ -348,6 +353,9 @@ def append_source_revision(
         from app.intake.structure import realign_word
 
         old_layout, new_layout = None, None
+        file_structure = session.get(SourceStructure, current.source_revision_id)
+        if file_structure is not None and file_structure.kind == "pdf":
+            raise SourceValidationError("This file keeps its original layout. Apply review decisions or upload a revised file to change its source.")
         if session.get(SourceStructure, current.source_revision_id) is not None:
             old_revision = session.get(SourceRevision, current.source_revision_id)
             old_text = keys.decrypt_text(
@@ -407,6 +415,10 @@ def append_source_revision(
         session.flush()
         if document.csv_delimiter is not None:
             store_csv(session, revision.id, new_layout, validated.text, keys, now)
+        elif file_structure is not None and file_structure.kind == "txt":
+            from app.db.source_structures import store_file_layout
+
+            store_file_layout(session, revision.id, {"v": 1, "kind": "txt"}, validated.text, keys, now)
         else:
             store_word(session, revision.id, new_layout, validated.text, keys, now)
         document.current_revision_id = revision.id

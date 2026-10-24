@@ -5,7 +5,7 @@ const destinations = ['/', '/continue', '/new', '/documents', '/activity', '/rul
 
 /** Public auth links accept only an existing, same-app destination. */
 export function authDestination(search: string, signingUp: boolean, origin = window.location.origin) {
-  const fallback = signingUp ? '/new' : '/continue'
+  const fallback = signingUp ? '/new' : '/documents'
   const next = new URLSearchParams(search).get('next')
   if (!next || !next.startsWith('/') || next.startsWith('//') || Array.from(next).some((character) => character === '\\' || character.charCodeAt(0) <= 32)) return fallback
   const url = new URL(next, origin)

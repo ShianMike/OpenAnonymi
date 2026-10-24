@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { ArrowLeft, ArrowUpRight, KeyRound, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, ArrowRight } from 'lucide-react'
 import {
   ApiRequestError, finishForcedEnrollment, finishSecondFactor, startForcedEnrollment,
   type ChallengeView, type EnrollmentView, type SessionView,
@@ -81,7 +81,7 @@ export function AuthSecondStep({ challenge, onSignedIn, onRestart, onRecover, on
             {pending && <LoadingMark small />}
             {pending ? 'Preparing setup…' : 'Set up authenticator'}
           </span>
-          {!pending && <ArrowUpRight size={18} aria-hidden="true" />}
+          {!pending && <ArrowRight size={18} aria-hidden="true" />}
         </button>
       )}
       {enrollment && <AuthenticatorSetup enrollment={enrollment} />}
@@ -99,7 +99,7 @@ export function AuthSecondStep({ challenge, onSignedIn, onRestart, onRecover, on
                   </button>
                 )}
               </div>
-              <GlassInput id="second-step-code" className="auth-code-field" icon={backup ? KeyRound : ShieldCheck}
+              <GlassInput id="second-step-code" className="auth-code-field"
                 value={code} onChange={(event) => setCode(event.target.value)}
                 autoComplete="one-time-code" inputMode={backup ? 'text' : 'numeric'} spellCheck={false}
                 required maxLength={64} aria-describedby="second-step-help" />
@@ -114,7 +114,7 @@ export function AuthSecondStep({ challenge, onSignedIn, onRestart, onRecover, on
                 {pending && <LoadingMark small />}
                 {pending ? 'Verifying…' : enrolling ? 'Enable and continue' : 'Verify sign-in'}
               </span>
-              {!pending && <ArrowUpRight size={18} aria-hidden="true" />}
+              {!pending && <ArrowRight size={18} aria-hidden="true" />}
             </button>
           </fieldset>
         </form>

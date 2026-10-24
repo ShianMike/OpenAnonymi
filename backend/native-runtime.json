@@ -1,8 +1,8 @@
 {
   "pillow": {
-    "version": "12.3.0",
+    "version": "13.0.0",
     "source": "locked PyPI sdist from uv.lock",
-    "source_sha256": "3b8182a766685eaa002637e28b4ec8d6b18819a0c71f579bf0dbaa5830297cce",
+    "source_sha256": "cdcd1ba258178f7356d74170c9a81ba4eab6a5d55748bc402a5a2a6fe6be3510",
     "build": "uv sync --locked --no-binary-package pillow"
   },
   "libtiff": {

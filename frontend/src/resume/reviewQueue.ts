@@ -16,11 +16,11 @@ export function reviewQueue(items: DocumentIndexView[], lastId: string | null, n
 }
 
 export function reviewNextStep(item: DocumentIndexView): string {
-  if (item.status === 'draft') return item.is_owner ? 'Find private details, then choose what to share.' : 'Check the text while the owner prepares suggestions.'
-  if (item.status === 'scanning') return 'Checking for private details. Open for the latest progress.'
-  if (item.status === 'failed') return item.is_owner ? 'Run the check again, then review each detail.' : 'The owner can run the check again. You can still review the text.'
-  if (['ready', 'exported'].includes(item.status)) return item.is_owner ? 'Open the reviewed text and sharing options.' : 'The owner has confirmed. Read the text before approving.'
+  if (item.status === 'draft') return item.is_owner ? 'Find private details to review.' : 'Waiting for the owner’s scan.'
+  if (item.status === 'scanning') return 'The scan is running.'
+  if (item.status === 'failed') return item.is_owner ? 'Run the scan again.' : 'The owner needs to retry the scan.'
+  if (['ready', 'exported'].includes(item.status)) return item.is_owner ? 'Ready to share.' : 'Read and approve the output.'
   const remaining = Math.max(0, item.finding_count - item.decided_count)
   if (remaining) return `${remaining} ${remaining === 1 ? 'detail needs' : 'details need'} your choice.`
-  return item.is_owner ? 'Read the reviewed text, then confirm.' : 'The owner needs to confirm before you can approve.'
+  return item.is_owner ? 'Read and confirm the output.' : 'Waiting for the owner’s confirmation.'
 }

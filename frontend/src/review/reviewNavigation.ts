@@ -25,7 +25,7 @@ export function createReviewNavigation({ state, findings, blocked, selectedFindi
       const card = document.getElementById(`finding-${findingId}`)
       if (card && card.getClientRects().length > 0) card.scrollIntoView({ block: 'nearest', inline: 'nearest' })
       const panel = document.getElementById(target === 'source' ? 'review-original-panel' : 'review-preview-panel')
-      const mark = panel?.querySelector<HTMLButtonElement>(`.inline-finding[data-finding-id="${CSS.escape(findingId)}"]`)
+      const mark = panel?.querySelector<HTMLButtonElement>(`button[data-finding-id="${CSS.escape(findingId)}"]`)
       mark?.scrollIntoView({ block: 'center', inline: 'nearest' })
       mark?.focus({ preventScroll: true })
     })

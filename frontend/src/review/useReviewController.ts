@@ -1,6 +1,5 @@
 import { createReviewDecisionActions } from './reviewDecisionActions'
 import { useDecisionQueue } from './useDecisionQueue'
-import { createReviewCsvActions } from './reviewCsvActions'
 import { useUndoState } from './useUndoState'
 import { createReviewScanActions } from './reviewScanActions'
 import { pollScan } from './scanPolling'
@@ -20,7 +19,6 @@ import {
   ApiConflictError,
   ApiRequestError,
   addManualFinding,
-  getDraft,
   getExactMatches,
   getPreview,
   getScan,
@@ -82,7 +80,8 @@ export function useReviewController(session: SessionView) {
   const [categoryFilter, setCategoryFilter] = useState<FindingCategory | 'all'>('all')
   const [decisionFilter, setDecisionFilter] = useState<'all' | 'pending' | 'decided'>('all')
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null)
-  const [mobilePanel, setMobilePanel] = useState<'original' | 'preview' | 'findings'>('original')
+  const [mobilePanel, setMobilePanel] = useState<'original' | 'preview' | 'findings'>(new URLSearchParams(location.search).get('view') === 'output' ? 'preview' : 'original')
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [editingSource, setEditingSource] = useState(false)
   const [plainPreview, setPlainPreview] = useState(false)
   const [findingPending, setFindingPending] = useState(false)
@@ -255,6 +254,7 @@ export function useReviewController(session: SessionView) {
         setSelectedFindingId(null)
         setEditingSource(false)
         setPlainPreview(false)
+        setSettingsOpen(false)
         setError(typeof location.state?.scanError === 'string' ? location.state.scanError : null)
         if (location.state?.scanError) navigate(location.pathname + location.search + location.hash, { replace: true, state: null })
         setConflict(false)
@@ -306,20 +306,6 @@ export function useReviewController(session: SessionView) {
     setConflict,
     onSaved: async (saved, source) => {
       if (state.kind !== 'ready' || !documentId) return
-      let csv = state.saved.csv
-      if (csv) {
-        resetSourceReview()
-        setPreview(null)
-        setFindings(null)
-        try {
-          const latest = await getDraft(documentId)
-          if (!sameVersion(latest.version, saved.version) || !latest.csv) throw new Error('Review changed.')
-          csv = latest.csv
-        } catch {
-          setConflict(true)
-          throw new Error('Source saved, but its CSV cells could not be refreshed. Reload the saved review.')
-        }
-      }
       await recovery.clear().catch(() => {
         setNotice('Source saved. An older working backup remains available until it expires.')
       })
@@ -332,7 +318,6 @@ export function useReviewController(session: SessionView) {
           status: saved.status,
           expires_at: saved.expires_at,
           structure: saved.structure,
-          csv,
         },
       })
       setConflict(false)
@@ -410,14 +395,15 @@ export function useReviewController(session: SessionView) {
     dirty,
     findingIds: activeFindings.map((item) => item.finding_id),
     location: { panel: mobilePanel, category: categoryFilter, decision: decisionFilter,
-      finding: selectedFindingId, editing: editingSource, plainPreview },
+      finding: selectedFindingId, editing: editingSource, plainPreview, settingsOpen },
     apply: (saved) => {
-      setMobilePanel(saved.editing && dirty ? 'original' : saved.panel)
+      setMobilePanel(saved.editing && dirty ? 'original' : new URLSearchParams(location.search).get('view') === 'output' ? 'preview' : saved.panel)
       setCategoryFilter(saved.category)
       setDecisionFilter(saved.decision)
       setSelectedFindingId(saved.finding)
       setEditingSource(saved.editing)
       setPlainPreview(saved.plainPreview)
+      setSettingsOpen(saved.settingsOpen)
     },
   })
   const currentReview =
@@ -581,11 +567,6 @@ export function useReviewController(session: SessionView) {
     decisionBlocked, enqueueDecision: decisions.enqueue,
   })
 
-  const csvActions = createReviewCsvActions({
-    state, blocked: actionPending || conflict || dirty || settingsDirty, canManagePresets,
-    csrf: session.csrf_token, resetReview: resetSourceReview, refreshPreview, setState,
-    setSettingsPending, setFindingPending, setError, setNotice, setConflict, setScan, setFindings,
-  })
   const { changeReview, undoReview, useLatestDefaults } = decisionActions
   function confirmGroupDecision() { lastFocusedRef.current = groupTriggerRef.current; decisionActions.confirmGroupDecision() }
   function cancelGroupDecision() { decisionActions.cancelGroupDecision(); requestAnimationFrame(() => groupTriggerRef.current?.focus()) }
@@ -627,7 +608,6 @@ export function useReviewController(session: SessionView) {
     },
     canEdit,
     canManagePresets,
-    ...csvActions,
     handoff,
     recovery,
     actionPending,
@@ -671,6 +651,8 @@ export function useReviewController(session: SessionView) {
     manualCategory,
     mergeTargets,
     mobilePanel,
+    settingsOpen,
+    setSettingsOpen,
     nextUnresolved,
     notice,
     pending,

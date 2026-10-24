@@ -2,7 +2,7 @@ import type { SourceView, SourceSpan, VersionRef, StyleChoice, ReviewedFormat } 
 
 export type ReviewedDownload = {
   url: string; filename: string; version: VersionRef;
-  format: ReviewedFormat; variant?: 'spreadsheet_safe' | 'unmodified'; prefixed?: number;
+  format: ReviewedFormat;
 }
 
 export type DraftState =

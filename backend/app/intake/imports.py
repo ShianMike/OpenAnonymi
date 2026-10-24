@@ -1,4 +1,4 @@
-"""Bounded, transient PDF/DOCX text extraction. No original file is persisted."""
+"""Bounded file extraction. Originals are discarded; safe review layouts can be retained."""
 
 import io
 import logging
@@ -128,29 +128,24 @@ def _pdf(content: bytes, include_previews: bool = False) -> ImportedText:
             if chars > MAX_CODE_POINTS:
                 raise SourceValidationError("Extracted text exceeds the 100,000-character limit.")
             pieces.append(text.rstrip("\n"))
-        previews = ()
-        if ocr_pages:
-            from app.intake.ocr import extract_ocr
+        from app.intake.file_layout import validate_file_layout
+        from app.intake.ocr import extract_ocr
 
-            if len(ocr_pages) > 10:
-                raise SourceValidationError("OCR supports at most 10 scanned pages per file.")
-            result = extract_ocr(content, "pdf", tuple(ocr_pages), include_previews=include_previews)
-            previews = tuple(ImportedPagePreview(**page) for page in result.get("page_previews", []))
-            for index in ocr_pages:
-                pieces[index] = result["pages"][str(index)]
-        text = "\n\n".join(pieces)
-        if not text.strip():
-            raise SourceValidationError(
-                "OCR found no readable text. Choose a clearer scan or paste the text."
-            )
+        if len(ocr_pages) > 10:
+            raise SourceValidationError("OCR supports at most 10 scanned pages per file.")
+        result = extract_ocr(content, "layout_pdf", tuple(ocr_pages))
+        source = validate_source(result["text"])
+        layout = validate_file_layout(result["layout"], source.text)
+        previews = tuple(ImportedPagePreview(index+1, "data:image/png;base64," + page["image"])
+                         for index, page in enumerate(layout["pages"])) if include_previews else ()
         notes = [
-            "PDF reading order and spacing can differ. Check the extracted text before reviewing."
+            "PDF pages keep their layout. Reviewed PDF downloads are flattened images with private details removed; original text layers, annotations and attachments are not copied."
         ]
         if ocr_pages:
             notes.append(
-                f"Local English OCR checked {len(ocr_pages)} scanned or illustrated pages. Correct missing or misread text before saving."
+                f"Local English OCR checked {len(ocr_pages)} scanned or illustrated pages. Compare the extracted text with every page. If text is missing or misread, upload a clearer file or review a corrected text copy."
             )
-        return ImportedText(validate_source(text), "pdf", count, tuple(notes), page_previews=previews)
+        return ImportedText(source, "pdf", count, tuple(notes), layout, previews)
 
 
 def _docx(content: bytes) -> ImportedText:
@@ -205,22 +200,10 @@ def _docx(content: bytes) -> ImportedText:
 
 
 def extract_import(
-    filename: str | None, content: bytes, csv_delimiter="auto", csv_header="auto",
+    filename: str | None, content: bytes,
     *, include_previews: bool = False,
 ) -> ImportedText:
     suffix = PurePath(filename or "").suffix.lower()
-    if suffix == ".csv":
-        from app.contracts import MAX_UTF8_BYTES
-        from app.intake.csv_structure import parse_csv
-
-        if not content or len(content) > MAX_UTF8_BYTES:
-            raise SourceValidationError("CSV files must be nonempty and no larger than 1 MiB.")
-        try:
-            decoded = content.decode("utf-8", errors="strict")
-        except UnicodeDecodeError:
-            raise SourceValidationError("CSV files must be encoded as UTF-8 text.") from None
-        parsed = parse_csv(decoded, csv_delimiter, csv_header)
-        return ImportedText(parsed.source, "csv", None, (), parsed.layout)
     if suffix == ".md":
         return ImportedText(
             validate_txt_file("source.txt", content),
@@ -231,11 +214,11 @@ def extract_import(
             ),
         )
     if suffix == ".txt":
-        return ImportedText(validate_txt_file(filename, content), "txt", None, ())
+        return ImportedText(validate_txt_file(filename, content), "txt", None, (), {"v": 1, "kind": "txt"})
     images = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp"}
     if suffix not in {".pdf", ".docx", *images}:
         raise SourceValidationError(
-            "Choose TXT, Markdown, CSV, PDF, DOCX, PNG, JPEG, TIFF or WebP."
+            "Choose TXT, Markdown, PDF, DOCX, PNG, JPEG, TIFF or WebP."
         )
     if not content or len(content) > MAX_FILE_BYTES:
         raise SourceValidationError(
@@ -270,18 +253,11 @@ def edit_import(imported: ImportedText, text: str | None) -> ImportedText:
     if text is None or text == imported.source.text:
         return imported
     source = validate_source(text)
+    if imported.format == "pdf":
+        raise SourceValidationError("This file keeps its original layout. Review or mark its text after importing; upload a revised file to change the source.")
     layout = None
-    if imported.format == "csv":
-        from app.intake.csv_structure import CsvError, parse_csv
-
-        layout = parse_csv(
-            source.text,
-            imported.layout["delimiter"],
-            "true" if imported.layout["has_header"] else "false",
-            remove_bom=False,
-        ).layout
-        if layout["columns"] != imported.layout["columns"]:
-            raise CsvError("csv_structure_invalid", "Keep the same CSV column count before saving.")
+    if imported.format == "txt":
+        layout = imported.layout
     elif imported.layout is not None and imported.format == "docx":
         from app.intake.structure import realign_word
 

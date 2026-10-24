@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { ArrowLeft, FileText, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, ChevronDown } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Brand } from '../ui/Brand'
 import { AppCredit } from '../ui/AppCredit'
@@ -40,16 +40,20 @@ export function LegalPage({ notice }: { notice: 'terms' | 'privacy' }) {
     heading.current?.focus()
     return () => { document.title = previousTitle }
   }, [title])
-  const Icon = isPrivacy ? ShieldCheck : FileText
+  const contents = sections.map(({ id, title: sectionTitle }) => <a key={id} href={`#${id}`}>{sectionTitle}</a>)
   return <div className="legal-page">
     <a className="skip-link" href="#main-content">Skip to content</a>
     <header className="legal-masthead"><Link to="/welcome" aria-label="OpenAnonymi home"><Brand /></Link><Link to="/welcome"><ArrowLeft size={16} aria-hidden="true" /> Back to home</Link></header>
     <main id="main-content" className="legal-main">
       <nav className="legal-tabs" aria-label="Service notices"><Link to="/terms" aria-current={!isPrivacy ? 'page' : undefined}>Terms of Service</Link><Link to="/privacy" aria-current={isPrivacy ? 'page' : undefined}>Privacy Notice</Link></nav>
-      <div className="legal-heading"><Icon size={26} aria-hidden="true" /><p>OpenAnonymi · Service information</p><h1 ref={heading} tabIndex={-1}>{title}</h1><p>{isPrivacy ? 'What is processed, who can access it, and the choices you have.' : 'What to expect from the service, and what stays in your hands.'}</p><small>Last updated <time dateTime="2026-10-09">9 October 2026</time></small></div>
+      <details className="legal-mobile-contents"><summary>On this page<ChevronDown size={15} aria-hidden="true" /></summary><nav aria-label="On this page">{contents}</nav></details>
       <div className="legal-layout">
-        <nav className="legal-contents" aria-label="On this page"><strong>On this page</strong>{sections.map(({ id, title: sectionTitle }) => <a key={id} href={`#${id}`}>{sectionTitle}</a>)}</nav>
-        <article>{sections.map(({ id, title: sectionTitle, content }) => <section key={id} id={id} aria-labelledby={`${id}-title`}><h2 id={`${id}-title`}>{sectionTitle}</h2>{content}</section>)}<div className="legal-contact"><ShieldCheck size={20} aria-hidden="true" /><div><strong>Need a hand?</strong><p>Account, support, and privacy requests: {support}</p></div></div></article>
+        <nav className="legal-contents" aria-label="On this page"><strong>On this page</strong>{contents}</nav>
+        <article>
+          <header className="legal-heading"><p>Service information</p><h1 ref={heading} tabIndex={-1}>{title}</h1><p>{isPrivacy ? 'What is processed, who can access it, and the choices you have.' : 'What to expect from the service, and what stays in your hands.'}</p><small>Last updated <time dateTime="2026-10-09">9 October 2026</time></small></header>
+          {sections.map(({ id, title: sectionTitle, content }) => <section key={id} id={id} aria-labelledby={`${id}-title`}><h2 id={`${id}-title`}>{sectionTitle}</h2>{content}</section>)}
+          <div className="legal-contact"><strong>Need a hand?</strong><p>Account, support, and privacy requests: {support}</p><a href="#main-content">Back to top ↑</a></div>
+        </article>
       </div>
     </main>
     <footer className="legal-footer"><AppCredit /></footer>

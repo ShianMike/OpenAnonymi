@@ -1,69 +1,90 @@
-import { useState, type CSSProperties } from 'react'
-import * as Tabs from '@radix-ui/react-tabs'
-import { ArrowUpRight, Check, Clock3, FileText, Image, LockKeyhole, MessageSquare, Minus, ScanText, Table2, Tag } from 'lucide-react'
-import { Link } from 'react-router-dom'
-import { cn } from '../ui/cn'
+import type { CSSProperties } from 'react'
+import {
+  ArrowRight, AtSign, Building2, CalendarDays, Check, Hash, House, IdCard, Image, KeyRound, Link2,
+  MapPin, MessageSquare, Minus, Phone, Layers, Tag, UserRound, type LucideIcon,
+} from 'lucide-react'
 import './story.css'
 
-const steps = [
-  { number: '01', Icon: FileText, title: 'Import', text: 'Text or files' },
-  { number: '02', Icon: ScanText, title: 'Review', text: 'Your decisions' },
-  { number: '03', Icon: Check, title: 'Share', text: 'Confirm & export' },
+const decisions: { action: 'label' | 'redact' | 'keep'; Icon: LucideIcon; name: string; from: string; to: string }[] = [
+  { action: 'label', Icon: Tag, name: 'Replace', from: 'research.participant@example.test', to: 'EMAIL_001' },
+  { action: 'redact', Icon: Minus, name: 'Hide', from: '+1 202-555-0147', to: '[REDACTED]' },
+  { action: 'keep', Icon: Check, name: 'Keep', from: '14 October 2026', to: '14 October 2026' },
 ]
 
-const formats = [
-  { name: 'TXT', Icon: FileText }, { name: 'PDF', Icon: FileText },
-  { name: 'DOCX', Icon: FileText }, { name: 'CSV', Icon: Table2 },
-  { name: 'MD', Icon: FileText }, { name: 'IMAGE', Icon: Image },
+const detectable = [
+  { Icon: UserRound, label: 'People' }, { Icon: AtSign, label: 'Emails' }, { Icon: Phone, label: 'Phone numbers' },
+  { Icon: House, label: 'Addresses' }, { Icon: Building2, label: 'Organizations' }, { Icon: MapPin, label: 'Places' },
+  { Icon: CalendarDays, label: 'Dates' }, { Icon: Link2, label: 'Web addresses' }, { Icon: Hash, label: 'Identifiers' },
+  { Icon: IdCard, label: 'National IDs' }, { Icon: KeyRound, label: 'Secrets' },
 ]
 
-export function WorkflowStory({ signedIn }: { signedIn: boolean }) {
-  const [teamMode, setTeamMode] = useState('solo')
+const tracks = [
+  { name: 'On your own', steps: ['Decide', 'Read', 'Confirm and export'] },
+  { name: 'With a teammate', steps: ['Decide', 'Owner confirms', 'Reviewer approves'] },
+]
+
+const delay = (index: number) => ({ '--reveal-delay': index }) as CSSProperties
+
+/** Lets an email wrap after its @ on narrow screens instead of mid-word. */
+function Breakable({ text }: { text: string }) {
+  const at = text.indexOf('@')
+  return at < 0 ? text : <>{text.slice(0, at + 1)}<wbr />{text.slice(at + 1)}</>
+}
+
+export function WorkflowStory() {
   return (
     <>
-      <section id="how-it-works" className="landing-process landing-container" aria-labelledby="process-title">
-        <h2 id="process-title" className="sr-only">From draft to share</h2>
-        <div className="landing-process-steps">
-          {steps.map(({ number, Icon, title, text }) => <article className="landing-process-step" key={number} data-landing-reveal>
-            <div className="landing-step-top"><Icon size={24} strokeWidth={1.5} aria-hidden="true" /></div>
-            <h3>{title}</h3><p>{text}</p>
-          </article>)}
-        </div>
-      </section>
-      <section className="landing-care landing-container" aria-labelledby="care-title">
-        <div className="landing-section-heading" data-landing-reveal><h2 id="care-title">Privacy in the details.</h2></div>
-        <div className="landing-bento-grid">
-          <article className="landing-feature landing-feature-decisions" data-landing-reveal>
-            <div className="bento-findings" aria-hidden="true">
-              <div className="privacy-ticket privacy-ticket-label"><Tag size={23} strokeWidth={1.5} /><small>Label</small><span>Maya Chen</span><strong>PERSON_001</strong></div>
-              <div className="privacy-ticket privacy-ticket-redact"><Minus size={23} strokeWidth={1.5} /><small>Redact</small><div className="privacy-redaction-bars"><i /><i /></div><strong>[REDACTED]</strong></div>
-              <div className="privacy-ticket privacy-ticket-keep"><Check size={23} strokeWidth={1.5} /><small>Keep</small><div className="privacy-note-lines"><i /><i /></div><strong>Useful feedback</strong></div>
-            </div>
-            <h3>Decide what stays.</h3>
-            <span className="sr-only">Label a detail, redact it, or keep it. You can also mark details manually.</span>
-          </article>
-          <article className="landing-feature landing-feature-protection" data-landing-reveal>
-            <div className="landing-care-art" aria-hidden="true"><div className="privacy-vault"><LockKeyhole size={48} strokeWidth={1.2} /><div className="privacy-note-lines"><i /><i /><i /></div></div></div>
-            <h3>Encrypted drafts.</h3><span className="landing-expiry"><Clock3 size={14} aria-hidden="true" /> Automatic expiry</span>
-          </article>
-          <article className="landing-feature landing-feature-imports" data-landing-reveal>
-            <div className="bento-files" aria-hidden="true">{formats.map(({ name, Icon }, index) => <span key={name} style={{ '--file-order': index } as CSSProperties}><Icon size={28} strokeWidth={1.2} /><strong>{name}</strong><div className="privacy-note-lines"><i /><i /></div></span>)}</div>
-            <h3>Bring your draft.</h3><small className="landing-format-list">TXT · PDF · DOCX · CSV · MD · Images</small>
-          </article>
-          <article className="landing-feature landing-together" aria-labelledby="together-title" data-landing-reveal>
-            <div className="landing-together-copy"><h3 id="together-title">A second pair<br />of eyes.</h3><Link className="landing-inline-link" to={signedIn ? '/continue' : '/sign-in?next=%2Fcontinue'}>Continue review <ArrowUpRight size={16} aria-hidden="true" /></Link></div>
-            <Tabs.Root className="landing-team-demo" value={teamMode} onValueChange={setTeamMode}>
-              <Tabs.List aria-label="Review workflow"><Tabs.Trigger value="solo">On your own</Tabs.Trigger><Tabs.Trigger value="team">With a teammate</Tabs.Trigger></Tabs.List>
-              <div className="landing-team-content">
-                {['solo', 'team'].map((mode) => <Tabs.Content forceMount key={mode} value={mode} aria-hidden={mode !== teamMode} inert={mode !== teamMode}>
-                  <ol className="landing-team-steps">{(mode === 'team' ? ['Decide', 'Owner confirms', 'Reviewer approves'] : ['Decide', 'Read', 'Confirm & export']).map((text, index) => <li key={text}><span className={cn('landing-team-step-number', index === 0 && 'is-current')}>{index === 0 ? <Check size={18} aria-hidden="true" /> : index + 1}</span>{text}</li>)}</ol>
-                  <div className="landing-team-note"><MessageSquare size={14} aria-hidden="true" />{mode === 'team' ? 'Protected comments · Owner exports' : 'Save now. Return later.'}</div>
-                </Tabs.Content>)}
+      <section id="features" className="landing-section landing-features" aria-labelledby="features-title">
+        <div className="landing-container">
+          <header className="landing-section-head" data-landing-reveal>
+            <h2 id="features-title">Privacy in the details.</h2>
+            <p>Suggestions do the searching. You make every call.</p>
+          </header>
+          <div className="landing-bento">
+            <article id="how-it-works" className="bento-cell bento-decide" data-landing-reveal>
+              <h3>Decide what stays.</h3>
+              <p>Use a category label or another replacement style, hide the value, or keep it with a reason. Add any details the scan misses.</p>
+              <ul className="bento-art decide-rows" aria-label="Example decisions">
+                {decisions.map(({ action, Icon, name, from, to }) => <li className="decide-row" key={action} data-action={action}>
+                  <span className="decide-action"><Icon size={15} aria-hidden="true" />{name}</span>
+                  <span className="decide-from"><Breakable text={from} /></span>
+                  <ArrowRight className="decide-arrow" size={15} aria-hidden="true" />
+                  <span className="decide-to"><span className="landing-out" data-action={action}>{to}</span>
+                    {action === 'keep' && <span className="decide-reason">with a reason</span>}</span>
+                </li>)}
+              </ul>
+            </article>
+            <article className="bento-cell bento-detect" data-landing-reveal style={delay(1)}>
+              <h3>Built-in detection.</h3>
+              <p>Choose what to look for, from names and emails to IDs and secrets. Add anything it misses.</p>
+              <ul className="bento-art detect-chips" aria-label="Detail types">
+                {detectable.map(({ Icon, label }) => <li key={label}><Icon size={14} aria-hidden="true" />{label}</li>)}
+              </ul>
+            </article>
+            <article className="bento-cell bento-scan" data-landing-reveal>
+              <h3>Scans and PDFs, too.</h3>
+              <p>Review findings on the page and keep its appearance in the PDF export. Redactions are flattened into page images, without the original text layer.</p>
+              <div className="bento-art scan-art" aria-hidden="true">
+                <div className="scan-page scan-page-source"><Image size={16} /><i /><i /><i /><i /><i /></div>
+                <ArrowRight className="scan-arrow" size={16} />
+                <div className="scan-page scan-page-text"><Layers size={16} /><i /><i /><i className="is-found" /><i /><i /></div>
               </div>
-            </Tabs.Root>
-          </article>
+            </article>
+            <article className="bento-cell bento-team" data-landing-reveal style={delay(1)}>
+              <h3>A second pair of eyes.</h3>
+              <p>Assign a workspace teammate to review findings and discuss decisions. Require their approval of the exact version before you export.</p>
+              <div className="bento-art team-tracks">
+                {tracks.map(({ name, steps: trackSteps }) => <div className="team-track" key={name}>
+                  <h4>{name}</h4>
+                  <ol>{trackSteps.map((text, index) => <li key={text} data-done={index === 0}>
+                    {index === 0 && <Check size={14} strokeWidth={2.4} aria-hidden="true" />}{text}
+                  </li>)}</ol>
+                </div>)}
+                <p className="team-note"><MessageSquare size={14} aria-hidden="true" />Protected comments. Only the owner exports.</p>
+              </div>
+            </article>
+          </div>
         </div>
-        <p className="landing-care-note">Suggestions can miss details. Review before sharing.</p>
       </section>
     </>
   )

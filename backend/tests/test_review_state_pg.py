@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db.crypto import KeyRing
 from app.db.models import Document, Membership, ScanRun, SourceRevision
-from tests.csv_support import upload_csv
+from tests.csv_support import legacy_csv
 from tests.docx_fixtures import simple_docx
 from tests.docx_support import confirm, mark, upload
 from tests.intake_support import _draft_body, _login
@@ -20,7 +20,7 @@ def prepare(site, kind="pasted"):
     headers = _login(owner, "intake-owner@example.invalid")
     _login(other, "intake-other@example.invalid")
     if kind == "csv":
-        base, findings, source = upload_csv(
+        base, findings, source = legacy_csv(
             owner, headers, workspace, "Contact,Note\nnora@example.test,Fictional 😀\n"
         )
     elif kind == "docx":

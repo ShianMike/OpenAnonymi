@@ -225,7 +225,7 @@ def _validated_selection(
 
 
 def _require_block(session, version, source, span, keys):
-    from app.db.source_structures import load_csv, load_word
+    from app.db.source_structures import load_csv, load_review_blocks
     from app.intake.csv_structure import CsvError, span_cell
     from app.intake.structure import allows_span
 
@@ -244,11 +244,11 @@ def _require_block(session, version, source, span, keys):
         except CsvError as exc:
             raise ReviewValidationError(exc.code, str(exc)) from None
         return
-    layout = load_word(session, version.source_revision_id, keys, len(source), source)
+    layout = load_review_blocks(session, version.source_revision_id, keys, source)
     if not allows_span(layout, source, span.start, span.end):
         raise ReviewValidationError(
             "finding_crosses_block",
-            "Select text within one Word paragraph or table cell, without line breaks or tabs.",
+            "Select text within one paragraph or spreadsheet cell, without line breaks or tabs.",
         )
 
 
@@ -279,7 +279,7 @@ def exact_matches(
         )
         needle = source[finding.start_offset : finding.end_offset]
         occupied = _rows(session, version)
-        from app.db.source_structures import load_csv, load_word
+        from app.db.source_structures import load_csv, load_review_blocks
         from app.intake.csv_structure import CsvError, span_cell
         from app.intake.structure import allows_span
 
@@ -296,7 +296,7 @@ def exact_matches(
             else None
         )
         layout = (
-            load_word(session, version.source_revision_id, keys, len(source), source)
+            load_review_blocks(session, version.source_revision_id, keys, source)
             if csv_layout is None
             else None
         )

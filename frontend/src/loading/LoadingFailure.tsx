@@ -1,8 +1,9 @@
-import { EntranceFrame } from './EntranceFrame'
+import { BootFrame } from './BootFrame'
+import type { BootTone } from './bootScreen'
 import './loading.css'
 
-export function LoadingFailure({ title, message, onRetry, fullScreen = false, protectEdits = false }: {
-  title: string; message: string; onRetry: () => void; fullScreen?: boolean; protectEdits?: boolean
+export function LoadingFailure({ title, message, onRetry, fullScreen = false, protectEdits = false, tone }: {
+  title: string; message: string; onRetry: () => void; fullScreen?: boolean; protectEdits?: boolean; tone?: BootTone
 }) {
   const notice = <section className="loading-state loading-failure" role="alert">
     <svg className="loading-failure-mark" viewBox="0 0 48 48" fill="none" aria-hidden="true">
@@ -15,5 +16,5 @@ export function LoadingFailure({ title, message, onRetry, fullScreen = false, pr
     {protectEdits && <p>Copy any unprotected edits before reloading this page.</p>}
     <button type="button" onClick={onRetry}>{protectEdits ? 'Reload this page' : 'Try again'}</button>
   </section>
-  return fullScreen ? <EntranceFrame eyebrow="Let’s get you back">{notice}</EntranceFrame> : notice
+  return fullScreen ? <BootFrame tone={tone}>{notice}</BootFrame> : notice
 }

@@ -1,9 +1,8 @@
 import { expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
-import type { DocumentIndexView, SessionView } from '../api/client'
+import type { SessionView } from '../api/client'
 import { AccountPanel } from '../accounts/settings/AccountPanel'
-import { ReviewQueueList } from '../resume/ReviewQueueList'
 import { ListPagination } from './ListPagination'
 import { pageWindow } from './pagination'
 
@@ -27,7 +26,7 @@ it('reaches every item once without extending the page, including empty and shri
   expect(cursor).not.toContain('of 50')
 })
 
-it('bounds workspace and review cards when the account and queue have many items', () => {
+it('bounds workspace membership rows when the account has many memberships', () => {
   const memberships = Array.from({ length: 25 }, (_, index) => ({
     workspace_id: `workspace-${index}`, workspace_name: `Workspace ${index}`, role: index ? 'member' as const : 'administrator' as const,
     require_second_factor: false,
@@ -35,18 +34,9 @@ it('bounds workspace and review cards when the account and queue have many items
   const session = { user_id: 'synthetic', email: 'test@example.test', csrf_token: 'synthetic', memberships,
     email_verified: false, email_verification_available: false, second_factor_enabled: false } as SessionView
   const account = renderToStaticMarkup(<MemoryRouter><AccountPanel session={session} onSessionChanged={() => {}} /></MemoryRouter>)
-  expect(account).toContain('Workspaces 1–3 of 25')
-  expect(account.match(/aria-label="Open Workspace /g)).toHaveLength(3)
+  expect(account).toContain('Workspaces 1–5 of 25')
+  expect(account.match(/aria-label="Open Workspace /g)).toHaveLength(5)
   expect(account).toContain('aria-label="Find a workspace"')
   expect(account).toContain('Administrator')
   expect(account).toContain('Member')
-  const now = Date.parse('2026-10-08T12:00:00Z')
-  const reviews = memberships.map((_, index) => ({ id: `review-${index}`, title: `Shared review ${index}`,
-    status: 'needs_review', finding_count: 3, decided_count: 1, updated_at: '2026-10-08T11:00:00Z',
-    is_owner: false } as DocumentIndexView))
-  const queue = renderToStaticMarkup(<MemoryRouter><ReviewQueueList items={reviews} assigned now={now} workspaceId="workspace-0" /></MemoryRouter>)
-  expect(queue).toContain('Reviews 1–3 of 25')
-  expect(queue.match(/aria-label="Open Shared review /g)).toHaveLength(3)
-  expect(queue).toContain('aria-label="Find a shared review"')
-  expect(queue).not.toContain('Show more')
 })

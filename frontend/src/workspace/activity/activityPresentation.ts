@@ -1,22 +1,14 @@
-import {
-  CheckCheck,
-  Download,
-  FilePlus2,
-  ScanLine,
-  SlidersHorizontal,
-  ShieldCheck,
-  Users,
-  type LucideIcon,
-} from 'lucide-react'
-import type { ActivityView, DocumentIndexView } from '../../api/client'
+import type { ActivityView, AdminActivityView, DocumentIndexView } from '../../api/client'
 import { eventName } from '../events'
 import { pageWindow } from '../../ui/pagination'
 
 export type ActivityEntry = ActivityView['own_events'][number]
+export type ActivityEvent = ActivityEntry | AdminActivityView['events'][number]
 export type ActivityFilter = 'all' | 'reviews' | 'outputs' | 'workspace'
+export type ActivityOutcome = 'all' | 'completed' | 'failed'
 export type DocumentMap = Record<string, DocumentIndexView>
 
-export const ACTIVITY_PAGE_SIZE = 6
+export const ACTIVITY_PAGE_SIZE = 12
 export function activityWindow(total: number, requestedPage: number) {
   return pageWindow(total, requestedPage, ACTIVITY_PAGE_SIZE)
 }
@@ -27,14 +19,12 @@ export function eventGroup(code: string): Exclude<ActivityFilter, 'all'> {
   return 'reviews'
 }
 
-export function eventIcon(code: string): LucideIcon {
-  if (code.startsWith('output_')) return Download
-  if (/^(second_factor_|backup_codes_|device_|other_devices_)/.test(code)) return ShieldCheck
-  if (code.startsWith('member_')) return Users
-  if (/^(workspace_|preset_)/.test(code)) return SlidersHorizontal
-  if (code.startsWith('scan_')) return ScanLine
-  if (code === 'document_created') return FilePlus2
-  return CheckCheck
+export function eventContext(event: ActivityEntry, documents: DocumentMap): string {
+  const document = event.document_id ? documents[event.document_id] : undefined
+  if (document) return reviewLabel(document)
+  if (event.document_id) return 'Review record'
+  if (/^(second_factor_|backup_codes_|device_|other_devices_)/.test(event.event_code)) return 'Account security'
+  return eventGroup(event.event_code) === 'workspace' ? 'Workspace settings' : 'Review activity'
 }
 
 export function reviewLabel(document: DocumentIndexView): string {
@@ -49,11 +39,13 @@ export function matchesEvent(
   documents: DocumentMap,
   search: string,
   filter: ActivityFilter,
+  outcome: ActivityOutcome = 'all',
 ) {
   const document = event.document_id ? documents[event.document_id] : undefined
   return (
     (filter === 'all' || eventGroup(event.event_code) === filter) &&
-    `${eventName(event.event_code)} ${document ? reviewLabel(document) : ''} ${event.outcome}`
+    (outcome === 'all' || event.outcome === outcome) &&
+    `${eventName(event.event_code)} ${document ? reviewLabel(document) : ''} ${event.outcome} ${eventContext(event, documents)}`
       .toLocaleLowerCase()
       .includes(search.trim().toLocaleLowerCase())
   )

@@ -1,4 +1,4 @@
-"""Actual manual/column transactions recheck access and roll back every side effect."""
+"""Actual manual transactions recheck access and roll back every side effect."""
 
 import hashlib
 import time
@@ -13,7 +13,6 @@ from app.db.models import Decision, Document, Finding, LabelCounter, Membership,
 from app.db.models import Session as StoredSession
 from app.db.replacement_secrets import DocumentReplacementSecret
 from app.db.team_review import ReviewHandoff
-from tests.csv_support import upload_csv
 from tests.docx_support import mark
 from tests.intake_support import _draft_body, _login
 from tests.test_review_mutation_access_pg import fingerprint as decision_fingerprint
@@ -21,7 +20,7 @@ from tests.test_review_mutation_access_pg import fingerprint as decision_fingerp
 SOURCE = "😀 First: nora@example.test. Second: nora@example.test. Unmarked: Other."
 EMAIL = "nora@example.test"
 MANUAL = ("add", "revise", "remove", "exact", "split", "merge", "noop_revise", "noop_merge")
-OPERATIONS = (*MANUAL, "column")
+OPERATIONS = MANUAL
 
 
 def fingerprint(engine, document_id):
@@ -88,39 +87,29 @@ def prepare(site, operation):
     owner, other, engine, workspace, actor = site
     headers = _login(owner, "intake-owner@example.invalid")
     other_headers = _login(other, "intake-other@example.invalid")
-    if operation == "column":
-        base, state, _ = upload_csv(
-            owner,
-            headers,
-            workspace,
-            "Contact,Note\nnora@example.test,Fictional\nother@example.test,Later\n",
-            "email",
-        )
-        assert len(state["findings"]) == 2
-    else:
-        result = owner.post(
-            "/api/v1/documents",
-            headers=headers,
-            json=_draft_body(workspace, source=SOURCE, categories=[]),
-        )
-        assert result.status_code == 201
+    result = owner.post(
+        "/api/v1/documents",
+        headers=headers,
+        json=_draft_body(workspace, source=SOURCE, categories=[]),
+    )
+    assert result.status_code == 201
+    state = result.json()
+    base = "/api/v1/documents/" + state["version"]["document_id"]
+    assert (
+        owner.post(
+            base + "/scan", headers=headers, json={"expected": state["version"]}
+        ).status_code
+        == 200
+    )
+    state = mark(
+        owner, headers, base, owner.get(base + "/findings").json(), SOURCE, EMAIL, "email"
+    )
+    if operation in ("split", "merge", "noop_merge"):
+        state = mark(owner, headers, base, state, SOURCE, EMAIL, "email", SOURCE.rindex(EMAIL))
+    if operation in ("split", "noop_merge"):
+        result = mutate(owner, headers, base, state, "merge")
+        assert result.status_code == 200
         state = result.json()
-        base = "/api/v1/documents/" + state["version"]["document_id"]
-        assert (
-            owner.post(
-                base + "/scan", headers=headers, json={"expected": state["version"]}
-            ).status_code
-            == 200
-        )
-        state = mark(
-            owner, headers, base, owner.get(base + "/findings").json(), SOURCE, EMAIL, "email"
-        )
-        if operation in ("split", "merge", "noop_merge"):
-            state = mark(owner, headers, base, state, SOURCE, EMAIL, "email", SOURCE.rindex(EMAIL))
-        if operation in ("split", "noop_merge"):
-            result = mutate(owner, headers, base, state, "merge")
-            assert result.status_code == 200
-            state = result.json()
     return owner, other, engine, workspace, actor, headers, other_headers, base, state
 
 
@@ -130,15 +119,7 @@ def mutate(client, headers, base, state, operation):
     route = base + "/findings/" + first["finding_id"]
     body = {"expected": state["version"]}
     method = client.post
-    if operation == "column":
-        route = base + "/columns/0/decision"
-        body.update(
-            action="label",
-            style="stand_in",
-            same_text_same_entity=False,
-            affected_finding_ids=[item["finding_id"] for item in findings],
-        )
-    elif operation == "add":
+    if operation == "add":
         route = base + "/findings"
         start = SOURCE.index("Other")
         body.update(span={"start": start, "end": start + len("Other")}, category="custom")
@@ -165,14 +146,10 @@ def mutate(client, headers, base, state, operation):
 
 
 def hook_operation(monkeypatch, operation, phase, after):
-    from app.groups import columns, service
+    from app.groups import service
 
-    module = columns if operation == "column" else service
-    hook = (
-        "_snapshot"
-        if phase == "after_snapshot"
-        else ("owned_document" if operation == "column" else "_current_locked")
-    )
+    module = service
+    hook = "_snapshot" if phase == "after_snapshot" else "_current_locked"
     original = getattr(module, hook)
 
     def changed(*args, **kwargs):

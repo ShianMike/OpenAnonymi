@@ -16,7 +16,7 @@ SCRIPTS = {
     "run_backend_shard.py", "verify_frontend_config.py", "verify_container_runtime.py",
     "check_public_repository.py",
 }
-DOCS = {"DEVELOPMENT.md", "DEPLOYMENT.md"}
+DOCS = {"DEVELOPMENT.md", "DEPLOYMENT.md", "FILE_LAYOUTS.md"}
 
 
 def allowed(name):
@@ -75,7 +75,8 @@ def main():
         "scripts/capture_private.py", "backend/db.private.json", ".local-dev/state.json",
     ))
     assert all(allowed(name) for name in (
-        "backend/.env.example", "frontend/src/App.tsx", "docs/DEVELOPMENT.md", "LICENSE",
+        "backend/.env.example", "frontend/src/App.tsx", "docs/DEVELOPMENT.md",
+        "docs/FILE_LAYOUTS.md", "LICENSE",
     ))
     files = subprocess.check_output(["git", "ls-files", "-z"]).decode().split("\0")[:-1]
     unexpected = [name for name in files if not allowed(name)]

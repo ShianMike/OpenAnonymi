@@ -1,7 +1,5 @@
-"""The same seven authored stand-ins through real review and both CSV variants."""
+"""Authored stand-ins remain consistent for historical CSV sources and supported outputs."""
 
-import csv
-import io
 import json
 from datetime import UTC, datetime
 from uuid import UUID
@@ -12,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.db.crypto import KeyRing
 from app.db.models import EntityGroup, Finding
 from app.db.replacement_secrets import DocumentReplacementSecret
-from tests.csv_support import upload_csv
+from tests.csv_support import legacy_csv
 from tests.docx_fixtures import read_word
 from tests.docx_support import confirm, mark, output
 from tests.intake_support import _login
@@ -23,7 +21,7 @@ from tests.styles_support import decide
 @pytest.mark.parametrize(
     "index,fixture", list(enumerate(STAND_IN_FIXTURES)), ids=[row[0] for row in STAND_IN_FIXTURES]
 )
-def test_authored_standin_fixture_matches_preview_copy_txt_word_and_csv(
+def test_legacy_standin_fixture_matches_preview_copy_txt_and_word(
     intake_site, index, fixture
 ):
     category, value, expected = fixture
@@ -34,7 +32,7 @@ def test_authored_standin_fixture_matches_preview_copy_txt_word_and_csv(
     owner, _, engine, workspace, _ = intake_site
     headers = _login(owner, "intake-owner@example.invalid")
     source = f"Value,Other\n😀 {value},Unmarked\n"
-    base, state, _ = upload_csv(owner, headers, workspace, source)
+    base, state, _ = legacy_csv(owner, headers, workspace, source)
     state = mark(owner, headers, base, state, source, value, category)
     finding = state["findings"][0]
     document_id = UUID(state["version"]["document_id"])
@@ -76,16 +74,3 @@ def test_authored_standin_fixture_matches_preview_copy_txt_word_and_csv(
     assert txt.status_code == 200 and txt.content == preview["text"].encode()
     word = output(owner, headers, base, state, "docx")
     assert word.status_code == 200 and read_word(word.content)[0] == preview["text"]
-    for variant in ("spreadsheet_safe", "unmodified"):
-        from uuid import uuid4
-
-        exported = owner.post(
-            base + "/exports/csv",
-            json={"expected": state["version"], "event_id": str(uuid4()), "variant": variant},
-            headers=headers,
-        )
-        assert exported.status_code == 200
-        assert list(csv.reader(io.StringIO(exported.content.decode("utf-8-sig"), newline=""))) == [
-            ["Value", "Other"],
-            ["😀 " + expected, "Unmarked"],
-        ]

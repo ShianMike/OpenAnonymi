@@ -17,7 +17,7 @@ it('uses built-in label settings without sending a virtual ID to the UUID preset
   }
   const saved: PresetView = { id: 'c50bb83c-b992-4305-9f0e-65c907d2ba58', name: 'Team setup',
     categories: ['email'], phone_region: 'US', preferred_action: 'redact', is_default: true,
-    version: 4, category_defaults: {}, column_rules: [] }
+    version: 4, category_defaults: {} }
   expect(findIntakePreset(saved.id, [saved])).toBe(saved)
   expect(workspacePresetId(saved.id)).toBe(saved.id)
   expect(findIntakePreset('unknown', [saved])).toBeUndefined()

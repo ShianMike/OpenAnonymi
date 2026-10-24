@@ -11,7 +11,13 @@ from app.accounts.access import ContentUnavailable, DocumentNotFound, review_doc
 from app.db.crypto import KeyRing, ProtectedValue
 from app.db.models import Document, Membership, User
 from app.db.notifications import EVENT_CODES, Notification
-from app.notifications.contracts import NotificationPage, NotificationPreferences, NotificationView
+from app.notifications.contracts import (
+    NotificationDetail,
+    NotificationPage,
+    NotificationPreferences,
+    NotificationReviewState,
+    NotificationView,
+)
 
 
 class NotificationNotFound(LookupError):
@@ -115,6 +121,60 @@ def _owned_notification(session, notification_id, actor_id, now):
     return row
 
 
+def notification_view(row, available, title):
+    return NotificationView(
+        id=row.id,
+        workspace_id=row.workspace_id,
+        document_id=row.document_id,
+        actor_id=row.actor_id,
+        event_code=row.event_code,
+        created_at=row.created_at,
+        read_at=row.read_at,
+        document_available=available,
+        title=title,
+    )
+
+
+def load_notification_detail(engine, notification_id, actor_id, keys, now):
+    from app.reviews.service import CompletionRejected, current_completion
+    from app.team_review.service import handoff_view
+
+    with Session(engine) as session, session.begin():
+        row = _owned_notification(session, notification_id, actor_id, now)
+        current, title, available = None, None, False
+        try:
+            document = review_document(session, row.document_id, actor_id, now, lock=True)
+        except (DocumentNotFound, ContentUnavailable):
+            pass
+        else:
+            available = True
+            if document.title_ciphertext is not None:
+                title = keys.decrypt_text(
+                    ProtectedValue(document.title_ciphertext, document.title_key_id)
+                )
+            handoff = handoff_view(session, document, actor_id)
+            try:
+                confirmed_at = current_completion(session, document).confirmed_at
+            except CompletionRejected:
+                confirmed_at = None
+            current = NotificationReviewState(
+                status=document.status,
+                is_owner=handoff.is_owner,
+                reviewer_active=handoff.reviewer_active,
+                require_approval=handoff.require_approval,
+                confirmed_at=confirmed_at,
+                approved_at=handoff.approved_at,
+            )
+        return NotificationDetail(
+            notification=notification_view(row, available, title), current=current
+        )
+
+
+def validate_notification_detail(engine, notification_id, actor_id, keys, view, now):
+    if load_notification_detail(engine, notification_id, actor_id, keys, now) != view:
+        raise NotificationReadChanged("Notification or review changed while loading.")
+
+
 def list_notifications(
     engine: Engine,
     actor_id: UUID,
@@ -153,19 +213,7 @@ def list_notifications(
             content[document_id] = (available, title)
         for row in rows[:limit]:
             available, title = content[row.document_id]
-            result.append(
-                NotificationView(
-                    id=row.id,
-                    workspace_id=row.workspace_id,
-                    document_id=row.document_id,
-                    actor_id=row.actor_id,
-                    event_code=row.event_code,
-                    created_at=row.created_at,
-                    read_at=row.read_at,
-                    document_available=available,
-                    title=title,
-                )
-            )
+            result.append(notification_view(row, available, title))
         return NotificationPage(
             items=result, next_cursor=rows[limit - 1].id if len(rows) > limit else None
         )

@@ -23,21 +23,40 @@
     <meta name="twitter:image" content="https://openanonymi.com/social-preview.png" />
     <meta name="twitter:image:alt" content="OpenAnonymi — Share the story. Keep control. Review personal details before you share." />
     <script src="/theme-init.js"></script>
+    <link rel="preload" href="/fonts/Figtree-variable.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="stylesheet" href="/startup.css" />
     <title>OpenAnonymi — Privacy review</title>
   </head>
   <body>
-    <div id="startup-loading" class="startup-loading">
-      <header class="startup-brand"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M5 15a11 11 0 0 1 22 0M9 24l1-10a6 6 0 0 1 12 0l-1 12M14 26l1-11m11 4-1 6M6 22l1-3M18 5a10 10 0 0 0-7 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" /></svg>OpenAnonymi</header>
-      <main class="startup-center">
-        <div class="startup-card">
-          <div class="startup-mark" aria-hidden="true"><div class="startup-symbol"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4M14 13.12c0 2.38 0 6.38-1 8.88M17.29 21.02c.12-.6.43-2.3.5-3.02M2 12a10 10 0 0 1 18-6M2 16h.01M21.8 16c.2-2 .131-5.354 0-6M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2M8.65 22c.21-.66.45-1.32.57-2M9 6.8a6 6 0 0 1 9 5.2v2" /></svg></div></div>
-          <div role="status" aria-atomic="true"><h1>Opening OpenAnonymi…</h1><p id="startup-message">Preparing a little more privacy for your words.</p></div>
-          <button id="startup-retry" class="startup-retry" type="button">Reload this page</button>
-          <noscript><p>JavaScript is needed to use the review workspace. Enable it, then reload.</p></noscript>
+    <!-- Keep this markup in step with src/loading/BootFrame.tsx; public/startup.css styles both. -->
+    <div id="startup-loading" class="boot-screen">
+      <header class="boot-bar">
+        <span class="boot-brand">
+          <span class="boot-brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4" /><path d="M14 13.12c0 2.38 0 6.38-1 8.88" /><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02" /><path d="M2 12a10 10 0 0 1 18-6" /><path d="M2 16h.01" /><path d="M21.8 16c.2-2 .131-5.354 0-6" /><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2" /><path d="M8.65 22c.21-.66.45-1.32.57-2" /><path d="M9 6.8a6 6 0 0 1 9 5.2v2" /></svg></span>
+          <span class="boot-wordmark">OpenAnonymi</span>
+        </span>
+      </header>
+      <main class="boot-main">
+        <div class="boot-art" aria-hidden="true">
+          <div class="boot-doc">
+            <div class="boot-doc-head"><i class="boot-doc-title"></i><span class="boot-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg></span></div>
+            <div class="boot-doc-body">
+              <span class="boot-row"><i></i><i class="boot-find boot-find-1"></i><i></i></span>
+              <span class="boot-row"><i></i><i class="boot-find boot-find-2"></i><i></i></span>
+              <span class="boot-row"><i></i><i></i></span>
+              <span class="boot-row"><i class="boot-find boot-find-3"></i><i></i></span>
+              <span class="boot-scan"></span>
+            </div>
+          </div>
         </div>
+        <div class="boot-status" role="status" aria-atomic="true">
+          <h1>Opening OpenAnonymi…</h1>
+          <p id="startup-message">Preparing a little more privacy for your words.</p>
+        </div>
+        <button id="startup-retry" class="boot-retry" type="button">Reload this page</button>
+        <noscript><p class="boot-noscript">JavaScript is needed to use the review workspace. Enable it, then reload.</p></noscript>
       </main>
-      <p class="startup-note">Your review. Your call.</p>
+      <p class="boot-note">Your review. Your call.</p>
     </div>
     <div id="root"></div>
     <script src="/startup.js"></script>

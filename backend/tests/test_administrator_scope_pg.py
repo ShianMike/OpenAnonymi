@@ -17,15 +17,15 @@ from tests.admin_access_support import admin_case, perform
 from tests.reporting_access_support import make_case
 from tests.test_custom_rules_pg import admin_headers
 
-READS = ("overview", "activity", "admin-activity", "admin-csv", "members-read", "settings-read")
+READS = ("overview", "activity", "admin-activity", "admin-export", "members-read", "settings-read")
 
 
 def scope_case(site, operation):
     if operation in ("members-read", "settings-read"):
         return admin_case(site, operation)
-    case = make_case(site, "admin-activity" if operation == "admin-csv" else operation)
-    if operation == "admin-csv":
-        case["path"] += "/csv"
+    case = make_case(site, "admin-activity" if operation == "admin-export" else operation)
+    if operation == "admin-export":
+        case["path"] += "/export"
     return case
 
 

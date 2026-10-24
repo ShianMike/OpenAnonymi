@@ -14,7 +14,7 @@ from tests.intake_support import _draft_body, _login
 from tests.test_content_read_access_pg import change_actor
 from tests.test_source_csv_mutation_access_pg import storage_fingerprint
 
-OPERATIONS = ("paste", "file-docx", "file-csv")
+OPERATIONS = ("paste", "file-docx", "file-txt")
 PHASES = ("authorized", "built")
 
 
@@ -41,7 +41,7 @@ def perform(case):
     filename, content = (
         ("fictional.docx", docx_sample())
         if operation == "file-docx"
-        else ("fictional.csv", b"Contact,Note\nnora@example.test,Fictional\n")
+        else ("fictional.txt", b"Fictional contact: nora@example.test\n")
     )
     return client.post(
         "/api/v1/documents/from-file",

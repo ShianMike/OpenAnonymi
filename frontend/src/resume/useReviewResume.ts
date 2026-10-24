@@ -3,17 +3,17 @@ import { rememberReview } from './lastReview'
 import { readReviewLocation, writeReviewLocation, type ReviewLocation } from './reviewLocation'
 
 const positions = () => ({
-  page: window.scrollY,
+  page: document.querySelector('.studio-canvas')?.scrollTop ?? window.scrollY,
   original: document.querySelector('#review-original-panel .document-text')?.scrollTop ?? 0,
   preview: document.querySelector('#review-preview-panel .document-text')?.scrollTop ?? 0,
-  findings: document.getElementById('review-findings-panel')?.scrollTop ?? 0,
+  findings: document.querySelector('.review-findings-windowed')?.scrollTop ?? document.querySelector('.studio-inspector')?.scrollTop ?? document.getElementById('review-findings-panel')?.scrollTop ?? 0,
   editor: document.getElementById('saved-source')?.scrollTop ?? 0,
 })
 
 export function useReviewResume({ userId, workspaceId, documentId, ready, revision, location,
   findingIds, dirty, apply }: {
   userId: string; workspaceId: string | null; documentId: string | undefined
-  ready: boolean; revision: string | null; location: Omit<ReviewLocation, 'revision' | 'scroll' | 'filtersOpen' | 'settingsOpen'>
+  ready: boolean; revision: string | null; location: Omit<ReviewLocation, 'revision' | 'scroll' | 'filtersOpen'>
   findingIds: string[]; dirty: boolean; apply: (saved: ReviewLocation) => void
 }) {
   const key = documentId ? `openanonymi.review-location.${userId}.${documentId}` : ''
@@ -27,7 +27,6 @@ export function useReviewResume({ userId, workspaceId, documentId, ready, revisi
     writeReviewLocation(key, {
       ...current.current.location, revision: current.current.revision, scroll: scroll.current,
       filtersOpen: (document.getElementById('review-finding-filters') as HTMLDetailsElement | null)?.open ?? false,
-      settingsOpen: (document.getElementById('review-suggestion-settings') as HTMLDetailsElement | null)?.open ?? false,
     })
   }
 
@@ -51,15 +50,17 @@ export function useReviewResume({ userId, workspaceId, documentId, ready, revisi
         if (cancelled) return
         const offset = saved?.revision === revision ? saved.scroll : { page: 0, original: 0, preview: 0, findings: 0, editor: 0 }
         const filters = document.getElementById('review-finding-filters') as HTMLDetailsElement | null
-        const settings = document.getElementById('review-suggestion-settings') as HTMLDetailsElement | null
         if (filters && saved) filters.open = saved.filtersOpen
-        if (settings && saved) settings.open = saved.settingsOpen
         for (const [selector, value] of [
           ['#review-original-panel .document-text', offset.original],
           ['#review-preview-panel .document-text', offset.preview],
           ['#review-findings-panel', offset.findings], ['#saved-source', offset.editor],
         ] as const) { const element = document.querySelector(selector); if (element) element.scrollTop = value }
-        window.scrollTo({ top: offset.page, behavior: 'instant' })
+        const canvas = document.querySelector('.studio-canvas')
+        const inspector = document.querySelector('.studio-inspector')
+        if (canvas) canvas.scrollTop = offset.page
+        else window.scrollTo({ top: offset.page, behavior: 'instant' })
+        if (inspector) inspector.scrollTop = offset.findings
         scroll.current = positions()
         hydrated.current = key
         persist()
@@ -75,7 +76,7 @@ export function useReviewResume({ userId, workspaceId, documentId, ready, revisi
     if (hydrated.current === key) persist()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, location.panel, location.category, location.decision, location.finding,
-    location.editing, location.plainPreview, revision])
+    location.editing, location.plainPreview, location.settingsOpen, revision])
 
   useLayoutEffect(() => {
     const record = () => { if (hydrated.current === key) { scroll.current = positions(); persist() } }

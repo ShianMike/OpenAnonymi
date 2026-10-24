@@ -12,7 +12,7 @@ from app.intake.validation import SourceValidationError
 from app.workloads import render_slot
 
 OCR_TIMEOUT_SECONDS = 45
-MAX_REPLY_BYTES = 4 * 1024 * 1024  # Text plus at most ten bounded correction previews.
+MAX_REPLY_BYTES = 4 * 1024 * 1024
 
 
 def extract_ocr(
@@ -81,8 +81,9 @@ def extract_ocr(
 
         writer = Thread(target=send, daemon=True)
         writer.start()
-        payload = process.stdout.read(MAX_REPLY_BYTES + 1)
-        if len(payload) > MAX_REPLY_BYTES:
+        limit = 40 * 1024 * 1024 if kind == "layout_pdf" else MAX_REPLY_BYTES
+        payload = process.stdout.read(limit + 1)
+        if len(payload) > limit:
             process.kill()
             raise SourceValidationError("OCR text exceeds the import limit. Choose a smaller scan.")
         process.wait(timeout=2)
@@ -99,6 +100,7 @@ def extract_ocr(
                 "format": "Choose a readable PNG, JPEG, TIFF or WebP image.",
                 "empty": "OCR found no readable text. Choose a clearer scan or paste the text.",
                 "text": "OCR text exceeds the 100,000-character or 1 MiB limit.",
+                "layout": "This PDF layout exceeds the supported size or text-position limits. Export a smaller or flattened PDF and try again.",
             }
             raise SourceValidationError(
                 messages.get(

@@ -1,8 +1,10 @@
 @import './styles/scrollbars.css';
 
+/* The font is a public file, so public/startup.css can declare the same face for the
+   first-paint loading screen. Both declarations share one URL and one download. */
 @font-face {
   font-family: Figtree;
-  src: url('./assets/fonts/Figtree-variable.woff2') format('woff2');
+  src: url('/fonts/Figtree-variable.woff2') format('woff2');
   font-style: normal;
   font-weight: 300 900;
   font-display: swap;

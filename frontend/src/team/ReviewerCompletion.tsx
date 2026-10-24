@@ -30,7 +30,7 @@ export function ReviewerCompletion({ review }: { review: ReviewController }) {
       </button>}
       <button type="button" disabled={blocked} onClick={() => readReviewedOutput(review)}><Eye size={16} aria-hidden="true" /> Read reviewed output</button>
       {confirmed && !approved && handoff && !blocked && <a className="button-primary" href="#review-handoff">Go to approval <ArrowRight size={16} aria-hidden="true" /></a>}
-      <Link to={`/continue?workspace=${saved.workspace_id}`}>Return to reviews</Link>
+      <Link to={`/documents?workspace=${saved.workspace_id}&view=shared`}>Return to documents</Link>
     </div>
     <p className="field-note">The owner confirms and exports. Your access covers reviewing, decisions, comments and independent approval.</p>
   </section>

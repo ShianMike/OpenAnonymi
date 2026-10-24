@@ -35,13 +35,18 @@ def test_actual_image_previews_follow_frame_order_and_are_opt_in(format, suffix,
     assert extract_import("scan." + suffix, content).page_previews == ()
 
 
-def test_mixed_pdf_previews_include_only_scanned_pages_in_document_order():
+def test_mixed_pdf_previews_include_every_preserved_page_in_document_order():
     imported = extract_import("scan.pdf", scanned_pdf(pages=2, selectable=True), include_previews=True)
     assert imported.pages == 3
-    assert [page.page_number for page in imported.page_previews] == [1, 2]
+    assert [page.page_number for page in imported.page_previews] == [1, 2, 3]
     assert "Selectable final page after scan" in imported.source.text
     for page in imported.page_previews:
-        assert_preview(page)
+        assert page.data_url.startswith("data:image/png;base64,")
+        content = base64.b64decode(page.data_url.split(",", 1)[1], validate=True)
+        assert b"metadata-privacy-canary" not in content
+        with Image.open(io.BytesIO(content)) as image:
+            assert image.format == "PNG" and image.mode == "RGB"
+            assert image.width * image.height <= 8_000_000 and not image.getexif()
 
 
 def test_noisy_preview_is_reduced_to_the_reply_budget():

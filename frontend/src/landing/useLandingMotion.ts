@@ -1,45 +1,43 @@
 import { useEffect, useRef, useState } from 'react'
 import { useDisplayPreferences } from '../appearance/useDisplayPreferences'
 
+const REVEAL = '[data-landing-reveal]'
+
+/** Reveals sections once as they enter view and reports when the page has scrolled past the top. */
 export function useLandingMotion() {
   const root = useRef<HTMLDivElement>(null)
-  const [paused, setPaused] = useState(false)
-  const { reducedMotion: reduced } = useDisplayPreferences()
+  const sentinel = useRef<HTMLSpanElement>(null)
+  const [scrolled, setScrolled] = useState(false)
+  const { reducedMotion } = useDisplayPreferences()
 
   useEffect(() => {
     const element = root.current
-    if (!element || !('IntersectionObserver' in window)) return
+    if (!element || reducedMotion || !('IntersectionObserver' in window)) return
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(({ target, isIntersecting }) => {
-        const targetElement = target as HTMLElement
-        targetElement.dataset.visible = String(isIntersecting)
-        if (isIntersecting) targetElement.dataset.revealed = 'true'
+        if (!isIntersecting || !(target instanceof HTMLElement)) return
+        target.dataset.revealed = 'true'
+        observer.unobserve(target)
       })
-    }, { threshold: 0.08 })
-    const selector = '[data-landing-reveal], .landing-loop-scene'
-    const track = (node: Node, adding: boolean) => {
-      if (!(node instanceof Element)) return
-      const targets = Array.from(node.querySelectorAll(selector))
-      if (node.matches(selector)) targets.push(node)
-      targets.forEach((target) => adding ? observer.observe(target) : observer.unobserve(target))
-    }
-    track(element, true)
-    const changes = new MutationObserver((records) => records.forEach((record) => {
-      record.removedNodes.forEach((node) => track(node, false))
-      record.addedNodes.forEach((node) => track(node, true))
-    }))
-    changes.observe(element, { childList: true, subtree: true })
+    }, { threshold: 0.12, rootMargin: '0px 0px -4% 0px' })
+    // The page is static, so every reveal target exists on mount.
+    element.querySelectorAll<HTMLElement>(REVEAL).forEach((target) => {
+      if (target.dataset.revealed !== 'true') observer.observe(target)
+    })
     element.dataset.motionReady = 'true'
-    const onVisibility = () => { element.dataset.pageVisible = String(!document.hidden) }
-    onVisibility()
-    document.addEventListener('visibilitychange', onVisibility)
     return () => {
       observer.disconnect()
-      changes.disconnect()
-      document.removeEventListener('visibilitychange', onVisibility)
       delete element.dataset.motionReady
     }
+  }, [reducedMotion])
+
+  useEffect(() => {
+    const marker = sentinel.current
+    if (!marker || !('IntersectionObserver' in window)) return
+    const observer = new IntersectionObserver(([entry]) => setScrolled(!entry.isIntersecting))
+    observer.observe(marker)
+    return () => observer.disconnect()
   }, [])
 
-  return { root, paused: paused || reduced, reduced, toggleMotion: () => setPaused((value) => !value) }
+  return { root, sentinel, scrolled }
 }

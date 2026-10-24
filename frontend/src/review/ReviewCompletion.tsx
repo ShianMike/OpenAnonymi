@@ -1,179 +1,100 @@
-import { ShieldCheck, ArrowRight, Copy, Download, CheckCircle2, Eye, LockKeyhole } from 'lucide-react'
+import { useId, useState } from 'react'
+import * as Dialog from '@radix-ui/react-dialog'
+import { ArrowUpRight, Check, ChevronDown, Copy, Download, Eye, LockKeyhole } from 'lucide-react'
+import type { ReviewedFormat } from '../api/client'
 import type { ReviewController } from './useReviewController'
+import { StudioDialog } from './studio/StudioControls'
 import { sameVersion } from './reviewState'
-import { GlassCheckbox } from '../ui/GlassCheckbox'
-import { LoadingMark } from '../loading/LoadingMark'
 import { ReviewerCompletion } from '../team/ReviewerCompletion'
-import { useState } from 'react'
-import { GlassSelect } from '../ui/GlassSelect'
-import type { CsvVariant, ReviewedFormat } from '../api/client'
-import { DisabledReason } from '../ui/DisabledReason'
 import { readReviewedOutput } from '../team/reviewerNavigation'
 
+const formats: { value: ReviewedFormat; name: string; extension: string; detail: string }[] = [
+  { value: 'txt', name: 'Plain text', extension: 'TXT', detail: 'Text with exact spacing' },
+  { value: 'docx', name: 'Word document', extension: 'DOCX', detail: 'Editable document' },
+  { value: 'pdf', name: 'PDF document', extension: 'PDF', detail: 'Ready for sharing' },
+  { value: 'report', name: 'Review report', extension: 'JSON', detail: 'A record of your decisions' },
+]
 const styleCountLabels: Record<string, string> = { stand_in: 'Fictional stand-ins', date_shift: 'Shifted dates', partial_mask: 'Partial masks', generalize: 'Generalized dates' }
 
 export function ReviewCompletion({ review }: { review: ReviewController }) {
-  const [format, setFormat] = useState<ReviewedFormat>('txt')
-  const [csvVariant, setCsvVariant] = useState<CsvVariant>('spreadsheet_safe')
+  const [open, setOpen] = useState(false)
+  if (review.state.kind !== 'ready') return null
+  return <Dialog.Root open={open} onOpenChange={setOpen}>
+    <Dialog.Trigger asChild><button type="button" className="studio-primary studio-export-trigger"><span>{review.canExport ? 'Export' : review.canEdit ? 'Review & export' : 'Complete review'}</span><ArrowUpRight size={16} /></button></Dialog.Trigger>
+    <StudioDialog title={review.canEdit ? 'Export review' : 'Complete your review'} description={review.state.saved.title || 'Untitled review'} busy={review.completionPending || review.exportPending} className="studio-export-dialog">
+      <div className="studio-dialog-body">{review.canEdit ? <ReviewCompletionBody review={review} onRead={() => setOpen(false)} /> : <ReviewerCompletion review={review} />}</div>
+    </StudioDialog>
+  </Dialog.Root>
+}
+
+export function ReviewCompletionBody({ review, onRead }: { review: ReviewController; onRead?: () => void }) {
+  const formatId = useId()
+  const [format, setFormat] = useState<ReviewedFormat>(() => review.state.kind === 'ready' && review.state.saved.file_format ? review.state.saved.file_format : 'txt')
   const { state, canConfirm, canExport, currentSummary, preparedDownload } = review
   if (state.kind !== 'ready') return null
-  if (!review.canEdit) return <ReviewerCompletion review={review} />
-  const confirmed =
-    (state.saved.status === 'ready' || state.saved.status === 'exported') &&
-    !review.dirty &&
-    !review.settingsDirty &&
-    !review.decisionPending &&
-    !review.conflict
+  const confirmed = (state.saved.status === 'ready' || state.saved.status === 'exported') && !review.dirty && !review.settingsDirty && !review.decisionPending && !review.conflict
   const confirmationReason = review.conflict ? 'Load the latest saved review before confirming.'
-    : review.actionPending ? 'Wait for the current changes and reviewed output to finish saving.'
+    : review.actionPending ? 'Wait for changes and output to finish saving.'
     : review.dirty ? 'Save your text changes before confirming.'
     : review.settingsDirty ? 'Save your suggestion settings before confirming.'
-    : review.scan?.status !== 'completed' ? 'Find suggestions first, then choose what to change in each highlighted detail.'
+    : review.scan?.status !== 'completed' ? 'Find suggestions first, then review the highlighted details.'
     : review.pendingFindings.length ? `${review.pendingFindings.length} ${review.pendingFindings.length === 1 ? 'detail needs' : 'details need'} your choice before confirming.`
-    : review.findings?.overlaps.length ? 'Some highlights overlap. Adjust them so each detail has one choice.'
-    : !canConfirm ? 'Wait for the reviewed output to finish updating.'
-    : 'Read the full output and check the confirmation box first.'
-  const exportReason = review.actionPending ? 'Wait for the current changes and reviewed output to finish saving.'
-    : confirmed && !review.handoff.exportApproved ? 'The assigned reviewer must approve this exact version.'
-    : 'Confirm the current reviewed output before copying or downloading.'
-  return (
-    <section className="review-completion" aria-labelledby="completion-heading">
-      <div className="completion-heading">
-        <span className="completion-icon">
-          <ShieldCheck size={21} strokeWidth={1.4} aria-hidden="true" />
-        </span>
-        <div>
-          <span className="review-eyebrow">YOUR FINAL CHECK</span>
-          <h2 id="completion-heading">
-            {confirmed ? canExport ? 'Your reviewed version is ready' : 'Review confirmed' : 'Check, confirm, and share'}
-          </h2>
-        </div>
-        {confirmed && <CheckCircle2 size={20} aria-hidden="true" />}
+    : review.findings?.overlaps.length ? 'Correct overlapping highlights before continuing.'
+    : !canConfirm ? 'Wait for the reviewed output to finish updating.' : 'Read the full text, including anything without highlights.'
+  const exportReason = review.actionPending ? 'Wait for changes and output to finish saving.'
+    : confirmed && !review.handoff.exportApproved ? 'Waiting for approval from the assigned reviewer for this exact version.'
+    : 'Confirm this version to enable export.'
+  const selected = formats.find(item => item.value === format)!
+  const readyDownload = preparedDownload && canExport && !review.exportPending && preparedDownload.format === format &&
+    sameVersion(preparedDownload.version, state.saved.version) ? preparedDownload : null
+  const formatNote = format === 'pdf' ? state.saved.file_format === 'pdf'
+    ? 'Keeps page sizes, positions and appearance. Redactions are flattened into page images. Original text layers, attachments, forms and annotations are removed; the PDF is not searchable.'
+    : 'Creates a PDF with plain paragraphs, page wrapping and expanded tabs. Choose TXT to preserve exact whitespace.'
+    : format === 'docx' ? state.saved.file_format === 'docx' ? 'Keeps supported Word structure. Editing the source text can simplify its layout.' : 'Creates an editable Word document from the reviewed text.'
+    : format === 'report' ? 'A JSON report of categories, actions, styles and positions in this confirmed review.'
+    : 'Preserves tabs, spaces and line endings in the reviewed text.'
+  return <section className="studio-export-content" aria-label="Check and export" aria-busy={review.exportPending || review.completionPending}>
+    <div className="studio-export-review" data-confirmed={confirmed}>
+      <div className="studio-export-status"><div className="studio-export-status-copy">
+        <h3>{confirmed ? canExport ? 'Ready to share' : 'Review confirmed' : 'One final check'}</h3>
+        <span className="studio-export-state">{confirmed ? <Check size={12} aria-hidden="true" /> : <LockKeyhole size={12} aria-hidden="true" />}{confirmed ? 'Confirmed' : 'Confirmation required'}</span>
+        {!canExport && <p>{confirmed ? exportReason : confirmationReason}</p>}
       </div>
-      <div className="completion-next-step">
-        <div><strong>{confirmed ? 'Your choices are saved for this version' : '1. Read the reviewed text'}</strong>
-          <p role="status">{!confirmed && !canConfirm ? confirmationReason : 'Read every line, including text without highlights. Context can still identify someone.'}</p>
-        </div>
-        {(canConfirm || confirmed) && <button type="button" className="completion-read" disabled={review.actionPending}
-          onClick={() => readReviewedOutput(review)}><Eye size={17} aria-hidden="true" /> Read reviewed output</button>}
+      {(canConfirm || confirmed) && <button type="button" className="studio-read-output" disabled={review.actionPending} onClick={() => { readReviewedOutput(review); onRead?.() }}><Eye size={15} aria-hidden="true" />Preview output<ArrowUpRight size={14} aria-hidden="true" /></button>}
       </div>
-      {!confirmed && review.canEdit && (
-        <>
-        <h3 className="completion-step-heading">2. Confirm this version</h3>
-        <div className="completion-confirmation">
-          <GlassCheckbox
-            id="confirm-output"
-            label="I reviewed the full output and confirm this version."
-            description={review.handoff.value?.require_approval ? 'Copying and downloading also require the assigned reviewer’s approval.' : 'Confirming unlocks copying and downloading.'}
-            checked={review.confirmedPreview}
-            disabled={!canConfirm}
-            disabledReason={confirmationReason}
-            onCheckedChange={review.setConfirmedPreview}
-          />
-          <DisabledReason disabled={!canConfirm || !review.confirmedPreview} reason={confirmationReason}><button
-            type="button"
-            className="button-primary"
-            onClick={() => void review.completeReview()}
-            disabled={!canConfirm || !review.confirmedPreview}
-          >
-            {review.completionPending ? 'Confirming…' : 'Confirm review'}
-            {review.completionPending ? <LoadingMark small /> : <ArrowRight size={16} aria-hidden="true" />}
-          </button></DisabledReason>
-        </div>
-        </>
-      )}
-      {confirmed && (
-        <p role="status" className="completion-status">
-          This version and its decisions are confirmed.
-        </p>
-      )}
-      {confirmed && review.handoff.value?.require_approval && !review.handoff.exportApproved &&
-        <p id="completion-approval-status" className="completion-status" role="status">
-          {review.handoff.value.approval_policy === 'always'
-            ? review.handoff.value.reviewer_active
-              ? 'Your workspace requires the assigned reviewer to approve this exact version before export.'
-              : 'Your workspace requires a reviewer to approve this version before export. Assign a reviewer.'
-            : 'Waiting for the assigned reviewer to approve this exact version before export.'}
-          {!review.handoff.value.reviewer_active && <> <a href="#review-handoff">Manage reviewer</a></>}
-        </p>}
-      <div className="completion-share-heading"><h3 className="completion-step-heading">{confirmed ? 'Copy or download' : '3. Copy or download'}</h3>
-        {!canExport && <span><LockKeyhole size={14} aria-hidden="true" />{confirmed ? review.handoff.exportApproved ? 'Updating output' : 'Waiting for approval' : 'Confirm to unlock'}</span>}
+    {!confirmed && <div className="studio-confirm-output"><label><input type="checkbox" id="confirm-output" checked={review.confirmedPreview} disabled={!canConfirm} onChange={event => review.setConfirmedPreview(event.target.checked)} />
+      <span><strong>I reviewed the full output and confirm this version.</strong><small>{review.handoff.value?.require_approval ? 'Export also requires the assigned reviewer’s approval.' : 'Your original document remains unchanged.'}</small></span></label>
+      <button type="button" className="studio-primary" disabled={!canConfirm || !review.confirmedPreview} title={!canConfirm ? confirmationReason : undefined} onClick={() => void review.completeReview()}>{review.completionPending ? 'Confirming…' : 'Confirm review'}<Check size={15} /></button>
+    </div>}
+    {confirmed && review.handoff.value?.require_approval && !review.handoff.exportApproved && <p role="status" id="completion-approval-status" className="studio-warn">{exportReason} {!review.handoff.value.reviewer_active && 'Assign an active reviewer using Collaborate.'}</p>}
+    </div>
+    <fieldset className="studio-export-formats" aria-describedby={`${formatId}-note`} disabled={review.exportPending}>
+      <legend>File format</legend><div className="studio-format-options">
+        {formats.map(item => <label key={item.value} className="studio-format-option">
+          <input type="radio" name={formatId} value={item.value} checked={format === item.value} onChange={() => setFormat(item.value)} />
+          <span><strong>{item.name}</strong><small>{item.value === 'pdf' && state.saved.file_format === 'pdf' ? 'Keep page layout' : item.detail}</small></span><span className="studio-format-extension">{item.extension}</span>
+        </label>)}
       </div>
-      <div className="completion-export">
-        <DisabledReason disabled={!canExport} reason={exportReason}><button
-          type="button"
-          onClick={() => void review.copyReviewedOutput()}
-          disabled={!canExport}
-          aria-describedby={confirmed && review.handoff.value?.require_approval && !review.handoff.exportApproved ? 'completion-approval-status' : undefined}
-        >
-          {review.exportPending ? <LoadingMark small /> : <Copy size={16} aria-hidden="true" />}
-          {review.exportPending ? 'Preparing output…' : 'Copy reviewed text'}
-        </button></DisabledReason>
-        <div><label className="field-label" htmlFor="download-format">Download format</label>
-          <GlassSelect id="download-format" value={format} disabled={review.exportPending}
-            onValueChange={(value) => setFormat(value as typeof format)}>
-            <option value="txt">Plain text (TXT)</option><option value="docx">Word (DOCX)</option>
-            <option value="pdf">PDF</option><option value="report">Redaction report (JSON)</option>
-            {state.saved.csv && <option value="csv">CSV</option>}
-          </GlassSelect></div>
-        <DisabledReason disabled={!canExport} reason={exportReason}><button
-          type="button"
-          onClick={() => void review.downloadReviewedOutput(format, csvVariant)}
-          disabled={!canExport}
-          aria-describedby={confirmed && review.handoff.value?.require_approval && !review.handoff.exportApproved ? 'completion-approval-status' : undefined}
-        >
-          {review.exportPending ? <LoadingMark small /> : <Download size={16} aria-hidden="true" />}
-          {review.exportPending ? 'Preparing output…' : { txt: 'Generate reviewed TXT', docx: 'Generate reviewed Word', pdf: 'Generate reviewed PDF', report: 'Generate redaction report', csv: 'Generate reviewed CSV' }[format]}
-        </button></DisabledReason>
+    </fieldset>
+    <p className="studio-format-note" id={`${formatId}-note`}>{formatNote}</p>
+    {review.error && <p role="alert" className="studio-error">{review.error}</p>}
+    {currentSummary && !review.dirty && !review.settingsDirty && <details className="studio-export-summary"><summary><span>Review summary <small>{currentSummary.finding_count} details</small></span><ChevronDown size={14} aria-hidden="true" /></summary>
+      <div className="studio-summary-body">
+      <dl className="studio-summary-counts" aria-label="Decisions in this version">{([['label', 'Replaced'], ['redact', 'Hidden'], ['keep', 'Kept']] as const).map(([action, label]) =>
+        <div key={action}><dt>{label}</dt><dd>{currentSummary.counts_by_action[action] ?? 0}</dd></div>)}</dl>
+      {currentSummary.finding_count > 0 ? <><h4>Applied styles</h4><dl className="studio-summary-styles">{Object.entries(currentSummary.counts_by_action_and_style).flatMap(([action, styles]) =>
+        Object.entries(styles).filter(([, count]) => count > 0).map(([style, count]) => <div key={`${action}-${style}`}><dt>{styleCountLabels[style] ?? (action === 'label' ? 'Category labels' : action === 'redact' ? 'Hidden with [REDACTED]' : 'Kept as written')}</dt><dd>{count}</dd></div>))}</dl>
+      </> : <p>No findings were marked. Your confirmation applies to the full output.</p>}
+      {currentSummary.fictional_replacements > 0 && <p>{currentSummary.fictional_replacements} fictional replacements. These are not real people, organizations, places or contacts.</p>}
+      <dl className="studio-summary-times"><div><dt>Confirmed</dt><dd><time dateTime={currentSummary.confirmed_at}>{new Date(currentSummary.confirmed_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</time></dd></div>
+        {currentSummary.last_output_generated_at && <div><dt>Output prepared</dt><dd><time dateTime={currentSummary.last_output_generated_at}>{new Date(currentSummary.last_output_generated_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</time></dd></div>}
+      </dl></div></details>}
+    <footer className="studio-export-actions">
+      <p role="status">{readyDownload ? <><Check size={13} aria-hidden="true" />{selected.extension} ready to save</> : review.exportPending ? 'Preparing output…' : canExport ? 'Prepare the file, then save it to your device.' : exportReason}</p>
+      <div><button type="button" className="studio-copy-output" disabled={!canExport} title={!canExport ? exportReason : undefined} onClick={() => void review.copyReviewedOutput()}><Copy size={15} aria-hidden="true" />Copy reviewed text</button>
+        {readyDownload ? <a className="studio-download-link" href={readyDownload.url} download={readyDownload.filename}>Save {selected.extension}<Download size={16} aria-hidden="true" /></a>
+          : <button type="button" className="studio-primary" disabled={!canExport} title={!canExport ? exportReason : undefined} onClick={() => void review.downloadReviewedOutput(format)}>{review.exportPending ? 'Preparing…' : 'Prepare download'}<Download size={16} aria-hidden="true" /></button>}
       </div>
-      {canExport && !preparedDownload && <p className="field-note">Generate a file, then use its Save link to download it.</p>}
-      {format === 'pdf' && <p className="field-note">PDF uses plain paragraphs with page wrapping and expanded tabs. TXT preserves exact whitespace.</p>}
-      {format === 'report' && <p className="field-note">The report lists categories, actions, styles and positions in this confirmed review.</p>}
-      {format === 'csv' && <div className="csv-export-options">
-        <label className="field-label" htmlFor="csv-export-variant">CSV variant</label>
-        <GlassSelect id="csv-export-variant" value={csvVariant} disabled={review.exportPending} onValueChange={(value) => setCsvVariant(value as CsvVariant)}>
-          <option value="spreadsheet_safe">Spreadsheet-safe (default)</option><option value="unmodified">Unmodified cell values</option>
-        </GlassSelect>
-        {csvVariant === 'unmodified' && <p role="alert" className="field-note">Opening this file in a spreadsheet can run formulas from the data.</p>}
-        <p className="field-note">Spreadsheet-safe CSV prefixes formula-leading cells with an apostrophe, including negative numbers. Apostrophes are visible to other programs. A spreadsheet can reactivate a formula after the file is edited and saved.</p>
-      </div>}
-      {preparedDownload &&
-        canExport &&
-        sameVersion(preparedDownload.version, state.saved.version) && (
-          <p className="completion-download-ready" role="status">
-            <a href={preparedDownload.url} download={preparedDownload.filename}>
-              {preparedDownload.format === 'csv' ? `Save reviewed CSV (${preparedDownload.variant === 'unmodified' ? 'unmodified' : 'spreadsheet-safe'})` : { txt: 'Save reviewed TXT', docx: 'Save reviewed Word', pdf: 'Save reviewed PDF', report: 'Save redaction report' }[preparedDownload.format]}
-            </a>
-            {preparedDownload.format === 'csv' && <span> · {preparedDownload.prefixed ?? 0} cells prefixed</span>}
-          </p>
-        )}
-      {currentSummary && !review.dirty && !review.settingsDirty && (
-        <details className="review-summary-details">
-          <summary>
-            Review summary · {currentSummary.finding_count}{' '}
-            {currentSummary.finding_count === 1 ? 'detail' : 'details'}
-          </summary>
-          <div aria-label="Review summary">
-            <p>
-              {Object.entries(currentSummary.counts_by_action)
-                .map(
-                  ([action, count]) =>
-                    `${count} ${action === 'label' ? 'labeled' : action === 'redact' ? 'redacted' : 'kept'}`,
-                )
-                .join(' · ') || 'No findings marked'}
-            </p>
-            <dl className="summary-style-counts">{Object.entries(currentSummary.counts_by_action_and_style).flatMap(([action, styles]) =>
-              Object.entries(styles).filter(([, count]) => count > 0).map(([style, count]) => <div key={`${action}-${style}`}><dt>{styleCountLabels[style] ?? (action === 'label' ? 'Category labels' : action === 'redact' ? '[REDACTED]' : 'Original text kept')}</dt><dd>{count}</dd></div>))}</dl>
-            {currentSummary.fictional_replacements > 0 && <p>{currentSummary.fictional_replacements} replacements are fictional stand-ins; they are not real people, organizations, places or contacts.</p>}
-            <p>
-              Confirmed {new Date(currentSummary.confirmed_at).toLocaleString()}.{' '}
-              {currentSummary.last_output_generated_at
-                ? `Output last generated ${new Date(currentSummary.last_output_generated_at).toLocaleString()}.`
-                : 'Output has not been generated yet.'}
-            </p>
-          </div>
-        </details>
-      )}
-    </section>
-  )
+    </footer>
+  </section>
 }

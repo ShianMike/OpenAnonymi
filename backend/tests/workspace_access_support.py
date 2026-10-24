@@ -34,7 +34,6 @@ PRIVATE_PRESET = {
     "name": "Fictional private preset",
     "categories": ["email"],
     "phone_region": "PH",
-    "column_rules": [{"column": 0, "header": "Fictional protected header", "mode": "scan"}],
 }
 
 

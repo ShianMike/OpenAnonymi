@@ -3,6 +3,8 @@
   const screen = document.getElementById('startup-loading')
   const message = document.getElementById('startup-message')
   if (!screen || !message) return
+  // Animations count from page load, so the app's identical screen continues the same frame.
+  screen.style.setProperty('--boot-offset', `${-Math.round(performance.now())}ms`)
   const update = () => {
     if (!screen?.isConnected || !message) return
     screen.dataset.slow = 'true'

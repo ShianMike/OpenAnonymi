@@ -1,28 +1,90 @@
-.team-panel { padding: 22px; margin-block: 18px; min-width: 0; }
-.team-panel .panel-heading { margin-bottom: 16px; }
-.team-assignee { overflow-wrap: anywhere; margin-block: 16px 8px; }
-.team-approved { display: flex; align-items: center; gap: 8px; color: var(--blue-strong); font-size: .85rem; }
-.team-panel button:not([role='combobox']), .team-form button:not([role='combobox']) { border: 0; border-radius: 10px; padding: 11px 15px; min-height: 44px; color: var(--text); background: var(--surface-subtle); }
-.team-approval { display: grid; gap: 14px; margin-top: 16px; }
-.team-panel .team-approval > button, .team-panel button[type='submit'], .team-form > button[type='submit'] { background: var(--blue); color: var(--on-accent); }
-:is(.team-approval > button, .team-panel button[type='submit'], .team-form > button[type='submit']):hover:not(:disabled) { background: var(--blue-strong); color: var(--on-accent); }
-.team-form { display: grid; gap: 14px; margin-top: 24px; }
-.team-form .choice-switch { margin-block: 8px; }
-.team-discussion > summary { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: .9rem; }
-.team-discussion-body { margin-top: 22px; }
-.team-discussion-body label { display: block; font-size: .8rem; margin-block: 12px 8px; }
-.team-discussion-body textarea { min-height: 100px; }
-.team-discussion-body form > button { margin-top: 12px; }
-.team-comment-list { list-style: none; padding: 0; margin: 20px 0; }
-.team-comment-list li { padding: 15px; margin-bottom: 10px; border-radius: 12px; background: var(--surface-subtle); }
-.team-comment-list li > div { display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
-.team-comment-list time { font-size: .7rem; color: var(--muted); }
-.team-comment-list p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .9rem; }
-.team-comment-list button { font-size: .75rem; color: var(--muted); }
-#review-handoff { margin: 0; padding: 20px; border: 1px solid var(--line); border-radius: 18px; }
-#review-handoff .team-heading { display: flex; align-items: flex-start; gap: 8px; }
-#review-handoff .panel-heading { flex: 1; min-width: 0; margin: 0; }
-#review-handoff .team-policy { flex: none; padding: 4px 7px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font-size: .68rem; }
-#review-handoff .team-assignee { margin: 14px 0 8px; padding: 10px 12px; border-radius: 10px; background: var(--surface-subtle); font-size: .85rem; }
-#review-handoff > .field-note { margin: 14px 0; line-height: 1.6; }
-#review-handoff > button { width: 100%; border: 1px solid var(--line); background: transparent; font-size: .81rem; }
+.studio-dialog.collaboration-dialog { width: min(600px,calc(100vw - 32px)); border-radius: 9px; }
+.collaboration-dialog .studio-dialog-heading { padding: 22px 24px 18px; border-bottom: 0; }
+.collaboration-dialog .studio-dialog-heading h2 { font-size: 20px; font-weight: 600; }
+.collaboration-dialog .studio-dialog-heading p { max-width: 400px; font-size: 12px; }
+.collaboration-views { display: flex; flex-direction: column; min-height: 0; }
+.collaboration-tabs { display: flex; flex: none; gap: 24px; padding: 0 24px; border-bottom: 1px solid var(--line); }
+.studio .collaboration-tabs > button { position: relative; display: inline-flex; gap: 7px; min-height: 44px; margin: 0; padding: 10px 0; border: 0; border-radius: 0; color: var(--muted); background: transparent; font-size: 13px; font-weight: 450; }
+.studio .collaboration-tabs > button[data-state=active] { color: var(--text); font-weight: 550; }
+.collaboration-tabs > button[data-state=active]::after { content: ''; position: absolute; inset: auto 0 0; height: 2px; background: var(--blue); }
+.collaboration-draft-badge { padding: 1px 5px; border-radius: 4px; color: var(--blue-strong); background: var(--blue-tint); font-size: 10px; font-weight: 450; }
+.collaboration-tab { min-height: 0; padding: 24px; overflow: auto; overscroll-behavior: contain; }
+.collaboration-tab[data-state=inactive] { display: none; }
+.collaboration-tab:focus-visible { outline: 2px solid var(--focus); outline-offset: -3px; }
+.collaboration-section { min-width: 0; padding: 0; margin: 0; border: 0; background: transparent; box-shadow: none; }
+.collaboration-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.collaboration-section h3, .collaboration-section h4 { margin: 0; font-size: 14px; font-weight: 550; }
+.collaboration-policy { flex: none; padding: 2px 6px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); font-size: 10px; line-height: 1.7; }
+.collaboration-description { margin: 7px 0 20px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.collaboration-access-form { display: block; margin: 0; padding: 0; border: 0; background: transparent; }
+.collaboration-empty-team { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px 20px; margin: 18px 0; border: 1px dashed var(--line-strong); border-radius: 6px; color: var(--muted); text-align: center; }
+.collaboration-empty-team > svg { margin-bottom: 3px; }
+.collaboration-empty-team h3, .collaboration-empty-team h4 { color: var(--text); font-size: 14px; font-weight: 500; }
+.collaboration-empty-team p { max-width: 320px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.collaboration-empty-team a { min-height: 32px; margin-top: 3px; color: var(--blue-strong); font-size: 12px; line-height: 32px; text-decoration: none; }
+.collaboration-empty-team a:hover { text-decoration: underline; }
+.collaboration-reviewer-field { margin: 18px 0; }
+.collaboration-reviewer-field label, .collaboration-composer > label { display: block; margin: 0 0 8px; color: var(--text); font-size: 12px; font-weight: 500; }
+.collaboration-dialog .studio-select { width: 100%; min-height: 38px; }
+.collaboration-note { margin: 12px 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.collaboration-permissions { display: flex; align-items: flex-start; gap: 8px; margin: 12px 0 0; color: var(--muted); font-size: 11px; line-height: 1.7; }
+.collaboration-permissions > svg { flex: none; margin-top: 2px; }
+.collaboration-dialog .choice-switch { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin: 20px 0 0; padding: 18px 0; border: 0; border-block: 1px solid var(--line); border-radius: 0; background: transparent; box-shadow: none; }
+.collaboration-dialog .choice-switch > span { min-width: 0; }
+.collaboration-dialog .choice-switch strong { font-size: 13px; font-weight: 500; line-height: 1.6; }
+.collaboration-dialog .choice-switch small { margin-top: 5px; font-size: 11px; line-height: 1.7; }
+.collaboration-change-note { margin: 16px 0 0; padding-left: 10px; border-left: 2px solid var(--line-strong); color: var(--muted); font-size: 11px; line-height: 1.7; }
+.collaboration-form-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 22px; }
+.collaboration-form-footer > span { color: var(--muted); font-size: 11px; }
+.studio .collaboration-form-footer button { min-height: 36px; padding: 8px 12px; font-size: 12px; }
+.collaboration-approved { display: flex; align-items: flex-start; gap: 9px; margin: 16px 0 0; color: var(--blue-strong); font-size: 12px; line-height: 1.7; }
+.collaboration-approved > svg { flex: none; margin-top: 2px; }
+.collaboration-approved strong { font-weight: 500; }
+.collaboration-approved p { margin: 4px 0 0; color: var(--muted); }
+.collaboration-approval { display: grid; gap: 18px; margin-top: 22px; }
+.collaboration-approval .glass-checkbox { align-items: flex-start; }
+.studio .collaboration-read-output { width: 100%; min-height: 40px; margin-top: 4px; }
+.collaboration-finding-context { margin: 16px 0; padding: 12px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface-subtle); }
+.collaboration-finding-context > span { color: var(--muted); font-size: 10px; }
+.collaboration-finding-context p { max-height: 80px; overflow: auto; margin: 4px 0 0; color: var(--text); font-size: 12px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.collaboration-no-comments { margin: 24px 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.collaboration-comments { margin: 22px 0; padding: 0; list-style: none; }
+.collaboration-comments li { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.collaboration-comments li:first-child { padding-top: 0; }
+.collaboration-comments header { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.collaboration-comments header strong { min-width: 0; margin-right: auto; color: var(--text); font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
+.collaboration-comments time { flex: none; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.collaboration-comments li > p { margin: 8px 0 0; color: var(--text); font-size: 12px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.studio button.collaboration-delete-comment { width: 28px; min-height: 28px; flex: none; margin: 0; padding: 5px; border-color: transparent; color: var(--muted); background: transparent; }
+.collaboration-delete-confirm { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding: 10px; border-radius: 5px; color: var(--muted); background: var(--surface-subtle); font-size: 11px; }
+.collaboration-delete-confirm > span { margin-right: auto; }
+.studio .collaboration-delete-confirm button { min-height: 30px; padding: 5px 8px; font-size: 11px; }
+.studio button.collaboration-danger { border-color: var(--tone-danger-line); color: var(--danger); background: var(--tone-danger-wash); }
+.collaboration-composer { margin-top: 22px; }
+.collaboration-composer .glass-textarea { margin: 0; padding: 0; border: 0; border-radius: 5px; background: transparent; box-shadow: none; }
+.collaboration-composer .border-beam { display: none; }
+.collaboration-composer textarea { min-height: 96px; resize: vertical; font-size: 13px; }
+.collaboration-composer-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; }
+.collaboration-composer-footer > span { color: var(--muted); font-size: 10px; line-height: 1.7; }
+.collaboration-composer-footer small { display: block; font-size: 10px; font-variant-numeric: tabular-nums; }
+.collaboration-composer-footer button { flex: none; font-size: 12px; }
+.collaboration-dialog .inline-notice { margin: 16px 0 0; padding: 12px; border-radius: 5px; font-size: 12px; }
+@media (max-width: 600px) {
+  .studio-dialog.collaboration-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 24px); }
+  .collaboration-dialog .studio-dialog-heading { padding: 20px 18px 14px; gap: 12px; }
+  .collaboration-dialog .studio-dialog-heading h2 { font-size: 19px; }
+  .collaboration-tabs { padding-inline: 18px; }
+  .collaboration-tab { padding: 20px 18px; }
+  .collaboration-section-heading { align-items: flex-start; gap: 12px; }
+  .collaboration-policy { font-size: 9px; }
+  .collaboration-empty-team { padding: 22px 14px; }
+  .collaboration-dialog .studio-icon, .collaboration-dialog .studio-select, .collaboration-form-footer button, .collaboration-composer-footer button { min-height: 44px; }
+  .studio .collaboration-form-footer button, .studio .collaboration-delete-confirm button { min-height: 44px; }
+  .studio .studio-team-trigger { min-width: 44px; min-height: 44px; }
+  .collaboration-empty-team a { min-height: 44px; line-height: 44px; }
+  .collaboration-dialog .studio-icon { min-width: 44px; }
+  .collaboration-comments header { flex-wrap: wrap; gap: 6px; }
+  .collaboration-comments time { font-size: 9px; }
+  .studio button.collaboration-delete-comment { width: 44px; min-height: 44px; }
+  .collaboration-composer-footer { align-items: flex-start; gap: 12px; }
+}

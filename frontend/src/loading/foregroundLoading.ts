@@ -8,7 +8,7 @@ const subscribe = (listener: () => void) => {
   return () => { listeners.delete(listener) }
 }
 
-/** Avoid a second status announcement while a page already has a structural loader. */
+/** Avoid duplicate background feedback while a visible section already announces loading. */
 export const useForegroundLoading = () => useSyncExternalStore(subscribe, () => count > 0)
 export function useLoadingPresence(ref: RefObject<HTMLElement | null>, present: boolean) {
   useEffect(() => {

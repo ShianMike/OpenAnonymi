@@ -11,7 +11,7 @@ from app.cleanup.service import purge_unavailable_content
 from app.db.models import Document, ExportEvent, Membership
 from app.db.source_structures import SourceStructure
 from app.exports.docx import MEDIA_TYPE, PARTS_ALLOWLIST
-from tests.csv_support import upload_csv
+from tests.csv_support import legacy_csv
 from tests.docx_fixtures import SENTINEL, read_word, simple_docx, structured_docx
 from tests.docx_support import confirm, mark, output, upload
 from tests.intake_support import _login
@@ -118,7 +118,7 @@ def test_structured_word_has_style_parity_fresh_parts_no_hidden_original_and_ide
     assert owner.get(base + "/source").json()["text"] == text
 
 
-@pytest.mark.parametrize("format", ["docx", "csv"])
+@pytest.mark.parametrize("format", ["docx", "txt"])
 def test_same_gate_requires_exact_completion_owner_and_active_second_approval(intake_site, format):
     owner, reviewer, engine, workspace, _actor = intake_site
     headers, rh = (
@@ -126,8 +126,8 @@ def test_same_gate_requires_exact_completion_owner_and_active_second_approval(in
         _login(reviewer, "intake-other@example.invalid"),
     )
     reviewer_id = reviewer.get("/api/v1/auth/session").json()["user_id"]
-    if format == "csv":
-        base, state, _ = upload_csv(
+    if format == "txt":
+        base, state, _ = legacy_csv(
             owner, headers, workspace, "Value,Other\nFictional review,Unmarked\n"
         )
     else:

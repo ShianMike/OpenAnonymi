@@ -282,6 +282,12 @@ def mutation_identity(request: Request) -> SessionIdentity:
 def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
     router = APIRouter(prefix="/api/v1/auth", tags=["accounts"])
     limiter = AttemptLimiter(engine, settings, scope="sign_in")
+    sign_in_address = AttemptLimiter(
+        engine, settings, scope="sign_in_address", maximum=20, network_scope=False
+    )
+    password_change_limiter = AttemptLimiter(
+        engine, settings, scope="password_change", network_scope=False
+    )
     registration_limiter = AttemptLimiter(engine, settings, scope="registration", maximum=3)
     registration_verify_limiter = AttemptLimiter(engine, settings, scope="registration_verify")
     registration_verify_address = AttemptLimiter(
@@ -301,6 +307,10 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
         network_scope=False,
     )
     recovery_request_limiter = AttemptLimiter(engine, settings, scope="recovery_request", maximum=3)
+    recovery_address = AttemptLimiter(
+        engine, settings, scope="recovery_address", maximum=3, window_seconds=3600,
+        network_scope=False,
+    )
     recovery_completion_limiter = AttemptLimiter(engine, settings, scope="recovery_complete")
 
     def authorize_issued(session, issued):
@@ -332,7 +342,11 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
     ) -> Response:
         require_mutation_origin(request)
         client_ip = request_client_ip(request)
-        if not limiter.take(client_ip):
+        try:
+            subject = lookup_forms(body.email)[0]
+        except ValueError:
+            subject = "invalid"
+        if not limiter.take(client_ip) or not sign_in_address.take(subject):
             raise ApiError(429, "sign_in_limited", "Too many sign-in attempts. Try again later.")
         try:
             with Session(engine) as session:
@@ -597,7 +611,7 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
     @router.post(
         "/change-password",
         status_code=204,
-        responses={400: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+        responses={status: {"model": ErrorResponse} for status in (400, 422, 429)},
     )
     def change_password_route(
         body: ChangePasswordRequest,
@@ -605,6 +619,10 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
         background: BackgroundTasks,
         identity: Annotated[SessionIdentity, Depends(mutation_identity)],
     ) -> Response:
+        if not password_change_limiter.take(str(identity.user_id)):
+            raise ApiError(
+                429, "password_change_limited", "Too many password attempts. Try again later."
+            )
         try:
             with Session(engine) as session:
                 change_password(
@@ -646,8 +664,14 @@ def create_auth_router(engine: Engine, settings: Settings) -> APIRouter:
         if not recovery_request_limiter.take(client_ip):
             raise ApiError(429, "recovery_limited", "Too many recovery requests. Try again later.")
         try:
-            with Session(engine) as session:
-                request_recovery(session, email=body.email, now=datetime.now(UTC), mailer=mailer)
+            subject = lookup_forms(body.email)[0]
+        except ValueError:
+            subject = "invalid"
+        try:
+            # Address throttling must not reveal whether an account exists.
+            if recovery_address.take(subject):
+                with Session(engine) as session:
+                    request_recovery(session, email=body.email, now=datetime.now(UTC), mailer=mailer)
         except RecoveryDeliveryError:
             raise ApiError(
                 503, "recovery_delivery_failed", "Recovery email could not be sent."

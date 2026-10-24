@@ -14,7 +14,7 @@ from app.db.repository import LoadedSource, _version, build_current_source
 from app.detection.service import ScanSnapshot, current_scan_state
 from app.groups.service import FindingsSnapshot, _snapshot
 from app.reviews.service import ReviewSummary, build_review_summary
-from app.team_review.service import HandoffView, _view
+from app.team_review.service import HandoffView, handoff_view
 from app.transformations.service import PreviewSnapshot, build_current_preview
 
 
@@ -51,5 +51,5 @@ def load_review_state(
             else None
         )
         return ReviewState(
-            source, scan, findings, preview, summary, _view(session, document, actor_id)
+            source, scan, findings, preview, summary, handoff_view(session, document, actor_id)
         )

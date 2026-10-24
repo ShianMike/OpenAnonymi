@@ -1,0 +1,14 @@
+[
+  { "id": "case-reference", "name": "Case references", "group": "Operations", "description": "Six-digit case numbers beginning with CASE-.", "pattern": "CASE-######", "example": "CASE-123456", "nearMiss": "CASE-12345" },
+  { "id": "support-ticket", "name": "Support tickets", "group": "Operations", "description": "Six-digit support references beginning with TKT-.", "pattern": "TKT-######", "example": "TKT-654321", "nearMiss": "TKT-6543210" },
+  { "id": "order-reference", "name": "Order references", "group": "Operations", "description": "Eight-digit order references beginning with ORD-.", "pattern": "ORD-########", "example": "ORD-12345678", "nearMiss": "ORD-1234567" },
+  { "id": "contract-reference", "name": "Contract references", "group": "Operations", "description": "A four-digit year and six-digit reference after CTR-.", "pattern": "CTR-####-######", "example": "CTR-2026-123456", "nearMiss": "CTR-2026-12345" },
+  { "id": "customer-id", "name": "Customer IDs", "group": "People", "description": "Eight-digit customer references beginning with CUST-.", "pattern": "CUST-########", "example": "CUST-12345678", "nearMiss": "CUST-123456789" },
+  { "id": "employee-id", "name": "Employee IDs", "group": "People", "description": "Six-digit employee references beginning with EMP-.", "pattern": "EMP-######", "example": "EMP-123456", "nearMiss": "EMP-12345" },
+  { "id": "student-id", "name": "Student IDs", "group": "People", "description": "Eight-digit student references beginning with STU-.", "pattern": "STU-########", "example": "STU-12345678", "nearMiss": "STU-1234567" },
+  { "id": "patient-reference", "name": "Patient references", "group": "People", "description": "Eight-digit record references beginning with MRN-.", "pattern": "MRN-########", "example": "MRN-12345678", "nearMiss": "MRN-123456789" },
+  { "id": "invoice-number", "name": "Invoice numbers", "group": "Finance", "description": "A four-digit year and six-digit reference after INV-.", "pattern": "INV-####-######", "example": "INV-2026-123456", "nearMiss": "INV-26-123456" },
+  { "id": "purchase-order", "name": "Purchase orders", "group": "Finance", "description": "Eight-digit purchase order references beginning with PO-.", "pattern": "PO-########", "example": "PO-12345678", "nearMiss": "PO-1234567" },
+  { "id": "asset-tag", "name": "Asset tags", "group": "Technical", "description": "Two letters and six digits after ASSET-.", "pattern": "ASSET-@@-######", "example": "ASSET-AB-123456", "nearMiss": "ASSET-A1-123456" },
+  { "id": "device-serial", "name": "Device serial numbers", "group": "Technical", "description": "Four letters and eight digits after SN-.", "pattern": "SN-@@@@-########", "example": "SN-ABCD-12345678", "nearMiss": "SN-ABC1-12345678" }
+]

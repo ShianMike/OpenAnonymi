@@ -1,8 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
+import { ChevronLeft, ArrowUpRight, Check, FileText, Fingerprint, Circle, X } from 'lucide-react'
 import type { SessionView } from '../api/client'
-import { PageHeader } from '../ui/PageHeader'
 import { LoadingState } from '../loading/LoadingState'
-import { StatusBadge } from '../ui/StatusBadge'
 import { UnsavedNavigationPrompt } from '../ui/UnsavedNavigationPrompt'
 import { useReviewController } from './useReviewController'
 import { ReviewSuggestions } from './ReviewSuggestions'
@@ -11,138 +10,77 @@ import { ReviewFindings } from './ReviewFindings'
 import { ReviewCompletion } from './ReviewCompletion'
 import { ReviewSettings } from './ReviewSettings'
 import { AutosaveStatus } from '../recovery/AutosaveStatus'
-import { HandoffPanel } from '../team/HandoffPanel'
-import { FindingDiscussion } from '../team/FindingDiscussion'
+import { ReviewCollaboration } from '../team/ReviewCollaboration'
 import { ReviewerSteps } from '../team/ReviewerSteps'
-import { useStickyReviewColumn } from './useStickyReviewColumn'
+import { StudioTheme } from './studio/StudioTheme'
+import { QuickGuideButton } from '../onboarding/QuickGuide'
 import './review-workspace.css'
 
-export function EditDraftPage({
-  session,
-  onUnsavedChange,
-}: {
-  session: SessionView
-  onUnsavedChange?: (dirty: boolean) => void
+export function EditDraftPage({ session, onUnsavedChange }: {
+  session: SessionView; onUnsavedChange?: (dirty: boolean) => void
 }) {
   const review = useReviewController(session)
   const location = useLocation()
-  const fromContinue = Boolean(location.state && typeof location.state === 'object' && location.state.fromContinue === true)
-  const workspaceId = review.state.kind === 'ready' ? review.state.saved.workspace_id
-    : session.memberships.find((item) => item.workspace_id === location.state?.workspaceId)?.workspace_id
-  const backTo = fromContinue ? `/continue${workspaceId ? `?workspace=${workspaceId}` : ''}` : '/documents'
-  const stickyColumnRef = useStickyReviewColumn()
-  const {
-    state,
-    error,
-    notice,
-    scan,
-    lastFocusedRef,
-    mobilePanel,
-    dirty,
-    settingsDirty,
-    reloadSaved,
-    pendingFindings,
-  } = review
-  return (
-    <section
-      className="review-page"
-      aria-labelledby="review-title"
-      onFocusCapture={(event) => {
-        if (event.target instanceof HTMLElement) lastFocusedRef.current = event.target
-      }}
-    >
-      <PageHeader
-        title={state.kind === 'ready' ? state.saved.title || 'Untitled review' : 'Review workspace'}
-        titleId="review-title"
-        description="Decide what stays, then read the full output before sharing."
-        action={<Link to={backTo}>{fromContinue ? 'Back to reviews' : 'Back to documents'}</Link>}
-      />
-      <UnsavedNavigationPrompt
-        when={review.decisionPending || ((dirty || settingsDirty) && !review.recovery.protected)}
-        saving={review.decisionPending}
-        onWaitAndLeave={review.flushDecisions}
-        focusBackId={dirty ? 'saved-source' : 'review-email'}
-        onDirtyChange={onUnsavedChange}
-        onSaveAndLeave={review.recovery.flush}
-        onDiscardAndLeave={review.recovery.clear}
-        onStay={() => {
-          if (dirty) {
-            review.setMobilePanel('original')
-            review.setEditingSource(true)
-          } else if (settingsDirty) {
-            const settings = document.getElementById('review-suggestion-settings')
-            if (settings instanceof HTMLDetailsElement) settings.open = true
-          }
-        }}
-      />
-      {state.kind === 'loading' && <LoadingState label="Loading the saved draft…" shape="document" description="Opening the source, saved decisions and reviewed output." />}
-      {state.kind === 'error' && (
-        <div role="alert">
-          <p>{state.message}</p>
-          {state.retryable !== false && (
-            <button type="button" onClick={reloadSaved}>
-              Retry
-            </button>
-          )}
-        </div>
-      )}
-      {state.kind === 'ready' && (
-        <>
-          <div className="review-status-row">
-            <div className="review-summary-strip" aria-label="Current review status">
-              <StatusBadge status={state.saved.status} />
-              {scan?.status === 'completed' ? (
-                <span>
-                  {pendingFindings.length > 0
-                    ? `${pendingFindings.length} ${pendingFindings.length === 1 ? 'detail needs' : 'details need'} your choice`
-                    : state.saved.status === 'ready' || state.saved.status === 'exported'
-                      ? 'Review confirmed'
-                      : review.activeFindings.length === 0
-                        ? 'No suggestions found · Read the full text'
-                        : 'Choices made · Check the reviewed output'}
-                </span>
-              ) : (
-                <span>
-                  {scan?.status === 'scanning' ? 'Looking for private details…' : scan?.status === 'failed' ? 'The check couldn’t finish · Retry suggestions' : 'Next: find suggestions, then choose what to change'}
-                </span>
-              )}
-              {dirty && <span>Text changes not saved yet</span>}
-              {settingsDirty && <span>Options not saved yet</span>}
-              {review.decisionPending && <span role="status">Saving decisions · Output is updating</span>}
-            </div>
-            {review.canEdit && <AutosaveStatus recovery={review.recovery} dirty={dirty || settingsDirty} />}
+  const { state, dirty, settingsDirty, pendingFindings, lastFocusedRef } = review
+  const workspaceId = state.kind === 'ready' ? state.saved.workspace_id : location.state?.workspaceId
+  const returnSearch = new URLSearchParams(typeof location.state?.documentsSearch === 'string' ? location.state.documentsSearch : '')
+  if (workspaceId) returnSearch.set('workspace', workspaceId)
+  const backTo = `/documents${returnSearch.size ? `?${returnSearch}` : ''}`
+  const total = review.activeFindings.length
+  const decided = total - pendingFindings.length
+  return <section className="studio review-studio" aria-labelledby="review-title" onFocusCapture={event => {
+    if (event.target instanceof HTMLElement) lastFocusedRef.current = event.target
+  }}>
+    <header className="studio-topbar">
+      <Link className="studio-back" to={backTo} aria-label="Back to documents"><ChevronLeft size={18} aria-hidden="true" /><span>Documents</span></Link>
+      <Fingerprint className="studio-brand" size={24} aria-label="OpenAnonymi" />
+      <div className="studio-title"><h1 id="review-title">{state.kind === 'ready' ? state.saved.title || 'Untitled review' : state.kind === 'loading' ? 'Opening review' : 'Review unavailable'}</h1>
+        <span>{session.memberships.find(item => item.workspace_id === workspaceId)?.workspace_name ?? 'Review workspace'}<span className="studio-title-separator">/</span>
+          {state.kind === 'loading' ? 'Loading…' : state.kind === 'error' ? 'Unavailable' : dirty || settingsDirty ? 'Unsaved changes' : review.decisionPending ? 'Saving…' : 'All changes saved'}</span>
+      </div>
+      <div className="studio-header-actions">
+        <QuickGuideButton />
+        <StudioTheme />
+        {state.kind === 'ready' && <>
+          <ReviewCollaboration key={state.saved.version.document_id} review={review} session={session} />
+          {review.canEdit && <ReviewSettings review={review} csrf={session.csrf_token} />}
+          <ReviewCompletion review={review} />
+        </>}
+      </div>
+    </header>
+    <UnsavedNavigationPrompt when={review.decisionPending || ((dirty || settingsDirty) && !review.recovery.protected)}
+      saving={review.decisionPending} onWaitAndLeave={review.flushDecisions}
+      focusBackId={dirty ? 'saved-source' : 'review-suggestion-settings'} onDirtyChange={onUnsavedChange}
+      onSaveAndLeave={review.recovery.flush} onDiscardAndLeave={review.recovery.clear}
+      onStay={() => {
+        if (dirty) { review.setMobilePanel('original'); review.setEditingSource(true) }
+        else if (settingsDirty) review.setSettingsOpen(true)
+      }} />
+    {state.kind === 'loading' && <LoadingState label="Opening your review…" shape="document" onRetry={review.reloadSaved} />}
+    {state.kind === 'error' && <div className="studio-message" role="alert"><p>{state.message}</p>
+      {state.retryable !== false && <button type="button" onClick={review.reloadSaved}>Retry</button>}</div>}
+    {state.kind === 'ready' && <>
+      <ReviewerSteps review={review} />
+      {(review.error || review.conflict) && !dirty && <div className="studio-notice is-error" role="alert"><span>{review.error || 'A newer version is saved. Reload it to continue.'}</span>
+        {review.conflict && <button type="button" onClick={review.reloadSaved}>Reload latest review</button>}</div>}
+      <div className="studio-workbench" data-mobile-panel={review.mobilePanel}>
+        <ReviewDocument review={review} userId={session.user_id} />
+        <aside className="studio-inspector" aria-label="Review findings">
+          <div className="inspector-heading"><h2>Findings <span>{total}</span></h2>
+            <button type="button" className="studio-icon" aria-label="Show original document" onClick={() => review.setMobilePanel('original')}><FileText size={17} /></button>
           </div>
-          <ReviewerSteps review={review} />
-          {(error || review.conflict) && !dirty && (
-            <div className="review-feedback is-error" role="alert">
-              <span>{error || 'A newer review version is saved. Reload the latest review to continue.'}</span>
-              {review.conflict && (
-                <button type="button" onClick={reloadSaved}>
-                  Reload latest review
-                </button>
-              )}
-            </div>
-          )}
-          {notice && (
-            <p className="review-feedback" role="status">
-              {notice}
-            </p>
-          )}
-          <div className="review-layout" data-mobile-panel={mobilePanel}>
-            <div className="review-main-column" ref={stickyColumnRef}>
-              <ReviewDocument review={review} userId={session.user_id} />
-              <ReviewCompletion review={review} />
-            </div>
-            <div className="review-side-column">
-              <ReviewSuggestions review={review} />
-              <ReviewFindings review={review} />
-              <HandoffPanel key={`${state.saved.version.source_revision_id}.${state.saved.version.decision_version}.${state.saved.status}`} review={review} session={session} />
-              <FindingDiscussion key={state.saved.version.source_revision_id} review={review} session={session} />
-              {review.canEdit && <ReviewSettings review={review} csrf={session.csrf_token} />}
-            </div>
-          </div>
-        </>
-      )}
-    </section>
-  )
+          <ReviewSuggestions review={review} />
+          <ReviewFindings review={review} />
+          {total > 0 && <div className="inspector-next"><div><strong>{pendingFindings.length ? `${pendingFindings.length} left to review` : 'Every finding reviewed'}</strong><span>Then read the full output.</span></div>
+            <button type="button" className="studio-icon" aria-label="Read reviewed output" onClick={() => review.setMobilePanel('preview')}><ArrowUpRight size={20} /></button></div>}
+        </aside>
+      </div>
+      <footer className="studio-statusbar"><span><Circle size={7} fill="currentColor" />{review.scan?.status === 'completed' ? `${decided} of ${total} findings reviewed` : review.scan?.status === 'scanning' ? 'Checking your document…' : 'Ready to scan'}</span>
+        <span className="studio-status-count">{Array.from(state.saved.text).length.toLocaleString()} characters</span>
+        {review.canEdit && <AutosaveStatus recovery={review.recovery} dirty={dirty || settingsDirty} />}
+      </footer>
+      {review.notice && <div className="studio-toast" role="status" aria-atomic="true"><Check size={16} aria-hidden="true" /><span>{review.notice}</span>
+        <button type="button" className="studio-icon" aria-label="Dismiss notification" onClick={() => review.setNotice(null)}><X size={15} /></button></div>}
+    </>}
+  </section>
 }

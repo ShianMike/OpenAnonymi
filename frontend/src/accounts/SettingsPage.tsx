@@ -1,95 +1,84 @@
-import { useEffect, useState } from 'react'
-import * as Tabs from '@radix-ui/react-tabs'
-import { Navigate, useSearchParams } from 'react-router-dom'
-import { Clock3, ShieldCheck, UserRound } from 'lucide-react'
-import { getSession, getWorkspaceSettings, type SessionView, type WorkspaceSettingsView } from '../api/client'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { ApiRequestError, getSession, getWorkspaceSettings, type SessionView, type WorkspaceSettingsView } from '../api/client'
 import { GlassSelect } from '../ui/GlassSelect'
-import { PageHeader } from '../ui/PageHeader'
+import { cn } from '../ui/cn'
 import { LoadingState } from '../loading/LoadingState'
 import { InlineNotice } from '../ui/WorkspaceControls'
+import { NotificationPreferencesPanel } from '../notifications/NotificationPreferencesPanel'
 import { AccountPanel } from './settings/AccountPanel'
+import { DevicesPanel } from './settings/DevicesPanel'
 import { RetentionPanel } from './settings/RetentionPanel'
 import { SecurityPanel } from './settings/SecurityPanel'
 import { WorkspaceSecurityPanel } from './settings/WorkspaceSecurityPanel'
+import { settingsHref, settingsSections, workspaceSettingsError } from './settings/settingsNavigation'
 import './settings/settings.css'
 
-type Data = { kind: 'loading' } | { kind: 'error'; workspaceId: string; message: string }
-  | { kind: 'ready'; settings: WorkspaceSettingsView }
+const PreferencesPage = lazy(() => import('../appearance/PreferencesPage').then(module => ({ default: module.PreferencesPage })))
+type Data = { kind: 'loading' } | { kind: 'error'; scope: string; error: ReturnType<typeof workspaceSettingsError> }
+  | { kind: 'ready'; scope: string; settings: WorkspaceSettingsView }
 
 export function SettingsPage({ session, onPasswordChanged, onSessionChanged, onSignedOut }: {
-  session: SessionView
-  onPasswordChanged: () => void
-  onSessionChanged: (session: SessionView) => void
-  onSignedOut: () => void
+  session: SessionView; onPasswordChanged: () => void; onSessionChanged: (session: SessionView) => void; onSignedOut: () => void
 }) {
-  const [params, setParams] = useSearchParams()
+  const [params] = useSearchParams()
+  const navigate = useNavigate()
   const adminWorkspaces = session.memberships.filter(item => item.role === 'administrator')
-  const workspace = adminWorkspaces.find(item => item.workspace_id === params.get('workspace')) ?? adminWorkspaces[0]
+  const requestedWorkspace = params.get('workspace')
+  const workspace = requestedWorkspace ? adminWorkspaces.find(item => item.workspace_id === requestedWorkspace) : adminWorkspaces[0]
   const workspaceId = workspace?.workspace_id ?? ''
-  const requested = params.get('section') ?? 'account'
-  const section = requested === 'security' || (requested === 'retention' && workspaceId) ? requested : 'account'
-  const workspaceSection = requested !== 'members' && !!workspaceId && section !== 'account'
+  const scope = `${workspaceId}.${session.user_id}.${session.csrf_token}`
+  const requested = params.get('section')
+  const section = settingsSections.find(item => item.id === requested) ?? settingsSections[0]
+  const workspaceSection = section.group === 'workspace'
   const [attempt, setAttempt] = useState(0)
   const [data, setData] = useState<Data>({ kind: 'loading' })
-  const [retentionActions, setRetentionActions] = useState<HTMLDivElement | null>(null)
-  const settings = data.kind === 'ready' && data.settings.id === workspaceId ? data.settings : null
-
+  const contentHeading = useRef<HTMLHeadingElement>(null)
+  const current = data.kind !== 'loading' && data.scope !== scope ? { kind: 'loading' as const } : data
   useEffect(() => {
-    if (!workspaceSection) return
+    if (workspaceSection && current.kind === 'error') contentHeading.current?.focus({ preventScroll: true })
+  }, [workspaceSection, current.kind])
+  const onRequestFailed = useCallback((cause: unknown) => {
+    if (cause instanceof ApiRequestError && (cause.status === 401 || cause.code === 'workspace_not_found')) {
+      setData({ kind: 'error', scope, error: workspaceSettingsError(cause) })
+    }
+  }, [scope])
+  useEffect(() => {
+    if (!workspaceSection || !workspaceId) return
     const controller = new AbortController()
     getWorkspaceSettings(workspaceId, controller.signal)
-      .then(value => { if (!controller.signal.aborted) setData({ kind: 'ready', settings: value }) })
-      .catch((cause: unknown) => {
-        if (!controller.signal.aborted) setData({ kind: 'error', workspaceId,
-          message: cause instanceof Error ? cause.message : 'Workspace settings could not be loaded.' })
-      })
+      .then(settings => { if (!controller.signal.aborted) setData({ kind: 'ready', scope, settings }) })
+      .catch(cause => { if (!controller.signal.aborted) setData({ kind: 'error', scope, error: workspaceSettingsError(cause) }) })
     return () => controller.abort()
-  }, [workspaceId, workspaceSection, attempt, session.csrf_token])
-
+  }, [workspaceSection, workspaceId, scope, attempt])
   function reload() { setData({ kind: 'loading' }); setAttempt(value => value + 1) }
-  function saved(value: WorkspaceSettingsView) {
-    setData(current => current.kind === 'ready' && current.settings.id === value.id ? { ...current, settings: value } : current)
+  function saved(settings: WorkspaceSettingsView) {
+    setData(previous => previous.kind === 'ready' && previous.scope === scope && settings.id === workspaceId ? { ...previous, settings } : previous)
   }
-  const workspaceState = data.kind === 'error' && data.workspaceId === workspaceId
-    ? <InlineNotice error>{data.message}<button type="button" onClick={reload}>Retry workspace settings</button></InlineNotice>
-    : <LoadingState label="Loading workspace settings…" description="Checking the saved workspace defaults." shape="form" />
-
-  if (requested === 'members') return <Navigate replace to={`/members${workspaceId ? `?workspace=${encodeURIComponent(workspaceId)}` : ''}`} />
-
-  return <section className="settings-hub" aria-labelledby="settings-title">
-    <PageHeader title="Settings" titleId="settings-title" description="Your account, sign-in security, and workspace retention."
-      action={workspaceSection ? <div className="settings-heading-tools"><div className="settings-workspace">
-        <label htmlFor="admin-workspace">Workspace</label>
-        {adminWorkspaces.length > 1 ? <GlassSelect id="admin-workspace" value={workspaceId} onValueChange={id => {
-          setData({ kind: 'loading' })
-          setParams(current => { const next = new URLSearchParams(current); next.set('workspace', id); return next })
-        }}>{adminWorkspaces.map(item => <option key={item.workspace_id} value={item.workspace_id}>{item.workspace_name || 'Workspace'}</option>)}</GlassSelect>
-          : <span>{workspace.workspace_name}</span>}
-      </div>{section === 'retention' && <div className="settings-retention-actions" ref={setRetentionActions} />}</div> : undefined} />
-    <Tabs.Root value={section} onValueChange={value => setParams(current => {
-      const next = new URLSearchParams(current); next.set('section', value); return next
-    })} className="settings-tabs">
-      <div className="settings-tab-bar">
-        <Tabs.List aria-label="Settings sections">
-          <Tabs.Trigger value="account" aria-label="Account"><UserRound size={18} aria-hidden="true" /><span><strong>Account</strong><small>Email &amp; workspaces</small></span></Tabs.Trigger>
-          <Tabs.Trigger value="security" aria-label="Security"><ShieldCheck size={18} aria-hidden="true" /><span><strong>Security</strong><small>Password &amp; sign-in</small></span></Tabs.Trigger>
-          {!!workspaceId && <Tabs.Trigger value="retention" aria-label="Retention"><Clock3 size={18} aria-hidden="true" /><span><strong>Retention</strong><small>Workspace defaults</small></span></Tabs.Trigger>}
-        </Tabs.List>
+  if (requested === 'members') return <Navigate replace to={`/members${requestedWorkspace || workspaceId ? `?workspace=${encodeURIComponent(requestedWorkspace || workspaceId)}` : ''}`} />
+  const navigation = settingsSections.filter(item => item.group === 'personal' || adminWorkspaces.length > 0)
+  return <section className="settings-page" aria-labelledby="settings-title">
+    <header className="settings-page-header"><h1 id="settings-title">Settings</h1><p>Your account, your preferences, and the way your workspace runs.</p></header>
+    <div className="settings-layout">
+      <nav className="settings-navigation" aria-label="Settings sections">
+        <div className="settings-navigation-group"><span>Personal</span>{navigation.filter(item => item.group === 'personal').map(item => <Link key={item.id} to={settingsHref(item.id, requestedWorkspace)} aria-current={section.id === item.id ? 'page' : undefined} className={cn('settings-navigation-link', section.id === item.id && 'is-current')}>{item.label}</Link>)}</div>
+        {adminWorkspaces.length > 0 && <div className="settings-navigation-group"><span>Workspace</span>{navigation.filter(item => item.group === 'workspace').map(item => <Link key={item.id} to={settingsHref(item.id, requestedWorkspace || workspaceId)} aria-current={section.id === item.id ? 'page' : undefined} className={cn('settings-navigation-link', section.id === item.id && 'is-current')}>{item.label}</Link>)}</div>}
+      </nav>
+      <div className="settings-mobile-navigation"><label htmlFor="settings-section">Settings section</label><GlassSelect id="settings-section" value={section.id} onValueChange={id => navigate(settingsHref(id, requestedWorkspace || (settingsSections.find(item => item.id === id)?.group === 'workspace' ? workspaceId : null)))}>{navigation.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</GlassSelect></div>
+      <div className="settings-content" key={`${section.id}.${scope}`}>
+        <header className="settings-content-header"><h2 ref={contentHeading} tabIndex={-1}>{section.title}</h2><p>{section.description}</p></header>
+        {workspaceSection && <div className="settings-workspace-scope"><div><label htmlFor="settings-workspace">Workspace</label>{adminWorkspaces.length > 1 ? <GlassSelect id="settings-workspace" value={workspaceId} onValueChange={id => navigate(settingsHref(section.id, id))}>{adminWorkspaces.map(item => <option key={item.workspace_id} value={item.workspace_id}>{item.workspace_name || 'Workspace'}</option>)}</GlassSelect> : <strong>{workspace?.workspace_name || 'No administrator access'}</strong>}</div><p>Changes affect members of this workspace.</p></div>}
+        {section.id === 'account' && <AccountPanel session={session} onSessionChanged={onSessionChanged} />}
+        {section.id === 'security' && <SecurityPanel session={session} onPasswordChanged={onPasswordChanged} onSessionChanged={onSessionChanged} />}
+        {section.id === 'devices' && <DevicesPanel csrfToken={session.csrf_token} onSignedOut={onSignedOut} />}
+        {section.id === 'notifications' && <><NotificationPreferencesPanel session={session} /><Link className="settings-text-link" to="/notifications">Open your notification inbox</Link></>}
+        {section.id === 'appearance' && <Suspense fallback={<LoadingState label="Opening appearance preferences…" shape="form" />}><PreferencesPage /></Suspense>}
+        {workspaceSection && (!workspace ? <InlineNotice error title="Administrator access needed" actions={<Link className="settings-button" to={settingsHref('account', null)}>Back to account</Link>}>Only workspace administrators can manage settings for the selected workspace. You can still manage your personal settings.</InlineNotice>
+          : current.kind === 'error' ? <InlineNotice error title={current.error.title} actions={<><button type="button" className="settings-button" onClick={reload}>{current.error.retryLabel}</button><Link className="settings-button" to={settingsHref('account', null)}>Back to account</Link></>}>{current.error.message}</InlineNotice>
+            : current.kind === 'loading' ? <LoadingState label="Loading workspace settings…" shape="form" onRetry={reload} />
+              : section.id === 'retention' ? <RetentionPanel settings={current.settings} csrfToken={session.csrf_token} onSaved={saved} onReload={reload} onRequestFailed={onRequestFailed} />
+                : <WorkspaceSecurityPanel settings={current.settings} session={session} onReload={reload} onRequestFailed={onRequestFailed} onSaved={value => { saved(value); void getSession().then(onSessionChanged).catch(() => {}) }} />)}
       </div>
-      <Tabs.Content value="account" forceMount>
-        <AccountPanel session={session} onSessionChanged={onSessionChanged} />
-      </Tabs.Content>
-      <Tabs.Content value="security">
-        <SecurityPanel session={session} onPasswordChanged={onPasswordChanged} onSignedOut={onSignedOut} onSessionChanged={updated => { onSessionChanged(updated); reload() }} />
-        {!!workspaceId && (settings ? <WorkspaceSecurityPanel key={workspaceId} settings={settings} session={session}
-          onSaved={value => {
-            saved(value)
-            void getSession().then(onSessionChanged).catch(() => { /* Retry through the next account action. */ })
-          }} onReload={reload} /> : workspaceState)}
-      </Tabs.Content>
-      {!!workspaceId && <Tabs.Content value="retention" forceMount>
-        {settings ? <RetentionPanel key={workspaceId} settings={settings} csrfToken={session.csrf_token} onSaved={saved} onReload={reload} actionsTarget={retentionActions} /> : workspaceState}
-      </Tabs.Content>}
-    </Tabs.Root>
+    </div>
   </section>
 }

@@ -8,24 +8,18 @@ export function NotificationLink({ userId }: { userId: string }) {
   const [count, setCount] = useState<number | null>(null)
   useEffect(() => {
     let controller: AbortController | undefined
-    let pending = false
     function refresh() {
+      controller?.abort()
       if (document.visibilityState !== 'visible') {
-        controller?.abort()
-        pending = false
         setCount(null)
         return
       }
-      if (pending) return
       controller = new AbortController()
       const current = controller
-      pending = true
       getUnreadCount(current.signal).then((result) => {
         if (!current.signal.aborted) setCount(result.count)
       }).catch(() => {
         if (!current.signal.aborted) setCount(null)
-      }).finally(() => {
-        if (controller === current) pending = false
       })
     }
     refresh()

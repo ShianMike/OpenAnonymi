@@ -319,7 +319,7 @@ def scan_document(
         source = keys.decrypt_text(
             ProtectedValue(revision.source_ciphertext, revision.source_key_id)
         )
-        from app.db.source_structures import load_csv, load_word
+        from app.db.source_structures import load_csv, load_review_blocks
         from app.intake.structure import allows_span
 
         csv_layout, column_rules = None, []
@@ -337,7 +337,7 @@ def scan_document(
             column_rules = load_rules(session, document, keys)
             layout = None
         else:
-            layout = load_word(session, current.source_revision_id, keys, len(source), source)
+            layout = load_review_blocks(session, current.source_revision_id, keys, source)
         categories = {
             FindingCategory(value) for value in document.category_settings.split(",") if value
         }
