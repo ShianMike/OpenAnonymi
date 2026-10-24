@@ -1,8 +1,11 @@
 """Signed-in code verification, attempt persistence, outbox bytes and cleanup."""
 
+import hashlib
 import json
+import secrets
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from sqlalchemy.orm import Session
 
 from app.accounts.outbox import OutboxMailer
@@ -13,7 +16,8 @@ from tests.intake_support import _login
 from tests.mail_support import Mailbox
 
 
-def test_settings_email_proof_single_use_and_persisted_failure_limit(intake_site):
+@pytest.mark.parametrize("legacy", (False, True))
+def test_settings_email_proof_single_use_and_persisted_failure_limit(intake_site, legacy):
     owner, _, engine, _, actor = intake_site
     mailer = Mailbox()
     owner.app.state.recovery_mailer = mailer
@@ -29,6 +33,7 @@ def test_settings_email_proof_single_use_and_persisted_failure_limit(intake_site
     response = owner.post("/api/v1/auth/email-verification", headers=headers)
     assert response.status_code == 202
     code = mailer.latest("intake-owner@example.invalid")
+    assert len(code) == 6 and code.isascii() and code.isdecimal()
     assert code not in response.text
     for _ in range(5):
         assert (
@@ -49,6 +54,10 @@ def test_settings_email_proof_single_use_and_persisted_failure_limit(intake_site
     assert owner.post("/api/v1/auth/email-verification", headers=headers).status_code == 202
     replacement = mailer.latest("intake-owner@example.invalid")
     assert replacement != code
+    if legacy:
+        replacement = secrets.token_urlsafe(24)
+        with Session(engine) as session, session.begin():
+            session.get(EmailVerification, actor).code_digest = hashlib.sha256(replacement.encode()).digest()
     assert (
         owner.post(
             "/api/v1/auth/email-verification/confirm", headers=headers, json={"code": replacement}

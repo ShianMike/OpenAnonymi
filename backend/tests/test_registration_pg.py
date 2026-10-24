@@ -1,5 +1,7 @@
 """Actual API code proof, expiry, password binding and concurrency on PostgreSQL."""
 
+import hashlib
+import secrets
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
@@ -10,10 +12,10 @@ from pydantic import SecretStr
 from sqlalchemy import delete, func, insert, select
 from sqlalchemy.orm import Session
 
+from app.accounts.email_codes import code_digest
 from app.accounts.limits import AttemptLimiter
 from app.accounts.signup import (
     AccountUnavailable,
-    digest,
     request_registration,
     verify_registration,
 )
@@ -68,12 +70,19 @@ def verify(client, email, code, *, password=PASSWORD):
     )
 
 
-def test_no_user_until_proof_wrong_expired_replay_and_protected_storage(registration_site):
+@pytest.mark.parametrize("legacy", (False, True))
+def test_no_user_until_proof_wrong_expired_replay_and_protected_storage(registration_site, legacy):
     client, engine, settings, mailer, email = registration_site
     response = request(client, email)
     assert response.status_code == 202 and "set-cookie" not in response.headers
     code = mailer.latest(email)
+    assert len(code) == 6 and code.isascii() and code.isdecimal()
     assert code not in response.text
+    if legacy:
+        code = secrets.token_urlsafe(24)
+        with Session(engine) as session, session.begin():
+            row = session.scalar(select(PendingRegistration).where(PendingRegistration.canonical_email == email))
+            row.code_digest = hashlib.sha256(code.encode()).digest()
     malformed = verify(client, email, "private-code-canary-☃")
     assert malformed.status_code == 422 and "private-code-canary" not in malformed.text
     with Session(engine) as session:
@@ -121,13 +130,15 @@ def test_no_user_until_proof_wrong_expired_replay_and_protected_storage(registra
         )
 
 
-def test_later_request_never_replaces_an_owners_password_or_code(registration_site):
+def test_later_request_never_replaces_an_owners_password_or_code(registration_site, monkeypatch):
     client, engine, _, mailer, email = registration_site
+    numbers = iter((42, 42, 7))
+    monkeypatch.setattr("app.accounts.email_codes.secrets.randbelow", lambda _: next(numbers))
     assert request(client, email).status_code == 202
     first = mailer.latest(email)
     assert request(client, email, password="third-party-password").status_code == 202
     second = mailer.latest(email)
-    assert first != second
+    assert (first, second) == ("000042", "000007")
     assert verify(client, email, first, password="third-party-password").status_code == 400
     assert verify(client, email, second).status_code == 400
     for _ in range(3):
@@ -144,8 +155,8 @@ def test_later_request_never_replaces_an_owners_password_or_code(registration_si
     assert verify(client, email, first).status_code == 201
 
 
-def test_existing_and_exhausted_addresses_get_identical_receipts_and_no_extra_mail(
-    registration_site,
+def test_existing_account_is_reported_without_sending_mail_or_creating_pending_signup(
+    registration_site, monkeypatch,
 ):
     client, engine, settings, mailer, email = registration_site
     for _ in range(3):
@@ -179,9 +190,17 @@ def test_existing_and_exhausted_addresses_get_identical_receipts_and_no_extra_ma
         original_email = user.email
         user.email = "owner@openanonymi.vercel.app"
     try:
+        def reject_new_address(*args, **kwargs):
+            raise AssertionError("Existing account lookup must not depend on new-address DNS checks")
+        monkeypatch.setattr("app.accounts.signup.creation_email", reject_new_address)
         existing = request(client, "owner@openanonymi.vercel.app")
-        assert existing.status_code == 202 and existing.json() == exhausted.json()
+        assert existing.status_code == 409 and existing.json()["code"] == "account_exists"
+        assert "already registered" in existing.json()["message"]
         assert mailer.messages == []
+        with Session(engine) as session:
+            assert session.scalar(select(PendingRegistration.id).where(
+                PendingRegistration.canonical_email == "owner@openanonymi.vercel.app",
+            )) is None
     finally:
         with Session(engine) as session, session.begin():
             session.scalar(
@@ -266,7 +285,7 @@ def test_pending_name_survives_key_rotation_and_expired_rows_are_purged(registra
             select(PendingRegistration).where(PendingRegistration.canonical_email == email)
         ).all()
         for row in rows:
-            if row.code_digest == digest(first_code):
+            if row.code_digest == code_digest(settings, "registration", email, first_code):
                 row.created_at = now - timedelta(minutes=20)
                 row.expires_at = now - timedelta(minutes=5)
     old_key = settings.content_keys[settings.active_key_id].get_secret_value().encode()

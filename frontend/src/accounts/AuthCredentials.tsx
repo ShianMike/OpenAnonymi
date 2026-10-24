@@ -3,22 +3,23 @@ import { useState, type FormEvent } from 'react'
 import { ArrowRight, ChevronDown, CircleHelp, Mail } from 'lucide-react'
 import { ApiRequestError, signIn, signUp, verifySignUp, type ChallengeView, type SessionView } from '../api/client'
 import { GlassInput } from '../ui/GlassField'
-import { AuthNotice, CapsLockNote, PasswordRequirement } from './AuthNotice'
+import { AuthNotice, CapsLockNote, ExistingAccountNotice, PasswordRequirement } from './AuthNotice'
 import { AuthSecondStep } from './AuthSecondStep'
 import { PASSWORD_MIN_LENGTH, useCapsLock, usePendingFocus } from './authFieldHooks'
 
 /** Where the visitor is inside sign in or sign up; the page heading follows it. */
-export type CredentialStage = 'credentials' | 'signup-details' | 'signup-code' | 'second-factor' | 'enrollment' | 'backup-codes'
+export type CredentialStage = 'credentials' | 'signup-details' | 'signup-code' | 'existing-account' | 'second-factor' | 'enrollment' | 'backup-codes'
 
 type Props = {
   mode: 'sign-in' | 'sign-up'
   initialEmail?: string
   onSignedIn: (session: SessionView) => void
   onRecover: (email: string, hasCode?: boolean) => void
+  onSignIn: (email: string) => void
   onStageChange: (stage: CredentialStage) => void
 }
 
-export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover, onStageChange }: Props) {
+export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover, onSignIn, onStageChange }: Props) {
   const [pending, setPending] = useState<'request' | 'complete' | null>(null)
   const [error, setError] = useState<Error | null>(null)
   const [email, setEmail] = useState(initialEmail)
@@ -31,6 +32,7 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
   const [challenge, setChallenge] = useState<ChallengeView | null>(null)
   const creating = mode === 'sign-up'
   const credentialsRejected = !creating && error instanceof ApiRequestError && error.code === 'invalid_credentials'
+  const accountExists = creating && error instanceof ApiRequestError && ['account_exists', 'account_unavailable'].includes(error.code)
   const busy = pending !== null
   const focus = usePendingFocus(busy)
   const { capsLock, capsLockProps } = useCapsLock()
@@ -74,6 +76,10 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
       onSignedIn(session)
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause : new Error('Please try again in a moment.'))
+      if (creating && cause instanceof ApiRequestError && ['account_exists', 'account_unavailable'].includes(cause.code)) {
+        focus.forget()
+        onStageChange('existing-account')
+      }
       if (!creating && cause instanceof ApiRequestError && cause.code === 'invalid_credentials') {
         focus.remember(document.getElementById('auth-password'))
       }
@@ -109,6 +115,9 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
       />
     )
   }
+
+  if (accountExists) return <ExistingAccountNotice email={email}
+    onSignIn={() => onSignIn(email)} onRecover={() => onRecover(email)} onChangeEmail={editDetails} />
 
   const passwordNotes = [creating && 'password-hint', capsLock && 'auth-password-caps', credentialsRejected && 'auth-credentials-error'].filter(Boolean).join(' ')
 
@@ -216,17 +225,18 @@ export function AuthCredentials({ mode, initialEmail = '', onSignedIn, onRecover
               className="auth-code-field"
               required
               autoComplete="one-time-code"
+              inputMode="numeric"
               autoCapitalize="none"
               autoCorrect="off"
               spellCheck={false}
               maxLength={200}
-              placeholder="Paste the code"
+              placeholder="6-digit code"
               value={code}
               onChange={(event) => setCode(event.target.value)}
               aria-describedby="signup-code-help"
             />
             <small id="signup-code-help" className="field-hint">
-              Use the latest code. It expires after 15 minutes.
+              Enter the six-digit code from your email. It expires after 15 minutes.
             </small>
           </div>
         )}

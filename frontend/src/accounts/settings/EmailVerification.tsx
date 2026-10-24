@@ -43,11 +43,11 @@ export function EmailVerification({ session, onVerified }: {
     </div>
     {session.email_verified ? <p className="sr-only" role="status">Your email address is verified.</p> : <>
       {requested ? <div className="email-verification-entry">
-        <div><h4>Check your inbox</h4><p className="email-verification-help" id="email-verification-help">Paste the code from your verification email. Use the latest code; it expires after 15 minutes.</p></div>
+        <div><h4>Check your inbox</h4><p className="email-verification-help" id="email-verification-help">Enter the six-digit code from your verification email. Use the latest code; it expires after 15 minutes.</p></div>
         <form onSubmit={confirm} className="email-verification-form">
           <div><label className="field-label" htmlFor="email-verification-code">Email verification code</label>
             <GlassInput id="email-verification-code" autoComplete="one-time-code" autoCapitalize="none" spellCheck={false}
-              placeholder="Paste your verification code" required maxLength={200} disabled={!!pending} value={code}
+              inputMode="numeric" placeholder="6-digit code" required maxLength={200} disabled={!!pending} value={code}
               aria-describedby={`email-verification-help${error?.action === 'confirm' ? ' email-verification-error' : ''}`}
               aria-invalid={error?.action === 'confirm'} onChange={event => { setCode(event.target.value); setError(null) }} />
           </div>
