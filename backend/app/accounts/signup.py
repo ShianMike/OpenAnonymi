@@ -70,15 +70,19 @@ def request_registration(
     now: datetime,
 ) -> CodeDelivery | None:
     password_hash = hash_password(password)
-    canonical = creation_email(email, settings)
+    try:
+        forms = lookup_forms(email)
+    except ValueError:
+        forms = ()
     name = workspace_name.strip()
     if not name or len(name) > 120:
         raise ValueError("Workspace name must contain 1 to 120 characters.")
     keys = KeyRing.from_settings(settings)
     with Session(engine) as session, session.begin():
-        _lock_address(session, canonical)
-        if session.scalar(select(User.id).where(User.email.in_(lookup_forms(email)))) is not None:
+        _lock_address(session, forms[0] if forms else email.strip().casefold())
+        if session.scalar(select(User.id).where(User.email.in_(forms))) is not None:
             raise AccountUnavailable
+        canonical = creation_email(email, settings)
         if not AttemptLimiter(
             engine,
             settings,

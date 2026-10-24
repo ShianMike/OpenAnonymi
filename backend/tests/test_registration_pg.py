@@ -156,7 +156,7 @@ def test_later_request_never_replaces_an_owners_password_or_code(registration_si
 
 
 def test_existing_account_is_reported_without_sending_mail_or_creating_pending_signup(
-    registration_site,
+    registration_site, monkeypatch,
 ):
     client, engine, settings, mailer, email = registration_site
     for _ in range(3):
@@ -190,6 +190,9 @@ def test_existing_account_is_reported_without_sending_mail_or_creating_pending_s
         original_email = user.email
         user.email = "owner@openanonymi.vercel.app"
     try:
+        def reject_new_address(*args, **kwargs):
+            raise AssertionError("Existing account lookup must not depend on new-address DNS checks")
+        monkeypatch.setattr("app.accounts.signup.creation_email", reject_new_address)
         existing = request(client, "owner@openanonymi.vercel.app")
         assert existing.status_code == 409 and existing.json()["code"] == "account_exists"
         assert "already registered" in existing.json()["message"]
